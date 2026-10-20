@@ -84,6 +84,10 @@ tls:
 project:
   page_size: 20
 
+run_pipeline:                        # форма Run pipeline
+  refs_first: branches               # branches | tags — какая группа первой в подсказках ref
+  prefill_local_branch: true         # подставить текущую локальную ветку и поставить её первой
+
 polling:
   active: 3s                         # пока есть running-пайплайны
   idle: 30s

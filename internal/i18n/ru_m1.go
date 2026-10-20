@@ -116,13 +116,15 @@ func fillM1RU(m *Messages) {
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "тип"
+	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "переменных нет — джоба запустится как есть"
-	f.VarsHint = "a добавить · d удалить · enter правка · space тип"
-	f.RunHint = "ctrl+s запустить · esc отмена"
+	f.VarsHint = "a добавить · d удалить · enter правка · space тип · tab дальше · esc отмена"
+	f.RunHint = "enter запустить · tab дальше · esc отмена"
 	f.TypeEnv, f.TypeFile = "env_var", "file"
 	f.RunTitle, f.RefLabel, f.VarsLabel = "Запуск пайплайна", "Ref", "Переменные"
 	f.RefCurrent, f.RefTag = "текущая в git", "тег"
-	f.RefSearching, f.NoRefs = "ищу…", "нет подходящих веток и тегов"
+	f.RefSearching, f.NoRefs, f.RefsFailed = "ищем…", "нет подходящих веток и тегов", "нет ссылок: ошибка запроса"
+	f.RefBranches, f.RefTags = "ветки", "теги"
 	f.HintsLabel, f.HintsLoading, f.HintsNone = "Из .gitlab-ci.yml:", "загружаю подсказки из .gitlab-ci.yml…", "в .gitlab-ci.yml нет объявленных переменных"
 	f.HintsUnavailable = "подсказки недоступны"
 	f.WillCreate = func(ref string, n int) string {
@@ -130,11 +132,25 @@ func fillM1RU(m *Messages) {
 	}
 	f.RefRequired = "Укажи ветку или тег"
 	f.PickValue = func(key string) string { return "Значение для " + key }
-	f.PickHint = "1-9 добавить подсказку · tab — другой блок"
 	f.Created = func(id int64) string { return fmt.Sprintf("пайплайн #%d создан", id) }
-	f.RunNoVars = "переменных нет"
+	f.RunNoVars = "переменных нет — a добавить"
 	f.RunButton = "Запустить"
-	f.RunKeys = "↑/↓ ref · enter принять · tab блок · esc отмена"
+	f.HintsAll = func(n int) string { return fmt.Sprintf("s все (%d)", n) }
+	f.RefKeys = "↑/↓ ref · pgdn/pgup группа · enter выбрать · tab дальше · esc отмена"
+	f.VarsKeys = "a добавить · d удалить · enter изменить · space тип · 1-9/s подсказка · tab дальше · esc отмена"
+	f.ButtonKeys = "enter запустить · tab дальше · esc отмена"
+	f.EditKeys = "enter сохранить · esc отменить ввод"
+	f.PickKeys = "j/k выбор · enter взять · esc закрыть"
+	f.CheckingKeys, f.CreatingKeys = "проверяем тег… · esc отмена", "создаём…"
+	f.TagRerunTitle = func(tag string) string {
+		return "Запустить ещё один пайплайн на теге " + tag + "?"
+	}
+	f.TagRerunBody = func(id int64, status string) string {
+		return fmt.Sprintf("У тега уже есть пайплайн #%d (%s). Новый пойдёт на том же коммите: джобы тега — сборка, публикация, деплой — выполнятся снова.", id, status)
+	}
+	f.TagCheckFailed = func(err string) string {
+		return "Не удалось проверить, есть ли у тега пайплайн: " + err
+	}
 
 	lg := &m.Log
 	lg.Follow, lg.NoFollow = "● follow", "○ пауза"

@@ -104,3 +104,36 @@ func TestLoadNoPermissionWarningWithoutToken(t *testing.T) {
 		t.Fatalf("unexpected warnings %v", warns)
 	}
 }
+
+func TestLoadRunPipelineDefaults(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "language: ru\n", 0o600))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if cfg.RunPipeline.RefsFirst != RefsBranchesFirst || !cfg.RunPipeline.PrefillLocalBranch {
+		t.Fatalf("run_pipeline defaults: %+v", cfg.RunPipeline)
+	}
+}
+
+func TestLoadRunPipelineValues(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "run_pipeline:\n  refs_first: tags\n  prefill_local_branch: false\n", 0o600))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if cfg.RunPipeline.RefsFirst != RefsTagsFirst || cfg.RunPipeline.PrefillLocalBranch {
+		t.Fatalf("run_pipeline: %+v", cfg.RunPipeline)
+	}
+}
+
+func TestLoadUnknownRefsFirstWarnsAndFallsBack(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "run_pipeline:\n  refs_first: foo\n", 0o600))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RunPipeline.RefsFirst != RefsBranchesFirst || !cfg.RunPipeline.PrefillLocalBranch {
+		t.Fatalf("run_pipeline: %+v", cfg.RunPipeline)
+	}
+	if len(warns) != 1 || warns[0].Kind != WarnValue || warns[0].Key != "run_pipeline.refs_first" || warns[0].Value != "foo" || warns[0].Default != "branches" {
+		t.Fatalf("want one value warning, got %+v", warns)
+	}
+}

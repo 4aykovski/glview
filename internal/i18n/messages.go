@@ -47,6 +47,7 @@ type Messages struct {
 		ConfigSaveFailed  func(err string) string
 		ConfigBroken      func(detail string) string
 		ConfigPermissions func(path string) string
+		ConfigBadValue    func(key, value, def string) string
 		BrowserFailed     string
 		Copied            func(what string) string
 		AuthRestored      string

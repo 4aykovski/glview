@@ -8,6 +8,7 @@ import (
 	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
+	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/uitest"
 )
@@ -225,4 +226,29 @@ func TestNewPipelineFormFromList(t *testing.T) {
 	d.RequireView("Run pipeline", "fix/slot-race", "(current in git)")
 	d.Key("esc")
 	d.RequireNoView("Run pipeline")
+}
+
+func TestNewPipelineFormPrefill(t *testing.T) {
+	client := newFake(1)
+	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}, DefaultBranch: "main"})
+	addPipelines(client)
+	client.SetBranches(path, "main", "fix/slot-race")
+	repo, _ := tempRepo(t)
+	repo.Branch = "fix/slot-race"
+
+	// Detached HEAD: the default branch is prefilled.
+	detached := *repo
+	detached.Detached = true
+	d, _, _ := open(t, client, &detached)
+	d.Key("2", "n")
+	d.RequireView("will be created: ref=main,")
+	d.RequireNoView("(current in git)")
+
+	// run_pipeline.prefill_local_branch: false — the field starts empty,
+	// the local branch is only marked.
+	env := newEnv(client)
+	env.Settings.PrefillLocalBranch = false
+	d = uitest.New(t, app.New(env, New(env, path, repo), app.Options{}))
+	d.Key("2", "n")
+	d.RequireView("will be created: ref=,", "fix/slot-race  (current in git)")
 }

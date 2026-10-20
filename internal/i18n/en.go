@@ -53,6 +53,9 @@ var en = func() Messages {
 	m.Toast.ConfigSaveFailed = func(err string) string { return "Could not save config: " + err }
 	m.Toast.ConfigBroken = func(detail string) string { return "Config is not valid YAML, using defaults: " + detail }
 	m.Toast.ConfigPermissions = func(path string) string { return path + " holds a token and is readable by others: chmod 600" }
+	m.Toast.ConfigBadValue = func(key, value, def string) string {
+		return fmt.Sprintf("Config: unknown value %q of %s, using %s", value, key, def)
+	}
 	m.Toast.BrowserFailed = "Could not open the browser"
 	m.Toast.Copied = func(what string) string { return "copied: " + what }
 	m.Toast.AuthRestored = "Token accepted"

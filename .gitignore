@@ -8,3 +8,6 @@ coverage.*
 # Local denylist for scripts/githooks/confidential.sh: it names what must not
 # leak, so it never leaves the machine.
 /.confidential-patterns
+
+# Claude Code agent worktrees.
+/.claude/worktrees/

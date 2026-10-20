@@ -110,23 +110,35 @@ func fillM1EN(m *Messages) {
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "type"
+	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "no variables — the job starts as it is"
-	f.VarsHint = "a add · d delete · enter edit · space type"
-	f.RunHint = "ctrl+s run · esc cancel"
+	f.VarsHint = "a add · d delete · enter edit · space type · tab next · esc cancel"
+	f.RunHint = "enter run · tab next · esc cancel"
 	f.TypeEnv, f.TypeFile = "env_var", "file"
 	f.RunTitle, f.RefLabel, f.VarsLabel = "Run pipeline", "Ref", "Variables"
 	f.RefCurrent, f.RefTag = "current in git", "tag"
-	f.RefSearching, f.NoRefs = "searching…", "no matching branches or tags"
+	f.RefSearching, f.NoRefs, f.RefsFailed = "searching…", "no matching branches or tags", "no refs: request failed"
+	f.RefBranches, f.RefTags = "branches", "tags"
 	f.HintsLabel, f.HintsLoading, f.HintsNone = "From .gitlab-ci.yml:", "loading hints from .gitlab-ci.yml…", "no variables declared in .gitlab-ci.yml"
 	f.HintsUnavailable = "hints unavailable"
 	f.WillCreate = func(ref string, n int) string { return fmt.Sprintf("will be created: ref=%s, variables=%d", ref, n) }
 	f.RefRequired = "Enter a branch or tag"
 	f.PickValue = func(key string) string { return "Value for " + key }
-	f.PickHint = "1-9 add a hint · tab switch block"
 	f.Created = func(id int64) string { return fmt.Sprintf("pipeline #%d created", id) }
-	f.RunNoVars = "no variables"
+	f.RunNoVars = "no variables — a to add"
 	f.RunButton = "Run"
-	f.RunKeys = "↑/↓ pick ref · enter accept · tab switch · esc cancel"
+	f.HintsAll = func(n int) string { return fmt.Sprintf("s all (%d)", n) }
+	f.RefKeys = "↑/↓ ref · pgdn/pgup group · enter pick · tab next · esc cancel"
+	f.VarsKeys = "a add · d delete · enter edit · space type · 1-9/s hint · tab next · esc cancel"
+	f.ButtonKeys = "enter run · tab next · esc cancel"
+	f.EditKeys = "enter save · esc discard input"
+	f.PickKeys = "j/k choose · enter take · esc close"
+	f.CheckingKeys, f.CreatingKeys = "checking tag… · esc cancel", "creating…"
+	f.TagRerunTitle = func(tag string) string { return "Run another pipeline on tag " + tag + "?" }
+	f.TagRerunBody = func(id int64, status string) string {
+		return fmt.Sprintf("The tag already has pipeline #%d (%s). The new one runs on the same commit: the tag's jobs — build, publish, deploy — will run again.", id, status)
+	}
+	f.TagCheckFailed = func(err string) string { return "Could not check whether the tag already has a pipeline: " + err }
 
 	lg := &m.Log
 	lg.Follow, lg.NoFollow = "● follow", "○ paused"

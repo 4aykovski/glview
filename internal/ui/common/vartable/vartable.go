@@ -13,10 +13,12 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
 
-// Labels are the translated texts of the table.
+// Labels are the translated texts of the table. KeyPlaceholder and
+// ValuePlaceholder are shown muted in empty cells.
 type Labels struct {
-	Key, Value, Type, Empty string
-	TypeEnv, TypeFile       string
+	Key, Value, Type, Empty          string
+	TypeEnv, TypeFile                string
+	KeyPlaceholder, ValuePlaceholder string
 }
 
 const (
@@ -38,6 +40,7 @@ type Model struct {
 	editing bool
 	isNew   bool // the row being edited was just added
 	input   textinput.Model
+	width   int // last width given to View, sizes the edited cell
 }
 
 // New creates an empty table.
@@ -99,6 +102,7 @@ func (m *Model) Has(key string) bool {
 
 func (m *Model) startEdit(col int, isNew bool) tea.Cmd {
 	m.col, m.editing, m.isNew = col, true, isNew
+	m.fitInput()
 	switch col {
 	case colKey:
 		m.input.SetValue(m.rows[m.cursor].Key)
@@ -107,6 +111,19 @@ func (m *Model) startEdit(col int, isNew bool) tea.Cmd {
 	}
 	m.input.CursorEnd()
 	return m.input.Focus()
+}
+
+// fitInput sizes the input to the edited column. The input scrolls inside
+// its column, so the caret stays visible in long values; one cell is left
+// for the caret itself.
+func (m *Model) fitInput() {
+	keyW, valW, _ := colWidths(m.width)
+	w := valW
+	if m.col == colKey {
+		w = keyW
+	}
+	m.input.SetWidth(max(1, w-1))
+	m.input.SetCursor(m.input.Position()) // scroll the text to the new width
 }
 
 // Update handles a key press and reports whether the key was used.
@@ -198,49 +215,65 @@ func (m *Model) finishEdit(commit bool) {
 	}
 }
 
-// View renders the table in the given width.
+// colWidths splits the table width into the key, value and type columns.
+func colWidths(width int) (keyW, valW, typeW int) {
+	keyW = max(12, width/4)
+	typeW = 8
+	valW = max(10, width-keyW-typeW-6)
+	return keyW, valW, typeW
+}
+
+// View renders the table in the given width. The selected cell is always
+// highlighted across its column, empty cells show muted placeholders.
 func (m *Model) View(width int) string {
 	s := m.styles
-	keyW := max(12, width/4)
-	typeW := 8
-	valW := max(10, width-keyW-typeW-6)
-	line := func(k, v, t string, sel bool) string {
-		row := fit(k, keyW) + "  " + fit(v, valW) + "  " + fit(t, typeW)
-		if sel {
-			return s.Accent.Render("› ") + row
+	if width != m.width {
+		// The terminal was resized: the edited cell follows its column.
+		m.width = width
+		if m.editing {
+			m.fitInput()
 		}
-		return "  " + row
 	}
+	keyW, valW, typeW := colWidths(width)
 	out := []string{s.ColumnHeader.Render("  " + fit(m.labels.Key, keyW) + "  " + fit(m.labels.Value, valW) + "  " + fit(m.labels.Type, typeW))}
 	if len(m.rows) == 0 {
 		out = append(out, "  "+s.Muted.Render(m.labels.Empty))
 	}
 	for i, r := range m.rows {
-		k, v, t := r.Key, r.Value, m.labels.TypeEnv
+		t := m.labels.TypeEnv
 		if r.Type == gitlab.VarFile {
 			t = m.labels.TypeFile
 		}
-		if m.editing && i == m.cursor {
-			in := m.input.View()
-			switch m.col {
-			case colKey:
-				k = in
-			default:
-				v = in
-			}
-		} else if i == m.cursor && !m.editing {
-			switch m.col {
-			case colKey:
-				k = s.Bold.Render(k)
-			case colValue:
-				v = s.Bold.Render(v)
-			default:
-				t = s.Bold.Render(t)
-			}
+		cells := [3]string{
+			m.cell(r.Key, m.labels.KeyPlaceholder, keyW, i, colKey),
+			m.cell(r.Value, m.labels.ValuePlaceholder, valW, i, colValue),
+			m.cell(t, "", typeW, i, colType),
 		}
-		out = append(out, line(k, v, t, i == m.cursor))
+		mark := "  "
+		if i == m.cursor {
+			mark = s.Accent.Render("› ")
+		}
+		out = append(out, mark+cells[0]+"  "+cells[1]+"  "+cells[2])
 	}
 	return strings.Join(out, "\n")
+}
+
+// cell renders one cell of row i, padded to w.
+func (m *Model) cell(text, placeholder string, w, row, col int) string {
+	s := m.styles
+	if row != m.cursor || col != m.col {
+		if text == "" {
+			return fit(s.Muted.Render(placeholder), w)
+		}
+		return fit(text, w)
+	}
+	if m.editing {
+		return fit(m.input.View(), w)
+	}
+	if text == "" {
+		text = placeholder
+	}
+	return s.RowSelected.Render(fit(text, w))
 }
 
 // fit clips s to w cells and pads it to exactly w.

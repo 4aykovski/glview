@@ -57,6 +57,9 @@ var ru = func() Messages {
 	m.Toast.ConfigPermissions = func(path string) string {
 		return path + " содержит токен и доступен другим: chmod 600"
 	}
+	m.Toast.ConfigBadValue = func(key, value, def string) string {
+		return fmt.Sprintf("Конфиг: неизвестное значение %q у %s, использую %s", value, key, def)
+	}
 	m.Toast.BrowserFailed = "Не удалось открыть браузер"
 	m.Toast.Copied = func(what string) string { return "скопировано: " + what }
 	m.Toast.AuthRestored = "Токен принят"

@@ -22,6 +22,13 @@ type Settings struct {
 	PageSize   int           // project.page_size
 	PollActive time.Duration // polling.active
 	PollIdle   time.Duration // polling.idle
+
+	// RefsTagsFirst puts tags before branches in Run pipeline ref
+	// suggestions (run_pipeline.refs_first: tags).
+	RefsTagsFirst bool
+	// PrefillLocalBranch puts the local branch into the Run pipeline ref
+	// field and first among the suggestions (run_pipeline.prefill_local_branch).
+	PrefillLocalBranch bool
 }
 
 // Defaults of Settings (SPEC §7).
@@ -73,7 +80,7 @@ func NewEnv(lang i18n.Lang) *Env {
 		Styles: common.NewStyles(common.TerminalTheme(true)),
 		Now:    time.Now,
 
-		Settings: Settings{PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle},
+		Settings: Settings{PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle, PrefillLocalBranch: true},
 		Focused:  true,
 		Browser:  browser.Open,
 		Exec:     func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd { return tea.ExecProcess(c, done) },

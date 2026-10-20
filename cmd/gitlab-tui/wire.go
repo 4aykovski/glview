@@ -38,15 +38,7 @@ func buildRoot(opts options) (*app.Model, error) {
 
 	env := app.NewEnv(i18n.Parse(cfg.Language))
 	env.Cache = cache.New()
-	env.Settings = app.Settings{PageSize: cfg.Project.PageSize, PollActive: cfg.Polling.Active.D(), PollIdle: cfg.Polling.Idle.D()}
-	var toasts []app.ToastMsg
-	for _, w := range warns {
-		text := env.Msg.Toast.ConfigBroken(w.Text)
-		if w.Kind == config.WarnPermissions {
-			text = env.Msg.Toast.ConfigPermissions(cfgPath)
-		}
-		toasts = append(toasts, app.ToastMsg{Level: common.ToastWarn, Text: text})
-	}
+	toasts := applyConfig(env, cfg, warns, cfgPath)
 
 	gl := glab.Detect(cfg.Glab.Path, cfg.Glab.Disabled())
 	env.Glab = gl
@@ -186,4 +178,28 @@ func modeScreen(env *app.Env, plan startup.Plan, cfg config.Config) app.Screen {
 		return start.NewNotOnInstance(env, info, func() app.Screen { return workspaceOf(parent) })
 	}
 	return project.New(env, target.ProjectPath, plan.Repo)
+}
+
+// applyConfig copies the config values screens need into env.Settings and
+// turns the load warnings into toasts.
+func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPath string) []app.ToastMsg {
+	env.Settings = app.Settings{
+		PageSize: cfg.Project.PageSize, PollActive: cfg.Polling.Active.D(), PollIdle: cfg.Polling.Idle.D(),
+		RefsTagsFirst:      cfg.RunPipeline.RefsFirst == config.RefsTagsFirst,
+		PrefillLocalBranch: cfg.RunPipeline.PrefillLocalBranch,
+	}
+	var toasts []app.ToastMsg
+	for _, w := range warns {
+		var text string
+		switch w.Kind {
+		case config.WarnPermissions:
+			text = env.Msg.Toast.ConfigPermissions(cfgPath)
+		case config.WarnValue:
+			text = env.Msg.Toast.ConfigBadValue(w.Key, w.Value, w.Default)
+		default:
+			text = env.Msg.Toast.ConfigBroken(w.Text)
+		}
+		toasts = append(toasts, app.ToastMsg{Level: common.ToastWarn, Text: text})
+	}
+	return toasts
 }
