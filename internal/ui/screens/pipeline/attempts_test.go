@@ -1,0 +1,124 @@
+package pipeline
+
+import (
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/4aykovski/glview/internal/gitlab"
+	"github.com/4aykovski/glview/internal/gitlab/fake"
+	"github.com/4aykovski/glview/internal/i18n"
+	"github.com/4aykovski/glview/internal/ui/app"
+	"github.com/4aykovski/glview/internal/ui/screens/joblog"
+)
+
+func TestAttemptsOverlayOpensEarlierAttempt(t *testing.T) {
+	c := fixture()
+	d, root, _ := open(t, c)
+	d.Key("l") // test:unit, retried once
+	d.Key("a")
+	d.RequireView("Attempts of test:unit", "#3  ◐ running", "latest", "#9  ✗ failed   42s  1h", "enter log")
+	d.Key("j", "enter")
+	if root.Depth() != 2 {
+		t.Fatalf("depth = %d", root.Depth())
+	}
+	log, ok := root.Top().(*joblog.Screen)
+	if !ok || log.Job().ID != 9 {
+		t.Fatalf("top = %T", root.Top())
+	}
+	d.RequireView("#91840 › test:unit", "✗ failed", "attempt 1/2", "○ paused", "FAIL: TestFlaky")
+	if log.Following() {
+		t.Fatal("an earlier attempt does not follow")
+	}
+
+	// R and c act on the latest attempt.
+	d.Key("c")
+	d.RequireView("Cancel job test:unit?")
+	d.Key("y")
+	if cl := lastCall(c.Calls(), "Jobs.Cancel"); cl == nil || cl.Args[1] != int64(3) {
+		t.Fatalf("cancel call = %+v", cl)
+	}
+	d.Key("R")
+	if cl := lastCall(c.Calls(), "Jobs.Retry"); cl == nil || cl.Args[1] != int64(3) {
+		t.Fatalf("retry call = %+v", cl)
+	}
+	if log.Job().ID == 9 || log.Job().ID == 3 {
+		t.Fatalf("after retry the log shows job %d", log.Job().ID)
+	}
+	d.RequireView("retrying test:unit")
+	d.RequireNoView("attempt 1/2", "FAIL: TestFlaky")
+}
+
+func TestAttemptsOverlayLatestAndClose(t *testing.T) {
+	d, root, _ := open(t, fixture())
+	d.Key("l", "a")
+	d.RequireView("Attempts of test:unit")
+	d.Key("esc")
+	d.RequireNoView("Attempts of test:unit")
+	d.Key("a", "enter") // the latest attempt is selected first
+	log, ok := root.Top().(*joblog.Screen)
+	if !ok || log.Job().ID != 3 {
+		t.Fatalf("top = %T", root.Top())
+	}
+	d.RequireNoView("attempt ")
+}
+
+func TestAttemptsKeyWithoutEarlierAttempts(t *testing.T) {
+	d, root, _ := open(t, fixture())
+	d.RequireNoView("attempts:") // build ran once
+	d.Key("a")
+	d.RequireNoView("Attempts of")
+	d.Key("l", "l", "l", "a") // e2e bridge
+	d.RequireNoView("Attempts of")
+	if root.Depth() != 1 {
+		t.Fatal("must not push")
+	}
+}
+
+func TestRetryKeepsEarlierAttempts(t *testing.T) {
+	c := fixture()
+	d, root, scr := open(t, c)
+	d.Key("l", "R")
+	j, _ := scr.Selected()
+	if j.ID == 3 || len(j.Attempts) != 2 || j.Attempts[0].ID != 3 || j.Attempts[1].ID != 9 {
+		t.Fatalf("after retry: job %d, attempts %+v", j.ID, j.Attempts)
+	}
+	d.RequireView("· #3 ◐ · #9 ✗")
+	d.Key("a", "G", "enter")
+	log, ok := root.Top().(*joblog.Screen)
+	if !ok || log.Job().ID != 9 {
+		t.Fatalf("top = %T", root.Top())
+	}
+	d.RequireView("attempt 1/3", "FAIL: TestFlaky")
+}
+
+func TestAttemptsLineOverflow(t *testing.T) {
+	st := app.NewEnv(i18n.EN).Styles
+	job := gitlab.Job{ID: 305, Status: gitlab.StatusSuccess, Attempts: []gitlab.Job{
+		{ID: 303, Status: gitlab.StatusFailed}, {ID: 302, Status: gitlab.StatusFailed}, {ID: 301, Status: gitlab.StatusFailed},
+	}}
+	cases := []struct {
+		w    int
+		want string
+	}{
+		{100, "#305 ✓ · #303 ✗ · #302 ✗ · #301 ✗"},
+		{33, "#305 ✓ · #303 ✗ · #302 ✗ · #301 ✗"},
+		{32, "#305 ✓ · #303 ✗ · #302 ✗ · +1"},
+		{24, "#305 ✓ · #303 ✗ · +2"},
+		{5, "#305 ✓ · +3"}, // the latest attempt is always shown
+	}
+	for _, tc := range cases {
+		if got := ansi.Strip(attemptsLine(st, job, tc.w)); got != tc.want {
+			t.Errorf("w=%d: %q, want %q", tc.w, got, tc.want)
+		}
+	}
+}
+
+func lastCall(calls []fake.Call, method string) *fake.Call {
+	for i := len(calls) - 1; i >= 0; i-- {
+		if calls[i].Method == method {
+			return &calls[i]
+		}
+	}
+	return nil
+}

@@ -48,6 +48,11 @@ type Screen struct {
 	pipelineID int64
 	job        gitlab.Job
 
+	// An earlier attempt of a retried job: its number of total, and the
+	// latest attempt that R and c act on. attempt is 0 for the latest one.
+	attempt, attempts int
+	latest            gitlab.Job
+
 	p        jl.Parser
 	consumed int
 	folded   map[int]bool
@@ -81,6 +86,15 @@ func New(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, job gitlab.Job) 
 	}
 }
 
+// NewAttempt opens the log of an earlier attempt of a retried job: attempt i
+// of n, where latest is the newest one.
+func NewAttempt(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, job, latest gitlab.Job, i, n int) *Screen {
+	s := New(env, ref, pipelineID, job)
+	s.attempt, s.attempts, s.latest = i, n, latest
+	s.follow = false // an earlier attempt is final
+	return s
+}
+
 func (s *Screen) Init() tea.Cmd { return nil }
 
 func (s *Screen) Title() string { return fmt.Sprintf("#%d › %s", s.pipelineID, s.job.Name) }
@@ -92,6 +106,14 @@ func (s *Screen) CapturesInput() bool { return s.searching }
 
 // Job returns the job being shown (for tests).
 func (s *Screen) Job() gitlab.Job { return s.job }
+
+// target is the job R and c act on: the latest attempt.
+func (s *Screen) target() gitlab.Job {
+	if s.attempt > 0 {
+		return s.latest
+	}
+	return s.job
+}
 
 // Following reports follow mode (for tests).
 func (s *Screen) Following() bool { return s.follow }
@@ -128,8 +150,9 @@ func (s *Screen) load() tea.Cmd {
 	}
 }
 
-// polling is on while the job may still write output.
-func (s *Screen) polling() bool { return s.job.Status.Active() }
+// polling is on while the job may still write output; an earlier attempt
+// is final and loaded once.
+func (s *Screen) polling() bool { return s.attempt == 0 && s.job.Status.Active() }
 
 func (s *Screen) schedulePoll() tea.Cmd {
 	if !s.active || s.env.AuthLost || !s.polling() {
@@ -282,6 +305,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if msg.retry {
 			// Show the log of the new job instead of this one.
 			s.job = msg.job
+			s.attempt, s.attempts = 0, 0
 			s.p.Reset()
 			s.consumed, s.known, s.cursor, s.offset, s.xoff = 0, 0, 0, 0, 0
 			s.folded = map[int]bool{}
@@ -367,7 +391,7 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return s.retry()
 	case "c":
 		m := env.Msg.Pipe
-		return app.OpenOverlay(app.NewConfirm(env, m.CancelJobTitle(s.job.Name), m.CancelJobBody, s.cancel()))
+		return app.OpenOverlay(app.NewConfirm(env, m.CancelJobTitle(s.target().Name), m.CancelJobBody, s.cancel()))
 	}
 	s.clamp()
 	return nil
@@ -480,7 +504,7 @@ func (s *Screen) step(d int) {
 }
 
 func (s *Screen) retry() tea.Cmd {
-	client, ref, job := s.env.Client, s.ref, s.job
+	client, ref, job := s.env.Client, s.ref, s.target()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
@@ -490,7 +514,7 @@ func (s *Screen) retry() tea.Cmd {
 }
 
 func (s *Screen) cancel() tea.Cmd {
-	client, ref, job := s.env.Client, s.ref, s.job
+	client, ref, job := s.env.Client, s.ref, s.target()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
@@ -507,6 +531,9 @@ func (s *Screen) View() string {
 	ctx := fmt.Sprintf("#%d › %s ", s.pipelineID, j.Name) + st.Status(j.Status)
 	if j.Duration > 0 {
 		ctx += " " + render.Duration(j.Duration)
+	}
+	if s.attempt > 0 {
+		ctx += st.Muted.Render(" · " + m.Log.Attempt(s.attempt, s.attempts))
 	}
 	follow := m.Log.NoFollow
 	if s.follow {

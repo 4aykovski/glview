@@ -5,6 +5,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -124,6 +125,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"h", "left"}, "h/l", k.Stage, common.PriorityHigh),
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Job, common.PriorityHigh),
 		common.NewBinding([]string{"enter"}, "", k.Log, common.PriorityHigh),
+		common.NewBinding([]string{"a"}, "", k.Attempts, common.PriorityLow),
 		common.NewBinding([]string{"P"}, "", k.Play, common.PriorityNormal),
 		common.NewBinding([]string{"R"}, "", k.Retry, common.PriorityNormal),
 		common.NewBinding([]string{"c"}, "", k.Cancel, common.PriorityNormal),
@@ -263,10 +265,10 @@ func (s *Screen) rebuild() {
 	for i, c := range s.cols {
 		s.sel[i] = max(0, min(s.sel[i], len(c.items)-1))
 	}
-	if selJob != 0 { // follow the job across reloads
+	if selJob != 0 { // follow the job across reloads and retries
 		for i, c := range s.cols {
 			for k, it := range c.items {
-				if it.job.ID == selJob {
+				if it.job.ID == selJob || slices.ContainsFunc(it.job.Attempts, func(a gitlab.Job) bool { return a.ID == selJob }) {
 					s.si, s.sel[i] = i, k
 				}
 			}
@@ -455,6 +457,11 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		return s.jobCmd(actRetry, it.job)
+	case "a":
+		if it.bridge != nil || len(it.job.Attempts) == 0 {
+			return nil
+		}
+		return app.OpenOverlay(newAttemptsList(env, s.ref, s.id, it.job))
 	case "c":
 		if it.bridge != nil {
 			return nil
@@ -752,12 +759,16 @@ func (s *Screen) panel() string {
 	if j.Duration > 0 {
 		l2 += " · " + render.Duration(j.Duration)
 	}
-	l3 := fmt.Sprintf("%s: %t · %s: %d", m.PanelAllowFailure, j.AllowFailure, m.PanelRetries, j.RetryCount)
+	l3 := st.Muted.Render(fmt.Sprintf("%s: %t", m.PanelAllowFailure, j.AllowFailure))
+	if len(j.Attempts) > 0 {
+		l3 += st.Muted.Render(" · " + m.PanelAttempts + ": ")
+		l3 += attemptsLine(st, j, s.w-4-ansi.StringWidth(l3))
+	}
 	l4 := ""
 	if it.bridge == nil && (j.Status == gitlab.StatusRunning || j.Status == gitlab.StatusFailed) {
 		l4 = st.Muted.Render("▎ ") + s.logTxt
 	}
-	return frame(l1, st.Muted.Render(l2), st.Muted.Render(l3), l4)
+	return frame(l1, st.Muted.Render(l2), l3, l4)
 }
 
 func pad(s string, w int) string {

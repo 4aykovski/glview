@@ -33,8 +33,8 @@ anna.k · push · 1m30s  2 jobs: 1 ✓ 1 ◐
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ build  ✓ success                                                                                                                                             │
 │ job #1 · build · 1m00s                                                                                                                                       │
-│ allow_failure: false · retries: 0                                                                                                                            │
+│ allow_failure: false                                                                                                                                         │
 │                                                                                                                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-h/l stage  j/k job  enter log  P play  R retry  c cancel  r refresh  o pipeline in browser  O job in browser  y copy  ? help                             poll 3s
+h/l stage  j/k job  enter log  a attempts  P play  R retry  c cancel  r refresh  o pipeline in browser  O job in browser  y copy  ? help                 poll 3s

@@ -265,3 +265,71 @@ func TestOpenInBrowserAndNarrow(t *testing.T) {
 		}
 	}
 }
+
+// setupAttempt opens attempt 1 of 2 of a retried job: #5 failed, #7 is the latest.
+func setupAttempt(t *testing.T, latest gitlab.PipelineStatus) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
+	t.Helper()
+	c := fake.New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
+	old := gitlab.Job{ID: 5, Name: "test:integration", Stage: "test", Status: gitlab.StatusFailed, Duration: 30 * time.Second, WebURL: "https://gitlab.example.com/job/5"}
+	job := gitlab.Job{ID: 7, Name: "test:integration", Stage: "test", Status: latest, WebURL: "https://gitlab.example.com/job/7", Attempts: []gitlab.Job{old}}
+	c.AddPipeline(path, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 91840}, Jobs: []gitlab.Job{job}})
+	c.SetTrace(5, "first try\nFAIL: TestFlaky\n")
+	c.SetTrace(7, "second try\n")
+	env := app.NewEnv(i18n.EN)
+	env.Client, env.User, env.Host = c, c.User, "https://gitlab.example.com"
+	env.Now = func() time.Time { return now }
+	scr := NewAttempt(env, gitlab.ProjectRef{ID: 42, FullPath: path}, 91840, old, job, 1, 2)
+	root := app.New(env, scr, app.Options{})
+	return uitest.New(t, root), root, scr, c
+}
+
+func TestEarlierAttemptIsLoadedOnce(t *testing.T) {
+	d, root, scr, c := setupAttempt(t, gitlab.StatusRunning)
+	d.RequireView("#91840 › test:integration", "✗ failed", "30s · attempt 1/2", "○ paused", "FAIL: TestFlaky")
+	d.RequireNoView("second try")
+	if scr.Following() || scr.polling() {
+		t.Fatal("an earlier attempt neither follows nor polls")
+	}
+	n := c.CallCount("Jobs.Trace")
+	d.Send(common.PollTickMsg{Token: scr.poll.Current()})
+	if c.CallCount("Jobs.Trace") != n {
+		t.Fatal("an earlier attempt is not polled")
+	}
+	var opened string
+	root.Env().Browser = func(u string) error { opened = u; return nil }
+	d.Key("o")
+	if opened != "https://gitlab.example.com/job/5" {
+		t.Fatalf("o opened %q, want the attempt on screen", opened)
+	}
+}
+
+func TestEarlierAttemptActsOnLatest(t *testing.T) {
+	d, _, scr, c := setupAttempt(t, gitlab.StatusRunning)
+	d.Key("c")
+	d.RequireView("Cancel job test:integration?")
+	d.Key("y")
+	if c.CallCount("Jobs.Cancel") != 1 {
+		t.Fatal("cancel after yes")
+	}
+	for _, cl := range c.Calls() {
+		if cl.Method == "Jobs.Cancel" && cl.Args[1] != int64(7) {
+			t.Fatalf("cancel of %v, want the latest attempt", cl.Args[1])
+		}
+	}
+
+	d.Key("R")
+	for _, cl := range c.Calls() {
+		if cl.Method == "Jobs.Retry" && cl.Args[1] != int64(7) {
+			t.Fatalf("retry of %v, want the latest attempt", cl.Args[1])
+		}
+	}
+	if c.CallCount("Jobs.Retry") != 1 || scr.Job().ID == 5 || scr.Job().ID == 7 {
+		t.Fatalf("retry calls=%d job=%d", c.CallCount("Jobs.Retry"), scr.Job().ID)
+	}
+	d.RequireView("retrying test:integration", "● follow")
+	d.RequireNoView("attempt 1/2", "FAIL: TestFlaky")
+	if !scr.polling() {
+		t.Fatal("the new job is polled")
+	}
+}

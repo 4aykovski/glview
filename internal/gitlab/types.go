@@ -219,9 +219,9 @@ type Job struct {
 	AllowFailure bool
 	Duration     time.Duration
 	Runner       string
-	RetryCount   int
 	StartedAt    *time.Time
 	WebURL       string
+	Attempts     []Job // earlier (retried) attempts, newest first
 }
 
 // Bridge is a trigger job; Downstream is nil until the pipeline is created.

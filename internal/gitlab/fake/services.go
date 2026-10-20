@@ -573,6 +573,11 @@ func (c *Client) findJob(path string, id int64) (*gitlab.Job, error) {
 			if pl.Jobs[j].ID == id {
 				return &pl.Jobs[j], nil
 			}
+			for k := range pl.Jobs[j].Attempts {
+				if pl.Jobs[j].Attempts[k].ID == id {
+					return &pl.Jobs[j].Attempts[k], nil
+				}
+			}
 		}
 		for j := range pl.Bridges {
 			if pl.Bridges[j].ID == id {
@@ -621,7 +626,8 @@ func (s jobService) Retry(ctx context.Context, p gitlab.ProjectRef, id int64) (g
 	nj.ID = s.c.data.nextJobID
 	nj.Status = gitlab.StatusPending
 	nj.Duration = 0
-	nj.RetryCount++
+	nj.Attempts = append([]gitlab.Job{*old}, old.Attempts...)
+	nj.Attempts[0].Attempts = nil
 	for i := range s.c.data.pipes[path] {
 		pl := &s.c.data.pipes[path][i]
 		for j := range pl.Jobs {

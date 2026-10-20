@@ -33,8 +33,8 @@ anna.k · merge_request_event · 3m40s  6 jobs: 2 ✓ 1 ✗ 1 ◐ 1 ► 1 ○
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ deploy  ► manual                                                                                                     │
 │ job #5 · deploy                                                                                                      │
-│ allow_failure: false · retries: 0                                                                                    │
+│ allow_failure: false                                                                                                 │
 │                                                                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-h/l stage  j/k job  enter log  P play  R retry  c cancel  r refresh  o pipeline in browser  y copy  ? help       poll 3s
+h/l stage  j/k job  enter log  a attempts  P play  R retry  c cancel  r refresh  o pipeline in browser  ? help   poll 3s
