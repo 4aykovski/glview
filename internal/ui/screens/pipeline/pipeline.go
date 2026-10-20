@@ -122,11 +122,15 @@ func (s *Screen) Selected() (gitlab.Job, bool) {
 
 func (s *Screen) KeyMap() common.KeyMap {
 	k := s.env.Msg.Keys
-	return common.KeyMap{Short: []common.Binding{
+	b := []common.Binding{
 		common.NewBinding([]string{"h", "left"}, "h/l", k.Stage, common.PriorityHigh),
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Job, common.PriorityHigh),
 		common.NewBinding([]string{"enter"}, "", k.Log, common.PriorityHigh),
-		common.NewBinding([]string{"a"}, "", k.Attempts, common.PriorityLow),
+	}
+	if it := s.current(); it != nil && it.bridge == nil && len(it.job.Attempts) > 0 {
+		b = append(b, common.NewBinding([]string{"a"}, "", k.Attempts, common.PriorityLow))
+	}
+	return common.KeyMap{Short: append(b,
 		common.NewBinding([]string{"P"}, "", k.Play, common.PriorityNormal),
 		common.NewBinding([]string{"R"}, "", k.Retry, common.PriorityNormal),
 		common.NewBinding([]string{"c"}, "", k.Cancel, common.PriorityNormal),
@@ -134,7 +138,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"o"}, "", k.BrowserOne, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserJob, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
-	}}
+	)}
 }
 
 // ---- loading ----
@@ -467,12 +471,7 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if it.bridge != nil || len(it.job.Attempts) == 0 {
 			return nil
 		}
-		ref, id, job := s.ref, s.id, it.job
-		jobs := job.AllAttempts()
-		return app.OpenOverlay(joblog.NewAttemptsList(env, jobs, 0, func(aid int64) tea.Cmd {
-			i := slices.IndexFunc(jobs, func(a gitlab.Job) bool { return a.ID == aid })
-			return app.Push(joblog.NewAttempt(env, ref, id, job, i))
-		}))
+		return app.OpenOverlay(joblog.NewAttemptsList(env, it.job.AllAttempts(), 0, s.openAttempt))
 	case "c":
 		if it.bridge != nil {
 			return nil
@@ -534,6 +533,17 @@ func (s *Screen) open(it *item) tea.Cmd {
 		return app.Toast(common.ToastInfo, m.ToastNoAccess, "")
 	}
 	return app.Push(joblog.New(env, s.ref, s.id, it.job))
+}
+
+// openAttempt opens the log of attempt id with the attempts the screen has
+// now, not when the overlay opened: polling may have brought a newer one.
+func (s *Screen) openAttempt(id int64) tea.Cmd {
+	for _, j := range s.pl.Jobs {
+		if i := slices.IndexFunc(j.AllAttempts(), func(a gitlab.Job) bool { return a.ID == id }); i >= 0 {
+			return app.Push(joblog.NewAttempt(s.env, s.ref, s.id, j, i))
+		}
+	}
+	return nil
 }
 
 func (s *Screen) jobCmd(kind jobAction, job gitlab.Job) tea.Cmd {

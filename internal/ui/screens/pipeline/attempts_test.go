@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"context"
+	"slices"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -9,6 +11,7 @@ import (
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/app"
+	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/screens/joblog"
 )
 
@@ -149,6 +152,47 @@ func TestRetryInLogRefreshesPipelineOnReturn(t *testing.T) {
 	d.Key("R")
 	if cl := lastCall(c.Calls(), "Jobs.Retry"); cl == nil || cl.Args[1] != j.ID {
 		t.Fatalf("second retry call = %+v, want job %d", cl, j.ID)
+	}
+}
+
+func TestAttemptsOverlayUsesCurrentAttempts(t *testing.T) {
+	c := fixture()
+	d, root, scr := open(t, c)
+	d.Key("l", "a") // test:unit: #3 is the latest, #9 the earlier attempt
+	d.RequireView("Attempts of test:unit")
+	// Polling brings a new attempt while the overlay is open.
+	nj, err := c.Jobs().Retry(context.Background(), gitlab.ProjectRef{ID: 42, FullPath: path}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Send(common.PollTickMsg{Token: scr.poll.Current()})
+	d.Key("enter") // #3, the latest when the overlay opened
+	log, ok := root.Top().(*joblog.Screen)
+	if !ok || log.Job().ID != 3 {
+		t.Fatalf("top = %T", root.Top())
+	}
+	d.RequireView("attempt 2/3")
+	d.Key("R")
+	if cl := lastCall(c.Calls(), "Jobs.Retry"); cl == nil || cl.Args[1] != nj.ID {
+		t.Fatalf("retry call = %+v, want the latest job %d", cl, nj.ID)
+	}
+}
+
+func TestAttemptsKeyShownOnlyWithAttempts(t *testing.T) {
+	d, _, scr := open(t, fixture())
+	hasA := func() bool {
+		return slices.ContainsFunc(scr.KeyMap().Short, func(b common.Binding) bool { return slices.Contains(b.Keys(), "a") })
+	}
+	if hasA() {
+		t.Fatal("build ran once: no a")
+	}
+	d.Key("l") // test:unit, retried
+	if !hasA() {
+		t.Fatal("test:unit has an earlier attempt: a is shown")
+	}
+	d.Key("l", "l") // e2e bridge
+	if hasA() {
+		t.Fatal("no a on a bridge")
 	}
 }
 
