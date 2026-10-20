@@ -14,17 +14,19 @@ import (
 )
 
 // AttemptsList is the overlay with the attempts of a retried job, newest
-// first; enter hands the index of the chosen one to pick.
+// first; enter hands the ID of the chosen one to pick, which looks it up in
+// the current state of the screen: the attempts may change while the overlay
+// is open.
 type AttemptsList struct {
 	env  *app.Env
 	jobs []gitlab.Job // jobs[0] is the latest attempt
 	sel  int
-	pick func(i int) tea.Cmd
+	pick func(id int64) tea.Cmd
 }
 
 // NewAttemptsList lists jobs (as Job.AllAttempts returns them) with attempt sel
 // selected.
-func NewAttemptsList(env *app.Env, jobs []gitlab.Job, sel int, pick func(i int) tea.Cmd) *AttemptsList {
+func NewAttemptsList(env *app.Env, jobs []gitlab.Job, sel int, pick func(id int64) tea.Cmd) *AttemptsList {
 	return &AttemptsList{env: env, jobs: jobs, sel: max(0, min(sel, len(jobs)-1)), pick: pick}
 }
 
@@ -45,7 +47,7 @@ func (a *AttemptsList) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 	case "G", "end":
 		a.sel = len(a.jobs) - 1
 	case "enter":
-		return nil, a.pick(a.sel)
+		return nil, a.pick(a.jobs[a.sel].ID)
 	}
 	return a, nil
 }
@@ -84,7 +86,7 @@ func (a *AttemptsList) View(width, _ int) string {
 		texts[i] = strings.TrimRight(strings.Join(parts, "  "), " ")
 		w = max(w, ansi.StringWidth(texts[i])+1) // and the selection marker
 	}
-	w = min(w, width-6)
+	w = max(1, min(w, width-6))
 
 	rows := make([]string, len(a.jobs))
 	for i, j := range a.jobs {

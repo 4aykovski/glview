@@ -125,6 +125,33 @@ func TestRetryKeepsEarlierAttempts(t *testing.T) {
 	d.RequireView("attempt 1/3", "FAIL: TestFlaky")
 }
 
+func TestRetryInLogRefreshesPipelineOnReturn(t *testing.T) {
+	c := fixture()
+	d, root, scr := open(t, c)
+	d.Key("l", "enter") // the log of test:unit (#3)
+	d.Key("R")
+	retried := lastCall(c.Calls(), "Jobs.Retry")
+	if retried == nil || retried.Args[1] != int64(3) {
+		t.Fatalf("retry call = %+v", retried)
+	}
+	d.Key("esc")
+	if root.Depth() != 1 {
+		t.Fatalf("depth = %d", root.Depth())
+	}
+	// Back on Pipeline the new attempt is there without waiting for polling.
+	j, _ := scr.Selected()
+	if j.ID == 3 || len(j.Attempts) != 2 || j.Attempts[0].ID != 3 {
+		t.Fatalf("after retry in the log: job %d, attempts %+v", j.ID, j.Attempts)
+	}
+	d.RequireView("· #3 ◐ · #9 ✗")
+	// The latest attempt is the new job: R retries it, not #3 again.
+	d.Key("a", "enter")
+	d.Key("R")
+	if cl := lastCall(c.Calls(), "Jobs.Retry"); cl == nil || cl.Args[1] != j.ID {
+		t.Fatalf("second retry call = %+v, want job %d", cl, j.ID)
+	}
+}
+
 func TestAttemptsLineOverflow(t *testing.T) {
 	st := app.NewEnv(i18n.EN).Styles
 	job := gitlab.Job{ID: 305, Status: gitlab.StatusSuccess, Attempts: []gitlab.Job{

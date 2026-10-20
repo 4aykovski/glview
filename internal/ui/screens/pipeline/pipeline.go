@@ -84,6 +84,7 @@ type Screen struct {
 	logTxt string
 
 	updated time.Time
+	changed bool // another screen acted on the pipeline: reload on return
 	active  bool
 	w, h    int
 }
@@ -351,7 +352,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if !s.have {
 			return s, s.load(false)
 		}
-		if env.Now().Sub(s.updated) >= s.pollDelay() && !env.AuthLost {
+		if (s.changed || env.Now().Sub(s.updated) >= s.pollDelay()) && !env.AuthLost {
 			return s, s.load(true)
 		}
 		return s, s.schedulePoll()
@@ -366,9 +367,14 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if msg.err != nil {
 			return s, tea.Batch(env.Fail(msg.err), s.schedulePoll())
 		}
-		s.pl, s.have, s.updated = msg.pl, true, env.Now()
+		s.pl, s.have, s.updated, s.changed = msg.pl, true, env.Now(), false
 		s.rebuild()
 		return s, tea.Batch(s.schedulePoll(), s.loadTrace())
+
+	case app.PipelineChangedMsg:
+		if msg.ID == s.id && msg.Ref.Key() == s.ref.Key() {
+			s.changed = true
+		}
 
 	case traceMsg:
 		if s.logGen.Valid(msg.tok) && msg.job == s.logFor {
@@ -462,7 +468,9 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		ref, id, job := s.ref, s.id, it.job
-		return app.OpenOverlay(joblog.NewAttemptsList(env, job.AllAttempts(), 0, func(i int) tea.Cmd {
+		jobs := job.AllAttempts()
+		return app.OpenOverlay(joblog.NewAttemptsList(env, jobs, 0, func(aid int64) tea.Cmd {
+			i := slices.IndexFunc(jobs, func(a gitlab.Job) bool { return a.ID == aid })
 			return app.Push(joblog.NewAttempt(env, ref, id, job, i))
 		}))
 	case "c":

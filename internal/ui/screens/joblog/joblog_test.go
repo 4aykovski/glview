@@ -1,14 +1,17 @@
 package joblog
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/i18n"
@@ -422,4 +425,61 @@ func TestAttemptsOverlaySwitchesInPlace(t *testing.T) {
 	d.Key("a") // the shown attempt is selected
 	d.Key("k", "enter")
 	d.RequireView("attempt 2/2", "second try")
+}
+
+func TestAttemptsOverlayPicksByIDAfterRetry(t *testing.T) {
+	d, _, scr, c := setupAttempts(t, gitlab.StatusFailed, 0)
+	d.Key("a") // lists #7 and #5
+	d.RequireView("Attempts of test:integration")
+	// A retry answered while the overlay is open puts a new attempt in front.
+	nj, err := c.Jobs().Retry(context.Background(), gitlab.ProjectRef{ID: 42, FullPath: path}, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Send(actMsg{retry: true, job: nj})
+	if scr.Job().ID != nj.ID {
+		t.Fatalf("job = %d", scr.Job().ID)
+	}
+	d.Key("j", "enter") // #5 in the overlay
+	if scr.Job().ID != 5 {
+		t.Fatalf("picked job %d, want #5", scr.Job().ID)
+	}
+	d.RequireView("attempt 1/3", "FAIL: TestFlaky")
+}
+
+func TestCancelFromEarlierAttemptUpdatesLatest(t *testing.T) {
+	d, _, scr, _ := setupAttempt(t, gitlab.StatusRunning)
+	d.Key("c", "y")
+	if scr.Job().ID != 5 || scr.jobs[0].Status != gitlab.StatusCanceled {
+		t.Fatalf("shown %d, latest %+v", scr.Job().ID, scr.jobs[0])
+	}
+	d.Key("a")
+	d.RequireView("#7  ⊘ canceled")
+	d.RequireNoView("running")
+}
+
+func TestActionsInvalidatePipelineAndList(t *testing.T) {
+	d, root, _, _ := setupAttempts(t, gitlab.StatusFailed, 0)
+	env := root.Env()
+	env.Cache = cache.New()
+	pipe, list := "pipe:"+path+":91840", "pipes:"+path+":main"
+	env.Cache.Set(pipe, gitlab.Pipeline{})
+	env.Cache.Set(list, []gitlab.PipelineSummary{})
+	d.Key("R")
+	for _, key := range []string{pipe, list} {
+		fetched := false
+		_, _, _ = cache.Get(context.Background(), env.Cache, key, time.Hour, func(context.Context) (int, error) {
+			fetched = true
+			return 0, nil
+		})
+		if !fetched {
+			t.Errorf("%s must be invalidated by the retry", key)
+		}
+	}
+	if !slices.ContainsFunc(d.Msgs, func(m tea.Msg) bool {
+		ch, ok := m.(app.PipelineChangedMsg)
+		return ok && ch.ID == 91840 && ch.Ref.FullPath == path
+	}) {
+		t.Fatal("the screens below are told the pipeline changed")
+	}
 }
