@@ -210,7 +210,8 @@ func TestPlayManualJobWithVariable(t *testing.T) {
 	d, _, _ := open(t, c)
 	d.Key("l", "l") // deploy stage, manual job selected
 	d.Key("P")
-	d.RequireView("Run deploy", "KEY", "VALUE", "type", "ctrl+s run")
+	d.RequireView("Run deploy", "KEY", "VALUE", "type", "a add", "enter Run")
+	d.RequireNoView("ctrl+s")
 	d.Key("a")
 	for _, r := range "TARGET" {
 		d.Key(string(r))
@@ -219,7 +220,13 @@ func TestPlayManualJobWithVariable(t *testing.T) {
 	for _, r := range "canary" {
 		d.Key(string(r))
 	}
-	d.Key("enter", "ctrl+s")
+	d.Key("enter")
+	d.Key("tab") // a key while editing does not leave the table
+	if c.CallCount("Jobs.Play") != 0 {
+		t.Fatal("nothing runs before enter on the button")
+	}
+	d.RequireView("enter run · tab next · esc cancel")
+	d.Key("enter")
 	var call fake.Call
 	for _, cl := range c.Calls() {
 		if cl.Method == "Jobs.Play" {
@@ -238,7 +245,7 @@ func TestPlayWithoutVariablesAndForbidden(t *testing.T) {
 	d, _, _ := open(t, c)
 	d.Key("l", "l", "P")
 	c.FailNext("Jobs.Play", &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403})
-	d.Key("ctrl+s")
+	d.Key("tab", "enter")
 	d.RequireView("Not enough permissions")
 	for _, cl := range c.Calls() {
 		if cl.Method == "Jobs.Play" {
@@ -307,5 +314,26 @@ func TestPollingWhileRunningAndTopOnly(t *testing.T) {
 	d.Send(common.PollTickMsg{Token: stale})
 	if c.CallCount("Pipelines.Get") != n {
 		t.Fatal("covered screen must not poll")
+	}
+}
+
+func TestPlayFormFocusCycle(t *testing.T) {
+	c := fixture()
+	d, _, _ := open(t, c)
+	d.Key("l", "l", "P")
+	d.Key("enter") // on the table: no rows, nothing to edit, nothing runs
+	if c.CallCount("Jobs.Play") != 0 {
+		t.Fatal("enter on the table must not play")
+	}
+	d.Key("tab", "shift+tab") // button and back to the table
+	d.Key("a")
+	d.Key("tab") // typed into the cell: tab does nothing while editing
+	d.RequireView("Run deploy")
+	if c.CallCount("Jobs.Play") != 0 {
+		t.Fatal("tab while editing must not move to the button")
+	}
+	d.Key("esc", "shift+tab", "enter")
+	if c.CallCount("Jobs.Play") != 1 {
+		t.Fatalf("enter on the button must play, calls = %d", c.CallCount("Jobs.Play"))
 	}
 }

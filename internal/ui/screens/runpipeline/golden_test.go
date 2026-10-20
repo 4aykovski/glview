@@ -29,6 +29,12 @@ func TestGoldenTagConfirm(t *testing.T) {
 	d, _, f := open(t, c, "", "")
 	typeText(d, "v1.14.2")
 	d.Send(f.DebounceMsg())
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	d.RequireGolden("runpipeline-tag-confirm")
+}
+
+func TestGoldenButtonFocused(t *testing.T) {
+	d, _, _ := open(t, newFake(), "main", "")
+	d.Key("shift+tab")
+	d.RequireGolden("runpipeline-button")
 }

@@ -118,8 +118,8 @@ func fillM1RU(m *Messages) {
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "тип"
 	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "переменных нет — джоба запустится как есть"
-	f.VarsHint = "a добавить · d удалить · enter правка · space тип"
-	f.RunHint = "ctrl+s запустить · esc отмена"
+	f.VarsHint = "a добавить · d удалить · enter правка · space тип · tab дальше · esc отмена"
+	f.RunHint = "enter запустить · tab дальше · esc отмена"
 	f.TypeEnv, f.TypeFile = "env_var", "file"
 	f.RunTitle, f.RefLabel, f.VarsLabel = "Запуск пайплайна", "Ref", "Переменные"
 	f.RefCurrent, f.RefTag = "текущая в git", "тег"
@@ -136,8 +136,9 @@ func fillM1RU(m *Messages) {
 	f.RunNoVars = "переменных нет — a добавить"
 	f.RunButton = "Запустить"
 	f.HintsAll = func(n int) string { return fmt.Sprintf("s все (%d)", n) }
-	f.RefKeys = "↑/↓ ref · pgdn/pgup группа · enter выбрать · tab переменные · ctrl+s запустить · esc отмена"
-	f.VarsKeys = "a добавить · d удалить · enter изменить · space тип · 1-9/s подсказка · tab ref · ctrl+s запустить · esc отмена"
+	f.RefKeys = "↑/↓ ref · pgdn/pgup группа · enter выбрать · tab дальше · esc отмена"
+	f.VarsKeys = "a добавить · d удалить · enter изменить · space тип · 1-9/s подсказка · tab дальше · esc отмена"
+	f.ButtonKeys = "enter запустить · tab дальше · esc отмена"
 	f.EditKeys = "enter сохранить · esc отменить ввод"
 	f.PickKeys = "j/k выбор · enter взять · esc закрыть"
 	f.TagRerunTitle = func(tag string) string {

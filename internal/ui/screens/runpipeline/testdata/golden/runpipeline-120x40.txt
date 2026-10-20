@@ -2,6 +2,7 @@ host
 
 
 
+
                     ╭──────────────────────────────────────────────────────────────────────────────╮
                     │ Run pipeline  platform/route-service                                         │
                     │                                                                              │
@@ -25,8 +26,7 @@ host
                     │ ┌──────────────────────────────────────────────────────────────────────────┐ │
                     │ │ will be created: ref=feat/surge, variables=1                             │ │
                     │ └──────────────────────────────────────────────────────────────────────────┘ │
-                    │ ↑/↓ ref · pgdn/pgup group · enter pick · tab variables           ctrl+s Run  │
-                    │ ctrl+s run · esc cancel                                                      │
+                    │ ↑/↓ ref · pgdn/pgup group · enter pick · tab next · esc cancel    enter Run  │
                     ╰──────────────────────────────────────────────────────────────────────────────╯
 
 

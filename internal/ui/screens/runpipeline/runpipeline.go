@@ -50,6 +50,17 @@ type cand struct {
 	current bool // the branch of the local clone
 }
 
+// focus is the part of the form that receives keys; tab cycles through
+// them in this order.
+type focus int
+
+const (
+	focusRef focus = iota
+	focusVars
+	focusButton
+	focusCount
+)
+
 type hintState int
 
 const (
@@ -101,7 +112,7 @@ type Form struct {
 	input    textinput.Model
 	vt       *vartable.Model
 
-	focusVars bool
+	focus focus
 	// prefilled: the ref was put into the field on open and acts as
 	// selected text: it does not filter, the first typed character
 	// replaces it.
@@ -443,30 +454,44 @@ func (f *Form) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
 	if f.hintList {
 		return f, f.hintListKey(s)
 	}
+	editing := f.focus == focusVars && f.vt.CapturesInput()
 	switch s {
 	case "esc":
-		if f.focusVars && f.vt.CapturesInput() {
+		if editing {
 			_, cmd := f.vt.Update(k)
 			return f, cmd
 		}
 		return nil, nil
-	case "ctrl+s":
-		return f, f.run()
-	case "tab":
-		if f.focusVars && f.vt.CapturesInput() {
+	case "tab", "shift+tab":
+		if editing {
 			return f, nil
 		}
-		f.focusVars = !f.focusVars
-		if f.focusVars {
-			f.input.Blur()
-			return f, nil
+		step := focus(1)
+		if s == "shift+tab" {
+			step = focusCount - 1
 		}
-		return f, f.input.Focus()
+		return f, f.setFocus((f.focus + step) % focusCount)
 	}
-	if f.focusVars {
+	switch f.focus {
+	case focusVars:
 		return f, f.varsKey(k)
+	case focusButton:
+		if s == "enter" {
+			return f, f.run()
+		}
+		return f, nil
 	}
 	return f, f.refKey(k)
+}
+
+// setFocus moves the focus; only the ref field holds a text cursor.
+func (f *Form) setFocus(to focus) tea.Cmd {
+	f.focus = to
+	if to == focusRef {
+		return f.input.Focus()
+	}
+	f.input.Blur()
+	return nil
 }
 
 func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
@@ -599,7 +624,7 @@ func (f *Form) pickKey(s string) tea.Cmd {
 	return nil
 }
 
-// run handles ctrl+s. A branch is created right away; for a tag (or a ref
+// run handles enter on the Run button. A branch is created right away; for a tag (or a ref
 // that is not a known branch) the form first checks whether the tag
 // already has a pipeline (SPEC §3.9).
 func (f *Form) run() tea.Cmd {
@@ -700,12 +725,14 @@ func (f *Form) render(width, candN, hintN int) string {
 
 	refLabel := m.Form.RefLabel
 	varsLabel := m.Form.VarsLabel
-	refKind, varsKind := common.BoxActive, common.BoxNormal
-	if f.focusVars {
-		refKind, varsKind = common.BoxNormal, common.BoxActive
-		varsLabel = s.Accent.Render(varsLabel)
-	} else {
+	refKind, varsKind := common.BoxNormal, common.BoxNormal
+	switch f.focus {
+	case focusRef:
+		refKind = common.BoxActive
 		refLabel = s.Accent.Render(refLabel)
+	case focusVars:
+		varsKind = common.BoxActive
+		varsLabel = s.Accent.Render(varsLabel)
 	}
 	b.WriteString(refLabel + "\n")
 	b.WriteString(common.Box(s, " "+f.refView(), w, 3, refKind) + "\n")
@@ -754,10 +781,12 @@ func (f *Form) keysLine() string {
 	switch {
 	case f.picking != nil || f.hintList:
 		return m.PickKeys
-	case f.focusVars && f.vt.CapturesInput():
+	case f.focus == focusVars && f.vt.CapturesInput():
 		return m.EditKeys
-	case f.focusVars:
+	case f.focus == focusVars:
 		return m.VarsKeys
+	case f.focus == focusButton:
+		return m.ButtonKeys
 	}
 	return m.RefKeys
 }
@@ -766,7 +795,10 @@ func (f *Form) keysLine() string {
 // run button.
 func (f *Form) bottomView(w int) string {
 	s, m := f.env.Styles, f.env.Msg.Form
-	button := s.ButtonActive.Render("ctrl+s " + m.RunButton)
+	button := s.Button.Render("enter " + m.RunButton)
+	if f.focus == focusButton {
+		button = s.ButtonActive.Render("enter " + m.RunButton)
+	}
 	keysW := max(10, w-lipgloss.Width(button)-2)
 	var lines []string
 	line := ""
@@ -790,7 +822,7 @@ func (f *Form) bottomView(w int) string {
 
 func (f *Form) candidatesView(w, rows int) string {
 	s, m := f.env.Styles, f.env.Msg.Form
-	if f.focusVars {
+	if f.focus != focusRef {
 		return ""
 	}
 	if len(f.cands) == 0 {

@@ -112,8 +112,8 @@ func fillM1EN(m *Messages) {
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "type"
 	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "no variables — the job starts as it is"
-	f.VarsHint = "a add · d delete · enter edit · space type"
-	f.RunHint = "ctrl+s run · esc cancel"
+	f.VarsHint = "a add · d delete · enter edit · space type · tab next · esc cancel"
+	f.RunHint = "enter run · tab next · esc cancel"
 	f.TypeEnv, f.TypeFile = "env_var", "file"
 	f.RunTitle, f.RefLabel, f.VarsLabel = "Run pipeline", "Ref", "Variables"
 	f.RefCurrent, f.RefTag = "current in git", "tag"
@@ -128,8 +128,9 @@ func fillM1EN(m *Messages) {
 	f.RunNoVars = "no variables — a to add"
 	f.RunButton = "Run"
 	f.HintsAll = func(n int) string { return fmt.Sprintf("s all (%d)", n) }
-	f.RefKeys = "↑/↓ ref · pgdn/pgup group · enter pick · tab variables · ctrl+s run · esc cancel"
-	f.VarsKeys = "a add · d delete · enter edit · space type · 1-9/s hint · tab ref · ctrl+s run · esc cancel"
+	f.RefKeys = "↑/↓ ref · pgdn/pgup group · enter pick · tab next · esc cancel"
+	f.VarsKeys = "a add · d delete · enter edit · space type · 1-9/s hint · tab next · esc cancel"
+	f.ButtonKeys = "enter run · tab next · esc cancel"
 	f.EditKeys = "enter save · esc discard input"
 	f.PickKeys = "j/k choose · enter take · esc close"
 	f.TagRerunTitle = func(tag string) string { return "Run another pipeline on tag " + tag + "?" }

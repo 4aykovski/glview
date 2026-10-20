@@ -33,6 +33,12 @@ func TestGoldenPlayForm(t *testing.T) {
 	d.RequireGoldenSizes("pipeline-play")
 }
 
+func TestGoldenPlayFormButton(t *testing.T) {
+	d, _, _ := open(t, fixture())
+	d.Key("l", "l", "P", "tab")
+	d.RequireGolden("pipeline-play-button")
+}
+
 // TestGoldenPipelineStretched: two stages share a wide screen and a long job
 // name fits whole.
 func TestGoldenPipelineStretched(t *testing.T) {

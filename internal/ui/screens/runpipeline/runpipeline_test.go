@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,7 +131,7 @@ func TestHintsPickValueAndCreate(t *testing.T) {
 		t.Fatalf("vars = %+v", v)
 	}
 	d.RequireView("variables=1")
-	d.Key("ctrl+s")
+	d.Key("tab", "enter") // from the table to the button
 	var call fake.Call
 	for _, cl := range c.Calls() {
 		if cl.Method == "Pipelines.Create" {
@@ -172,7 +173,7 @@ func TestHintsNotReadyRetriesThenGivesUp(t *testing.T) {
 	}
 	d.RequireView("hints unavailable")
 	// The form still works.
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if c.CallCount("Pipelines.Create") != 1 {
 		t.Fatal("the form must stay usable without hints")
 	}
@@ -190,17 +191,18 @@ func TestHintsRecoverAfterRetry(t *testing.T) {
 func TestEditVariablesAndRefRequired(t *testing.T) {
 	c := newFake()
 	d, _, f := open(t, c, "", "")
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	d.RequireView("Enter a branch or tag")
 	if c.CallCount("Pipelines.Create") != 0 {
 		t.Fatal("empty ref must not create")
 	}
+	d.Key("tab") // the button → back to the ref
 	typeText(d, "main")
 	d.Key("tab", "a")
 	typeText(d, "FOO")
 	d.Key("enter")
 	typeText(d, "bar")
-	d.Key("enter", "ctrl+s")
+	d.Key("enter", "tab", "enter")
 	var vars []gitlab.CIVariable
 	for _, cl := range c.Calls() {
 		if cl.Method == "Pipelines.Create" {
@@ -435,13 +437,86 @@ func TestKeyLineFollowsFocus(t *testing.T) {
 	c := newFake()
 	c.SetCIVariables(path, "main", gitlab.CIConfigVariable{Key: "DEPLOY_ENV", ValueOptions: []string{"staging", "prod-canary"}})
 	d, _, _ := open(t, c, "main", "")
-	d.RequireView("↑/↓ ref · pgdn/pgup group", "tab variables")
+	d.RequireView("↑/↓ ref · pgdn/pgup group", "tab next")
+	d.RequireNoView("ctrl+s")
 	d.Key("tab")
 	d.RequireView("a add · d delete · enter edit", "1-9/s hint")
 	d.Key("a")
 	d.RequireView("enter save · esc discard input")
 	d.Key("esc", "1")
 	d.RequireView("j/k choose · enter take · esc close")
+	d.Key("esc", "tab")
+	d.RequireView("enter run · tab next · esc cancel", "enter Run")
+}
+
+// buttonFocused reports whether the Run button is drawn with the active
+// (reverse) button style.
+func buttonFocused(d *uitest.Driver) bool {
+	return strings.Contains(d.Model.View().Content, "7m \x1b[1menter Run")
+}
+
+func TestTabCyclesRefVariablesButton(t *testing.T) {
+	c := newFake()
+	d, _, f := open(t, c, "main", "")
+	order := []focus{focusVars, focusButton, focusRef, focusVars}
+	for _, want := range order {
+		d.Key("tab")
+		if f.focus != want {
+			t.Fatalf("tab: focus = %d, want %d", f.focus, want)
+		}
+	}
+	for _, want := range []focus{focusRef, focusButton, focusVars} {
+		d.Key("shift+tab")
+		if f.focus != want {
+			t.Fatalf("shift+tab: focus = %d, want %d", f.focus, want)
+		}
+	}
+	if buttonFocused(d) {
+		t.Fatal("the button is not focused on the table")
+	}
+	d.Key("tab")
+	if !buttonFocused(d) {
+		t.Fatalf("the focused button must use the active style:\n%q", d.Model.View().Content)
+	}
+}
+
+func TestTabDoesNothingWhileEditingOrPicking(t *testing.T) {
+	c := newFake()
+	c.SetCIVariables(path, "main", gitlab.CIConfigVariable{Key: "DEPLOY_ENV", ValueOptions: []string{"staging", "prod-canary"}})
+	d, _, f := open(t, c, "main", "")
+	d.Key("tab", "a", "tab")
+	if f.focus != focusVars || !f.vt.CapturesInput() {
+		t.Fatalf("tab while editing a cell: focus = %d", f.focus)
+	}
+	d.Key("esc", "1", "tab")
+	if f.focus != focusVars || f.picking == nil {
+		t.Fatal("tab while the value picker is open must do nothing")
+	}
+	d.Key("esc", "s", "shift+tab")
+	if f.focus != focusVars || !f.hintList {
+		t.Fatal("shift+tab while the hints list is open must do nothing")
+	}
+}
+
+func TestEnterRunsOnlyOnTheButton(t *testing.T) {
+	c := newFake()
+	d, _, _ := open(t, c, "main", "")
+	d.Key("enter")               // ref: picks the suggestion
+	d.Key("tab", "enter", "esc") // table: starts editing nothing (no rows), esc leaves
+	if c.CallCount("Pipelines.Create") != 0 {
+		t.Fatal("enter outside the button must not run")
+	}
+	d, root, _ := open(t, c, "main", "")
+	d.Key("tab", "tab", "esc")
+	if c.CallCount("Pipelines.Create") != 0 || root.Depth() != 1 {
+		t.Fatal("esc on the button cancels")
+	}
+	d.RequireNoView("Run pipeline")
+	d, root, _ = open(t, c, "main", "")
+	d.Key("shift+tab", "enter")
+	if c.CallCount("Pipelines.Create") != 1 || root.Depth() != 2 {
+		t.Fatalf("enter on the button must run, creates = %d", c.CallCount("Pipelines.Create"))
+	}
 }
 
 func manyHints() []gitlab.CIConfigVariable {
@@ -500,7 +575,7 @@ func TestTagWithPipelineAsksFirst(t *testing.T) {
 	d, root, f := open(t, c, "", "")
 	typeText(d, "v1.14.2")
 	d.Send(f.DebounceMsg())
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if cl := calls(c, "Pipelines.List"); len(cl) != 1 {
 		t.Fatalf("pipelines check = %+v", cl)
 	} else if fl, _ := cl[0].Args[1].(gitlab.PipelineFilter); fl.Ref != "v1.14.2" || fl.Scope != "tags" || cl[0].Args[3] != 1 {
@@ -515,7 +590,7 @@ func TestTagWithPipelineAsksFirst(t *testing.T) {
 		t.Fatal("cancel must not create")
 	}
 	d.RequireView("Run pipeline", "will be created: ref=v1.14.2")
-	d.Key("ctrl+s", "y")
+	d.Key("enter", "y") // the focus stays on the button
 	if cl := calls(c, "Pipelines.Create"); len(cl) != 1 || cl[0].Args[1] != "v1.14.2" {
 		t.Fatalf("create = %+v", cl)
 	}
@@ -529,7 +604,7 @@ func TestTagWithoutPipelineCreatesRightAway(t *testing.T) {
 	d, _, f := open(t, c, "", "")
 	typeText(d, "v1.15.0")
 	d.Send(f.DebounceMsg())
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if c.CallCount("Pipelines.List") != 1 || c.CallCount("Pipelines.Create") != 1 {
 		t.Fatalf("list=%d create=%d", c.CallCount("Pipelines.List"), c.CallCount("Pipelines.Create"))
 	}
@@ -539,7 +614,7 @@ func TestTagWithoutPipelineCreatesRightAway(t *testing.T) {
 func TestBranchIsNotChecked(t *testing.T) {
 	c := tagWithPipeline()
 	d, _, _ := open(t, c, "main", "")
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if c.CallCount("Pipelines.List") != 0 || c.CallCount("Pipelines.Create") != 1 {
 		t.Fatalf("list=%d create=%d", c.CallCount("Pipelines.List"), c.CallCount("Pipelines.Create"))
 	}
@@ -551,9 +626,9 @@ func TestUnknownRefIsLookedUpAsTag(t *testing.T) {
 	// A tag the loaded suggestions do not know yet.
 	c.SetTags(path, gitlab.Tag{Name: "v1.14.2"}, gitlab.Tag{Name: "v1.15.0"}, gitlab.Tag{Name: "v1.16.0"})
 	c.AddPipeline(path, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 91761, Ref: "v1.16.0", Status: gitlab.StatusFailed}})
-	typeText(d, "v1.16.0") // ctrl+s before the debounced search
+	typeText(d, "v1.16.0") // run before the debounced search
 	c.ResetCalls()
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if cl := calls(c, "Tags.List"); len(cl) != 1 || cl[0].Args[1] != "^v1.16.0$" {
 		t.Fatalf("exact tag search = %+v", cl)
 	}
@@ -563,7 +638,7 @@ func TestUnknownRefIsLookedUpAsTag(t *testing.T) {
 	c = newFake()
 	d, _, _ = open(t, c, "", "")
 	typeText(d, "feat/new")
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	if c.CallCount("Pipelines.List") != 0 || c.CallCount("Pipelines.Create") != 1 {
 		t.Fatalf("list=%d create=%d", c.CallCount("Pipelines.List"), c.CallCount("Pipelines.Create"))
 	}
@@ -575,7 +650,7 @@ func TestTagCheckFailureAsksWithTheError(t *testing.T) {
 	d, _, f := open(t, c, "", "")
 	typeText(d, "v1.14.2")
 	d.Send(f.DebounceMsg())
-	d.Key("ctrl+s")
+	d.Key("tab", "tab", "enter")
 	d.RequireView("Run another pipeline on tag v1.14.2?", "Could not check whether the tag already has a pipeline")
 	d.Key("y")
 	if c.CallCount("Pipelines.Create") != 1 {
@@ -589,9 +664,9 @@ func TestRepeatedRunIgnoredWhileChecking(t *testing.T) {
 	typeText(d, "v1.14.2")
 	d.Send(f.DebounceMsg())
 	c.SetDelay("Pipelines.List", 200*time.Millisecond) // the check outlives the test driver's wait
-	d.Key("ctrl+s", "ctrl+s", "ctrl+s")
+	d.Key("tab", "tab", "enter", "enter", "enter")
 	if n := c.CallCount("Pipelines.List"); n != 1 {
-		t.Fatalf("checks = %d, repeated ctrl+s must be ignored", n)
+		t.Fatalf("checks = %d, repeated runs must be ignored", n)
 	}
 	if c.CallCount("Pipelines.Create") != 0 {
 		t.Fatal("no create while checking")

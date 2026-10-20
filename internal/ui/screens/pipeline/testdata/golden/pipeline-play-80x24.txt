@@ -10,8 +10,8 @@ anna.k · merge_request_event · 3m40s  6 jobs: 2 ✓ 1 ✗ 1 ◐ 1 ► 1 ○
 └─│ │ › TARGET             canary                                 env_var  │ │
   │ └──────────────────────────────────────────────────────────────────────┘ │ ▸
   │                                                                          │
-  │ a add · d delete · enter edit · space type                               │
-  │  ctrl+s Run   ctrl+s run · esc cancel                                    │
+  │ a add · d delete · enter edit · space type · tab next · esc cancel       │
+  │  enter Run                                                               │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
