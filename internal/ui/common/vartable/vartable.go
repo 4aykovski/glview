@@ -7,10 +7,10 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
 
 // Labels are the translated texts of the table.
@@ -205,13 +205,13 @@ func (m *Model) View(width int) string {
 	typeW := 8
 	valW := max(10, width-keyW-typeW-6)
 	line := func(k, v, t string, sel bool) string {
-		row := pad(k, keyW) + "  " + pad(v, valW) + "  " + pad(t, typeW)
+		row := fit(k, keyW) + "  " + fit(v, valW) + "  " + fit(t, typeW)
 		if sel {
 			return s.Accent.Render("› ") + row
 		}
 		return "  " + row
 	}
-	out := []string{s.ColumnHeader.Render("  " + pad(m.labels.Key, keyW) + "  " + pad(m.labels.Value, valW) + "  " + pad(m.labels.Type, typeW))}
+	out := []string{s.ColumnHeader.Render("  " + fit(m.labels.Key, keyW) + "  " + fit(m.labels.Value, valW) + "  " + fit(m.labels.Type, typeW))}
 	if len(m.rows) == 0 {
 		out = append(out, "  "+s.Muted.Render(m.labels.Empty))
 	}
@@ -243,10 +243,5 @@ func (m *Model) View(width int) string {
 	return strings.Join(out, "\n")
 }
 
-func pad(s string, w int) string {
-	s = ansi.Truncate(s, w, "…")
-	if n := w - ansi.StringWidth(s); n > 0 {
-		s += strings.Repeat(" ", n)
-	}
-	return s
-}
+// fit clips s to w cells and pads it to exactly w.
+func fit(s string, w int) string { return render.Pad(render.Clip(s, w), w) }

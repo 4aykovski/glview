@@ -224,6 +224,14 @@ type Job struct {
 	Attempts     []Job // earlier (retried) attempts, newest first
 }
 
+// AllAttempts lists the job and its earlier attempts, newest first; none
+// of them carries attempts of its own.
+func (j Job) AllAttempts() []Job {
+	latest := j
+	latest.Attempts = nil
+	return append([]Job{latest}, j.Attempts...)
+}
+
 // Bridge is a trigger job; Downstream is nil until the pipeline is created.
 type Bridge struct {
 	Job

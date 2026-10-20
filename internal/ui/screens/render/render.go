@@ -249,3 +249,11 @@ func FirstLine(md string) string {
 
 // Clip truncates styled text to w cells with an ellipsis.
 func Clip(s string, w int) string { return ansi.Truncate(s, w, "…") }
+
+// Pad right-pads styled text with spaces to w cells; wider text is kept.
+func Pad(s string, w int) string {
+	if n := w - ansi.StringWidth(s); n > 0 {
+		return s + strings.Repeat(" ", n)
+	}
+	return s
+}

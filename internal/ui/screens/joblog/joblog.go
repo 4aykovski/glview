@@ -83,11 +83,11 @@ func New(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, job gitlab.Job) 
 }
 
 // NewAttempt opens the log of attempt i of a retried job, counted from the
-// latest one (0) as AttemptsOf(latest) lists them.
+// latest one (0) as latest.AllAttempts() lists them.
 func NewAttempt(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, latest gitlab.Job, i int) *Screen {
 	in := common.NewInput(env.Styles)
 	in.Prompt = env.Msg.Log.SearchPrompt + " "
-	jobs := AttemptsOf(latest)
+	jobs := latest.AllAttempts()
 	i = max(0, min(i, len(jobs)-1))
 	s := &Screen{
 		env: env, ref: ref, pipelineID: pipelineID, job: jobs[i], jobs: jobs, sel: i,

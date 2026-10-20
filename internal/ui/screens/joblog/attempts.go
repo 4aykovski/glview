@@ -13,14 +13,6 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
 
-// AttemptsOf lists a job and its earlier attempts, newest first; none of
-// them carries attempts of its own.
-func AttemptsOf(job gitlab.Job) []gitlab.Job {
-	latest := job
-	latest.Attempts = nil
-	return append([]gitlab.Job{latest}, job.Attempts...)
-}
-
 // AttemptsList is the overlay with the attempts of a retried job, newest
 // first; enter hands the index of the chosen one to pick.
 type AttemptsList struct {
@@ -30,7 +22,7 @@ type AttemptsList struct {
 	pick func(i int) tea.Cmd
 }
 
-// NewAttemptsList lists jobs (as AttemptsOf returns them) with attempt sel
+// NewAttemptsList lists jobs (as Job.AllAttempts returns them) with attempt sel
 // selected.
 func NewAttemptsList(env *app.Env, jobs []gitlab.Job, sel int, pick func(i int) tea.Cmd) *AttemptsList {
 	return &AttemptsList{env: env, jobs: jobs, sel: max(0, min(sel, len(jobs)-1)), pick: pick}
@@ -84,7 +76,7 @@ func (a *AttemptsList) View(width, _ int) string {
 	for i, c := range cells {
 		parts := make([]string, len(c))
 		for k, v := range c {
-			parts[k] = pad(v, colW[k])
+			parts[k] = render.Pad(v, colW[k])
 		}
 		if i == 0 {
 			parts = append(parts, m.AttemptLatest)
@@ -96,7 +88,7 @@ func (a *AttemptsList) View(width, _ int) string {
 
 	rows := make([]string, len(a.jobs))
 	for i, j := range a.jobs {
-		text := pad(ansi.Truncate(texts[i], w-1, "…"), w-1)
+		text := render.Pad(render.Clip(texts[i], w-1), w-1)
 		if i == a.sel {
 			rows[i] = st.RowSelected.Render("›" + text)
 			continue
@@ -107,11 +99,4 @@ func (a *AttemptsList) View(width, _ int) string {
 	title = st.ModalTitle.Render(ansi.Truncate(title, w, "…"))
 	keys = st.Muted.Render(ansi.Truncate(keys, w, "…"))
 	return st.Modal.Width(w + 4).Render(title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + keys)
-}
-
-func pad(s string, w int) string {
-	if n := w - ansi.StringWidth(s); n > 0 {
-		return s + strings.Repeat(" ", n)
-	}
-	return s
 }

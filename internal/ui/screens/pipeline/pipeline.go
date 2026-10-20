@@ -462,7 +462,7 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		ref, id, job := s.ref, s.id, it.job
-		return app.OpenOverlay(joblog.NewAttemptsList(env, joblog.AttemptsOf(job), 0, func(i int) tea.Cmd {
+		return app.OpenOverlay(joblog.NewAttemptsList(env, job.AllAttempts(), 0, func(i int) tea.Cmd {
 			return app.Push(joblog.NewAttempt(env, ref, id, job, i))
 		}))
 	case "c":
@@ -701,7 +701,7 @@ func (s *Screen) itemLine(it item, w int, selected bool) string {
 	text := glyph + " " + ansi.Truncate(name, max(1, room-2-ansi.StringWidth(suffix)), "…") + suffix
 	text += strings.Repeat(" ", max(1, w-ansi.StringWidth(text)-ansi.StringWidth(right))) + right
 	if selected {
-		return st.RowSelected.Render("›" + pad(text, w))
+		return st.RowSelected.Render("›" + render.Pad(text, w))
 	}
 	if it.bridge != nil {
 		return " " + strings.Replace(text, glyph, st.StatusStyle(it.job.Status).Render(glyph), 1)
@@ -772,11 +772,4 @@ func (s *Screen) panel() string {
 		l4 = st.Muted.Render("▎ ") + s.logTxt
 	}
 	return frame(l1, st.Muted.Render(l2), l3, l4)
-}
-
-func pad(s string, w int) string {
-	if n := w - ansi.StringWidth(s); n > 0 {
-		return s + strings.Repeat(" ", n)
-	}
-	return s
 }
