@@ -422,6 +422,9 @@ func (s pipelineService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab
 		if f.Username != "" && (pl.User == nil || pl.User.Username != f.Username) {
 			continue
 		}
+		if f.Scope != "" && s.c.isTag(path, pl.Ref) != (f.Scope == "tags") {
+			continue
+		}
 		all = append(all, pl.PipelineSummary)
 	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].ID > all[j].ID })
@@ -690,7 +693,7 @@ func (s tagService) List(ctx context.Context, p gitlab.ProjectRef, search, curso
 	defer s.c.mu.Unlock()
 	var all []gitlab.Tag
 	for _, t := range s.c.data.tags[s.c.pathOf(p)] {
-		if strings.Contains(strings.ToLower(t.Name), strings.ToLower(search)) {
+		if matchSearch(t.Name, search) {
 			all = append(all, t)
 		}
 	}
@@ -705,11 +708,42 @@ func (s projects) Branches(ctx context.Context, p gitlab.ProjectRef, search stri
 	defer s.c.mu.Unlock()
 	var out []string
 	for _, b := range s.c.data.branches[s.c.pathOf(p)] {
-		if strings.Contains(strings.ToLower(b), strings.ToLower(search)) {
+		if matchSearch(b, search) && len(out) < branchLimit {
 			out = append(out, b)
 		}
 	}
 	return out, nil
+}
+
+// branchLimit mirrors the page size of the REST branch search.
+const branchLimit = 20
+
+// matchSearch is GitLab's ref search: a case-insensitive substring, "^x"
+// matches names starting with x and "x$" names ending with x.
+func matchSearch(name, search string) bool {
+	name, search = strings.ToLower(name), strings.ToLower(search)
+	prefix, suffix := strings.HasPrefix(search, "^"), strings.HasSuffix(search, "$")
+	search = strings.TrimSuffix(strings.TrimPrefix(search, "^"), "$")
+	switch {
+	case prefix && suffix:
+		return name == search
+	case prefix:
+		return strings.HasPrefix(name, search)
+	case suffix:
+		return strings.HasSuffix(name, search)
+	}
+	return strings.Contains(name, search)
+}
+
+// isTag reports whether ref is a registered tag of the project (the
+// caller holds the lock).
+func (c *Client) isTag(path, ref string) bool {
+	for _, t := range c.data.tags[path] {
+		if t.Name == ref {
+			return true
+		}
+	}
+	return false
 }
 
 func (s projects) CIConfigVariables(ctx context.Context, p gitlab.ProjectRef, gitRef string) ([]gitlab.CIConfigVariable, error) {

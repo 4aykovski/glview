@@ -162,3 +162,39 @@ func TestFakeRecheckMergeStatus(t *testing.T) {
 		t.Error("calls must be recorded")
 	}
 }
+
+func TestFakeRefSearchAnchorsAndLimit(t *testing.T) {
+	c := New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 1, FullPath: "a/b"}})
+	c.SetTags("a/b", gitlab.Tag{Name: "v1.14.2"}, gitlab.Tag{Name: "v1.14.20"}, gitlab.Tag{Name: "rc-v1.14.2"})
+	ref := gitlab.ProjectRef{FullPath: "a/b"}
+	ctx := context.Background()
+	for search, want := range map[string]int{"v1.14.2": 3, "^v1.14.2": 2, "v1.14.2$": 2, "^v1.14.2$": 1} {
+		if page, _ := c.Tags().List(ctx, ref, search, "", 20); len(page.Items) != want {
+			t.Errorf("tags %q = %+v, want %d", search, page.Items, want)
+		}
+	}
+	names := make([]string, 25)
+	for i := range names {
+		names[i] = "feat/b" + string(rune('a'+i))
+	}
+	c.SetBranches("a/b", names...)
+	if bs, _ := c.Projects().Branches(ctx, ref, ""); len(bs) != 20 {
+		t.Fatalf("branches = %d, want the REST page size 20", len(bs))
+	}
+}
+
+func TestFakePipelineScope(t *testing.T) {
+	c := New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 1, FullPath: "a/b"}})
+	c.SetTags("a/b", gitlab.Tag{Name: "v1.14.2"})
+	c.AddPipeline("a/b", gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 1, Ref: "v1.14.2"}})
+	c.AddPipeline("a/b", gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 2, Ref: "main"}})
+	ref := gitlab.ProjectRef{FullPath: "a/b"}
+	ctx := context.Background()
+	tags, _ := c.Pipelines().List(ctx, ref, gitlab.PipelineFilter{Scope: "tags"}, "", 10)
+	branches, _ := c.Pipelines().List(ctx, ref, gitlab.PipelineFilter{Scope: "branches"}, "", 10)
+	if len(tags.Items) != 1 || tags.Items[0].ID != 1 || len(branches.Items) != 1 || branches.Items[0].ID != 2 {
+		t.Fatalf("tags = %+v, branches = %+v", tags.Items, branches.Items)
+	}
+}
