@@ -1,9 +1,11 @@
 package project
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/ui/common"
@@ -147,6 +149,56 @@ func TestPipelinesLogKey(t *testing.T) {
 	d.Key("esc", "j") // back to the list; #100 has no jobs
 	d.Key("l")
 	d.RequireView("no failed or running jobs")
+}
+
+func TestPipelinesLogKeyBringsAttempts(t *testing.T) {
+	client := newFake(1)
+	client.AddPipeline(path, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{
+		ID: 103, IID: 13, Status: gitlab.StatusFailed, Ref: "main", SHA: "0c1d2e3f4a", Source: "push", CreatedAt: now.Add(-time.Minute)},
+		Jobs: []gitlab.Job{{ID: 12, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed,
+			Attempts: []gitlab.Job{{ID: 11, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed}}}}})
+	client.SetTrace(12, "second try\n")
+	client.SetTrace(11, "first try\n")
+	d, _, _ := openPipelines(t, client)
+	n := client.CallCount("Pipelines.Get")
+	d.Key("l")
+	d.RequireView("#103 › test:unit", "attempt 2/2", "second try")
+	if got := client.CallCount("Pipelines.Get"); got != n+1 {
+		t.Fatalf("Pipelines.Get calls = %d, want one", got-n)
+	}
+	d.Key("[")
+	d.RequireView("attempt 1/2", "first try")
+	if got := client.CallCount("Pipelines.Get"); got != n+1 {
+		t.Fatal("switching attempts needs no pipeline request")
+	}
+}
+
+func TestPipelinesLogKeyReadsPipelineAnew(t *testing.T) {
+	client := newFake(1)
+	summary := gitlab.PipelineSummary{ID: 103, IID: 13, Status: gitlab.StatusFailed, Ref: "main", SHA: "0c1d2e3f4a", Source: "push", CreatedAt: now.Add(-time.Minute)}
+	earlier := gitlab.Job{ID: 11, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed}
+	client.AddPipeline(path, gitlab.Pipeline{PipelineSummary: summary,
+		Jobs: []gitlab.Job{{ID: 12, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed, Attempts: []gitlab.Job{earlier}}}})
+	client.SetTrace(12, "second try\n")
+	client.SetTrace(11, "first try\n")
+	d, scr, tab := openPipelines(t, client)
+	// The Pipeline screen cached the pipeline before the job was retried.
+	env := scr.sh.env
+	env.Cache = cache.New()
+	key := "pipe:" + tab.sh.ref.Key() + ":103"
+	env.Cache.Set(key, gitlab.Pipeline{PipelineSummary: summary, Jobs: []gitlab.Job{earlier}})
+	n := client.CallCount("Pipelines.Get")
+	d.Key("l")
+	if got := client.CallCount("Pipelines.Get"); got != n+1 {
+		t.Fatalf("Pipelines.Get calls = %d, want a fresh one", got-n)
+	}
+	d.RequireView("#103 › test:unit", "attempt 2/2", "second try")
+	pl, _, _ := cache.Get(context.Background(), env.Cache, key, time.Hour, func(context.Context) (gitlab.Pipeline, error) {
+		return gitlab.Pipeline{}, nil
+	})
+	if len(pl.Jobs) != 1 || pl.Jobs[0].ID != 12 {
+		t.Fatalf("the fresh final pipeline is cached: %+v", pl.Jobs)
+	}
 }
 
 func TestPickLogJob(t *testing.T) {

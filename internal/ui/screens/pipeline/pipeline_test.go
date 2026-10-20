@@ -38,7 +38,9 @@ func fixture() *fake.Client {
 		Jobs: []gitlab.Job{
 			{ID: 1, Name: "build", Stage: "build", Status: gitlab.StatusSuccess, Duration: 60 * time.Second},
 			{ID: 2, Name: "lint", Stage: "build", Status: gitlab.StatusSuccess},
-			{ID: 3, Name: "test:unit", Stage: "test", Status: gitlab.StatusRunning, Runner: "runner-1", RetryCount: 1},
+			{ID: 3, Name: "test:unit", Stage: "test", Status: gitlab.StatusRunning, Runner: "runner-1", StartedAt: ptr(now.Add(-2 * time.Minute)),
+				Attempts: []gitlab.Job{{ID: 9, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed, Runner: "runner-1",
+					Duration: 42 * time.Second, StartedAt: ptr(now.Add(-time.Hour)), WebURL: "https://gitlab.example.com/job/9"}}},
 			{ID: 4, Name: "test:integration", Stage: "test", Status: gitlab.StatusFailed, AllowFailure: true, WebURL: "https://gitlab.example.com/job/4"},
 			{ID: 5, Name: "deploy", Stage: "deploy", Status: gitlab.StatusManual},
 			{ID: 6, Name: "cleanup", Stage: "deploy", Status: gitlab.StatusCreated},
@@ -51,8 +53,11 @@ func fixture() *fake.Client {
 	c.AddPipeline("qa/e2e-routes", gitlab.Pipeline{PipelineSummary: down, Jobs: []gitlab.Job{{ID: 20, Name: "routes", Stage: "e2e", Status: gitlab.StatusRunning}}})
 	c.SetTrace(4, "start\n\x1b[31mFAIL: TestSurge (0.02s)\x1b[0m\n\n")
 	c.SetTrace(3, "compiling\rcompiled 50%\rcompiled 100%\n")
+	c.SetTrace(9, "compiling\nFAIL: TestFlaky (0.10s)\n")
 	return c
 }
+
+func ptr[T any](v T) *T { return &v }
 
 func open(t *testing.T, c *fake.Client) (*uitest.Driver, *app.Model, *Screen) {
 	t.Helper()
@@ -134,7 +139,7 @@ func TestPanelShowsLastLogLineLazily(t *testing.T) {
 		t.Fatal("a finished job needs no log")
 	}
 	d.Key("l") // test stage: first job is the running one
-	d.RequireView("job #3 · test", "runner-1", "retries: 1", "compiled 100%")
+	d.RequireView("job #3 · test", "runner-1", "attempts: #3 ◐ · #9 ✗", "compiled 100%")
 	d.Key("j")
 	d.RequireView("job #4", "allow_failure: true", "FAIL: TestSurge (0.02s)")
 	n := c.CallCount("Jobs.Trace")

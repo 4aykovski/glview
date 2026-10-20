@@ -55,3 +55,9 @@ func TestGoldenPipelineStretched(t *testing.T) {
 	d.RequireView("test:integration:postgres:with-long-name")
 	d.RequireGolden("pipeline-stretched-160x40")
 }
+
+func TestGoldenAttempts(t *testing.T) {
+	d, _, _ := open(t, fixture())
+	d.Key("l", "a")
+	d.RequireGoldenSizes("pipeline-attempts")
+}

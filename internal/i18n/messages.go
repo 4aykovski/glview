@@ -18,7 +18,7 @@ type Messages struct {
 		// M1
 		Filter, Approve, Merge, Rebase, Checkout, Retry, Cancel, NewPipeline, Log,
 		Play, Follow, Fold, FoldAll, Stage, Job, Edit, Add, Delete, Submit, Next,
-		Details, Comment string
+		Details, Comment, Attempts, PrevNextAttempt string
 		State, Status, Reset                string
 		BrowserList, BrowserOne, BrowserJob string
 		Find                                string

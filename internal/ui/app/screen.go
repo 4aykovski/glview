@@ -137,6 +137,14 @@ type (
 	// background; the screen owning the key reloads it from the cache.
 	CacheRevalidatedMsg struct{ Key string }
 
+	// PipelineChangedMsg tells that an action on one screen (a job retried
+	// or canceled in the log) changed pipeline ID of Ref; a screen showing
+	// it, covered by the one that acted, reloads it when it is on top again.
+	PipelineChangedMsg struct {
+		Ref gitlab.ProjectRef
+		ID  int64
+	}
+
 	// AuthLostMsg means a request was rejected with 401. The root stops
 	// polling (screens check env.AuthLost) and shows the hint.
 	AuthLostMsg struct{ Err error }
@@ -177,6 +185,11 @@ func OpenOverlay(o Overlay) tea.Cmd { return msgCmd(OpenOverlayMsg{Overlay: o}) 
 
 // CloseOverlay hides the current overlay.
 func CloseOverlay() tea.Cmd { return msgCmd(CloseOverlayMsg{}) }
+
+// PipelineChanged tells every screen that pipeline id of ref changed.
+func PipelineChanged(ref gitlab.ProjectRef, id int64) tea.Cmd {
+	return msgCmd(PipelineChangedMsg{Ref: ref, ID: id})
+}
 
 // Toast shows a toast.
 func Toast(level common.ToastLevel, text, hint string) tea.Cmd {

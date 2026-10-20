@@ -5,6 +5,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -83,6 +84,7 @@ type Screen struct {
 	logTxt string
 
 	updated time.Time
+	changed bool // another screen acted on the pipeline: reload on return
 	active  bool
 	w, h    int
 }
@@ -120,10 +122,15 @@ func (s *Screen) Selected() (gitlab.Job, bool) {
 
 func (s *Screen) KeyMap() common.KeyMap {
 	k := s.env.Msg.Keys
-	return common.KeyMap{Short: []common.Binding{
+	b := []common.Binding{
 		common.NewBinding([]string{"h", "left"}, "h/l", k.Stage, common.PriorityHigh),
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Job, common.PriorityHigh),
 		common.NewBinding([]string{"enter"}, "", k.Log, common.PriorityHigh),
+	}
+	if it := s.current(); it != nil && it.bridge == nil && len(it.job.Attempts) > 0 {
+		b = append(b, common.NewBinding([]string{"a"}, "", k.Attempts, common.PriorityLow))
+	}
+	return common.KeyMap{Short: append(b,
 		common.NewBinding([]string{"P"}, "", k.Play, common.PriorityNormal),
 		common.NewBinding([]string{"R"}, "", k.Retry, common.PriorityNormal),
 		common.NewBinding([]string{"c"}, "", k.Cancel, common.PriorityNormal),
@@ -131,7 +138,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"o"}, "", k.BrowserOne, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserJob, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
-	}}
+	)}
 }
 
 // ---- loading ----
@@ -263,10 +270,10 @@ func (s *Screen) rebuild() {
 	for i, c := range s.cols {
 		s.sel[i] = max(0, min(s.sel[i], len(c.items)-1))
 	}
-	if selJob != 0 { // follow the job across reloads
+	if selJob != 0 { // follow the job across reloads and retries
 		for i, c := range s.cols {
 			for k, it := range c.items {
-				if it.job.ID == selJob {
+				if it.job.ID == selJob || slices.ContainsFunc(it.job.Attempts, func(a gitlab.Job) bool { return a.ID == selJob }) {
 					s.si, s.sel[i] = i, k
 				}
 			}
@@ -349,7 +356,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if !s.have {
 			return s, s.load(false)
 		}
-		if env.Now().Sub(s.updated) >= s.pollDelay() && !env.AuthLost {
+		if (s.changed || env.Now().Sub(s.updated) >= s.pollDelay()) && !env.AuthLost {
 			return s, s.load(true)
 		}
 		return s, s.schedulePoll()
@@ -364,9 +371,14 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if msg.err != nil {
 			return s, tea.Batch(env.Fail(msg.err), s.schedulePoll())
 		}
-		s.pl, s.have, s.updated = msg.pl, true, env.Now()
+		s.pl, s.have, s.updated, s.changed = msg.pl, true, env.Now(), false
 		s.rebuild()
 		return s, tea.Batch(s.schedulePoll(), s.loadTrace())
+
+	case app.PipelineChangedMsg:
+		if msg.ID == s.id && msg.Ref.Key() == s.ref.Key() {
+			s.changed = true
+		}
 
 	case traceMsg:
 		if s.logGen.Valid(msg.tok) && msg.job == s.logFor {
@@ -455,6 +467,11 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		return s.jobCmd(actRetry, it.job)
+	case "a":
+		if it.bridge != nil || len(it.job.Attempts) == 0 {
+			return nil
+		}
+		return app.OpenOverlay(joblog.NewAttemptsList(env, it.job.AllAttempts(), 0, s.openAttempt))
 	case "c":
 		if it.bridge != nil {
 			return nil
@@ -516,6 +533,17 @@ func (s *Screen) open(it *item) tea.Cmd {
 		return app.Toast(common.ToastInfo, m.ToastNoAccess, "")
 	}
 	return app.Push(joblog.New(env, s.ref, s.id, it.job))
+}
+
+// openAttempt opens the log of attempt id with the attempts the screen has
+// now, not when the overlay opened: polling may have brought a newer one.
+func (s *Screen) openAttempt(id int64) tea.Cmd {
+	for _, j := range s.pl.Jobs {
+		if i := slices.IndexFunc(j.AllAttempts(), func(a gitlab.Job) bool { return a.ID == id }); i >= 0 {
+			return app.Push(joblog.NewAttempt(s.env, s.ref, s.id, j, i))
+		}
+	}
+	return nil
 }
 
 func (s *Screen) jobCmd(kind jobAction, job gitlab.Job) tea.Cmd {
@@ -691,7 +719,7 @@ func (s *Screen) itemLine(it item, w int, selected bool) string {
 	text := glyph + " " + ansi.Truncate(name, max(1, room-2-ansi.StringWidth(suffix)), "…") + suffix
 	text += strings.Repeat(" ", max(1, w-ansi.StringWidth(text)-ansi.StringWidth(right))) + right
 	if selected {
-		return st.RowSelected.Render("›" + pad(text, w))
+		return st.RowSelected.Render("›" + render.Pad(text, w))
 	}
 	if it.bridge != nil {
 		return " " + strings.Replace(text, glyph, st.StatusStyle(it.job.Status).Render(glyph), 1)
@@ -752,17 +780,14 @@ func (s *Screen) panel() string {
 	if j.Duration > 0 {
 		l2 += " · " + render.Duration(j.Duration)
 	}
-	l3 := fmt.Sprintf("%s: %t · %s: %d", m.PanelAllowFailure, j.AllowFailure, m.PanelRetries, j.RetryCount)
+	l3 := st.Muted.Render(fmt.Sprintf("%s: %t", m.PanelAllowFailure, j.AllowFailure))
+	if len(j.Attempts) > 0 {
+		l3 += st.Muted.Render(" · " + m.PanelAttempts + ": ")
+		l3 += attemptsLine(st, j, s.w-4-ansi.StringWidth(l3))
+	}
 	l4 := ""
 	if it.bridge == nil && (j.Status == gitlab.StatusRunning || j.Status == gitlab.StatusFailed) {
 		l4 = st.Muted.Render("▎ ") + s.logTxt
 	}
-	return frame(l1, st.Muted.Render(l2), st.Muted.Render(l3), l4)
-}
-
-func pad(s string, w int) string {
-	if n := w - ansi.StringWidth(s); n > 0 {
-		return s + strings.Repeat(" ", n)
-	}
-	return s
+	return frame(l1, st.Muted.Render(l2), l3, l4)
 }

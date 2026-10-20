@@ -5,6 +5,7 @@ package joblog
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -48,6 +49,11 @@ type Screen struct {
 	pipelineID int64
 	job        gitlab.Job
 
+	// The attempts of the job, newest first, and the one on screen; R and c
+	// act on jobs[0], the latest.
+	jobs []gitlab.Job
+	sel  int
+
 	p        jl.Parser
 	consumed int
 	folded   map[int]bool
@@ -71,14 +77,25 @@ type Screen struct {
 	w, h      int
 }
 
-// New opens the log of job (a job of pipeline pipelineID).
+// New opens the log of job (a job of pipeline pipelineID); job.Attempts
+// are its earlier attempts that [ and ] switch to.
 func New(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, job gitlab.Job) *Screen {
+	return NewAttempt(env, ref, pipelineID, job, 0)
+}
+
+// NewAttempt opens the log of attempt i of a retried job, counted from the
+// latest one (0) as latest.AllAttempts() lists them.
+func NewAttempt(env *app.Env, ref gitlab.ProjectRef, pipelineID int64, latest gitlab.Job, i int) *Screen {
 	in := common.NewInput(env.Styles)
 	in.Prompt = env.Msg.Log.SearchPrompt + " "
-	return &Screen{
-		env: env, ref: ref, pipelineID: pipelineID, job: job, folded: map[int]bool{},
-		follow: job.Status.Active(), search: in, gen: common.NewGen(), poll: common.NewGen(),
+	jobs := latest.AllAttempts()
+	i = max(0, min(i, len(jobs)-1))
+	s := &Screen{
+		env: env, ref: ref, pipelineID: pipelineID, job: jobs[i], jobs: jobs, sel: i,
+		folded: map[int]bool{}, search: in, gen: common.NewGen(), poll: common.NewGen(),
 	}
+	s.follow = s.polling() // an earlier attempt is final
+	return s
 }
 
 func (s *Screen) Init() tea.Cmd { return nil }
@@ -93,22 +110,38 @@ func (s *Screen) CapturesInput() bool { return s.searching }
 // Job returns the job being shown (for tests).
 func (s *Screen) Job() gitlab.Job { return s.job }
 
+// target is the job R and c act on: the latest attempt.
+func (s *Screen) target() gitlab.Job { return s.jobs[0] }
+
+// attempt is the index of the attempt with the given ID, -1 if none.
+func (s *Screen) attempt(id int64) int {
+	return slices.IndexFunc(s.jobs, func(j gitlab.Job) bool { return j.ID == id })
+}
+
 // Following reports follow mode (for tests).
 func (s *Screen) Following() bool { return s.follow }
 
 func (s *Screen) KeyMap() common.KeyMap {
 	k := s.env.Msg.Keys
-	return common.KeyMap{Short: []common.Binding{
+	b := []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh),
 		common.NewBinding([]string{"f"}, "", k.Follow, common.PriorityHigh),
 		common.NewBinding([]string{"space"}, "", k.Fold, common.PriorityNormal),
 		common.NewBinding([]string{"z"}, "", k.FoldAll, common.PriorityLow),
 		common.NewBinding([]string{"/"}, "", k.Find, common.PriorityNormal),
 		common.NewBinding([]string{"n"}, "n/N", k.Next, common.PriorityLow),
+	}
+	if len(s.jobs) > 1 {
+		b = append(b,
+			common.NewBinding([]string{"a"}, "", k.Attempts, common.PriorityLow),
+			common.NewBinding([]string{"[", "]"}, "[/]", k.PrevNextAttempt, common.PriorityLow),
+		)
+	}
+	return common.KeyMap{Short: append(b,
 		common.NewBinding([]string{"R"}, "", k.Retry, common.PriorityNormal),
 		common.NewBinding([]string{"c"}, "", k.Cancel, common.PriorityNormal),
 		common.NewBinding([]string{"o"}, "", k.Browser, common.PriorityLow),
-	}}
+	)}
 }
 
 // ---- loading ----
@@ -128,8 +161,9 @@ func (s *Screen) load() tea.Cmd {
 	}
 }
 
-// polling is on while the job may still write output.
-func (s *Screen) polling() bool { return s.job.Status.Active() }
+// polling is on while the job may still write output; an earlier attempt
+// is final and loaded once.
+func (s *Screen) polling() bool { return s.sel == 0 && s.job.Status.Active() }
 
 func (s *Screen) schedulePoll() tea.Cmd {
 	if !s.active || s.env.AuthLost || !s.polling() {
@@ -268,6 +302,8 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, tea.Batch(env.Fail(msg.err), s.schedulePoll())
 		}
 		s.job, s.loaded, s.updated = msg.job, true, env.Now()
+		s.job.Attempts = nil
+		s.jobs[s.sel] = s.job
 		s.feed(msg.trace)
 		return s, s.schedulePoll()
 
@@ -275,22 +311,35 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if !s.active {
 			return s, nil
 		}
+		// As after the same actions on the Pipeline screen: the pipeline and
+		// the list are read anew, the Pipeline screen below on return.
+		if env.Cache != nil {
+			env.Cache.Invalidate(fmt.Sprintf("pipe:%s:%d", s.ref.Key(), s.pipelineID))
+			env.Cache.Invalidate("pipes:" + s.ref.FullPath + ":")
+		}
+		changed := app.PipelineChanged(s.ref, s.pipelineID)
 		if msg.err != nil {
-			return s, env.Fail(msg.err)
+			return s, tea.Batch(env.Fail(msg.err), changed)
 		}
 		m := env.Msg.Pipe
 		if msg.retry {
-			// Show the log of the new job instead of this one.
-			s.job = msg.job
-			s.p.Reset()
-			s.consumed, s.known, s.cursor, s.offset, s.xoff = 0, 0, 0, 0, 0
-			s.folded = map[int]bool{}
-			s.matches, s.query = nil, ""
-			s.follow, s.loaded = true, false
-			s.rebuild()
-			return s, tea.Batch(app.Toast(common.ToastSuccess, m.JobRetried(msg.job.Name), ""), s.load())
+			// The new job becomes the latest attempt and its log is shown.
+			nj := msg.job
+			nj.Attempts = nil
+			s.jobs = append([]gitlab.Job{nj}, s.jobs...)
+			cmd := s.show(0)
+			s.follow = true
+			return s, tea.Batch(app.Toast(common.ToastSuccess, m.JobRetried(msg.job.Name), ""), cmd, changed)
 		}
-		return s, tea.Batch(app.Toast(common.ToastSuccess, m.JobCanceled(msg.job.Name), ""), s.load())
+		// The canceled attempt may be another than the one on screen.
+		toast := app.Toast(common.ToastSuccess, m.JobCanceled(msg.job.Name), "")
+		if i := s.attempt(msg.job.ID); i >= 0 {
+			s.jobs[i].Status = gitlab.StatusCanceled
+		}
+		if msg.job.ID != s.job.ID {
+			return s, tea.Batch(toast, changed)
+		}
+		return s, tea.Batch(toast, s.load(), changed)
 
 	case common.PollTickMsg:
 		if !s.poll.Valid(msg.Token) || !s.active || env.AuthLost || !s.polling() {
@@ -363,14 +412,48 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 	case "o":
 		return app.OpenURL(env, s.job.WebURL)
+	case "a":
+		if len(s.jobs) > 1 {
+			return app.OpenOverlay(NewAttemptsList(env, s.jobs, s.sel, func(id int64) tea.Cmd {
+				// By ID: a retry may have put a new attempt in front since.
+				i := s.attempt(id)
+				if i < 0 || id == s.job.ID {
+					return nil
+				}
+				return s.show(i)
+			}))
+		}
+	case "[":
+		if s.sel < len(s.jobs)-1 {
+			return s.show(s.sel + 1)
+		}
+	case "]":
+		if s.sel > 0 {
+			return s.show(s.sel - 1)
+		}
 	case "R":
 		return s.retry()
 	case "c":
 		m := env.Msg.Pipe
-		return app.OpenOverlay(app.NewConfirm(env, m.CancelJobTitle(s.job.Name), m.CancelJobBody, s.cancel()))
+		return app.OpenOverlay(app.NewConfirm(env, m.CancelJobTitle(s.target().Name), m.CancelJobBody, s.cancel()))
 	}
 	s.clamp()
 	return nil
+}
+
+// show switches the screen to attempt i: the log is read anew with the
+// search, folds and scroll reset; only the latest attempt follows and polls.
+func (s *Screen) show(i int) tea.Cmd {
+	s.sel, s.job = i, s.jobs[i]
+	s.p.Reset()
+	s.consumed, s.known, s.cursor, s.offset, s.xoff = 0, 0, 0, 0, 0
+	s.folded = map[int]bool{}
+	s.matches, s.query = nil, ""
+	s.loaded = false
+	s.follow = s.polling()
+	s.rebuild()
+	s.poll.Next()
+	return s.load()
 }
 
 func (s *Screen) move(d int) {
@@ -480,7 +563,7 @@ func (s *Screen) step(d int) {
 }
 
 func (s *Screen) retry() tea.Cmd {
-	client, ref, job := s.env.Client, s.ref, s.job
+	client, ref, job := s.env.Client, s.ref, s.target()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
@@ -490,7 +573,7 @@ func (s *Screen) retry() tea.Cmd {
 }
 
 func (s *Screen) cancel() tea.Cmd {
-	client, ref, job := s.env.Client, s.ref, s.job
+	client, ref, job := s.env.Client, s.ref, s.target()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
@@ -507,6 +590,9 @@ func (s *Screen) View() string {
 	ctx := fmt.Sprintf("#%d › %s ", s.pipelineID, j.Name) + st.Status(j.Status)
 	if j.Duration > 0 {
 		ctx += " " + render.Duration(j.Duration)
+	}
+	if n := len(s.jobs); n > 1 {
+		ctx += st.Muted.Render(" · " + m.Log.Attempt(n-s.sel, n))
 	}
 	follow := m.Log.NoFollow
 	if s.follow {

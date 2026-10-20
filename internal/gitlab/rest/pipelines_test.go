@@ -3,6 +3,7 @@ package rest
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -57,14 +58,26 @@ func TestPipelineGetCollapsesRetriesAndOrdersStages(t *testing.T) {
 	if pl.ID != 91840 || pl.Status != gitlab.StatusRunning || pl.User.Username != "anna.k" || pl.CommitTitle != "surge: add pricing" {
 		t.Errorf("pipeline = %+v", pl.PipelineSummary)
 	}
-	// build(301 failed, 304 success) -> 304 wins with RetryCount 1;
-	// test:unit(302,303,305) -> 305 wins with RetryCount 2.
+	// build(301 failed, 304 success) -> 304 wins, attempts [301];
+	// test:unit(302,303,305) -> 305 wins, attempts [303, 302].
 	byName := map[string]gitlab.Job{}
 	for _, j := range pl.Jobs {
 		byName[j.Name] = j
 	}
-	if len(pl.Jobs) != 3 || byName["build"].ID != 304 || byName["build"].RetryCount != 1 || byName["test:unit"].ID != 305 || byName["test:unit"].RetryCount != 2 {
+	if len(pl.Jobs) != 3 || byName["build"].ID != 304 || byName["test:unit"].ID != 305 {
 		t.Errorf("jobs = %+v", pl.Jobs)
+	}
+	if ids := attemptIDs(byName["build"]); !slices.Equal(ids, []int64{301}) {
+		t.Errorf("build attempts = %v", ids)
+	}
+	unit := byName["test:unit"]
+	if ids := attemptIDs(unit); !slices.Equal(ids, []int64{303, 302}) || unit.Attempts[0].Status != gitlab.StatusFailed || !unit.Attempts[0].AllowFailure {
+		t.Errorf("test:unit attempts = %+v", unit.Attempts)
+	}
+	for _, a := range unit.Attempts {
+		if len(a.Attempts) != 0 {
+			t.Errorf("attempt #%d has nested attempts", a.ID)
+		}
 	}
 	if byName["test:unit"].Runner != "runner-1" || byName["test:unit"].Duration.Seconds() != 12.5 {
 		t.Errorf("job fields = %+v", byName["test:unit"])
@@ -242,4 +255,12 @@ func TestMembersAndLabels(t *testing.T) {
 	if !strings.Contains(labelQ, "search=b") || !strings.Contains(labelQ, "per_page=20") {
 		t.Errorf("label query = %s", labelQ)
 	}
+}
+
+func attemptIDs(j gitlab.Job) []int64 {
+	var ids []int64
+	for _, a := range j.Attempts {
+		ids = append(ids, a.ID)
+	}
+	return ids
 }

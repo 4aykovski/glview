@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › Pipelines › #91840            @egor · ⟳ <1m
+────────────────────────────────────────────────────────────────────────────────
+◐ running  #91840 on feat/surge · a91f2c0d surge: add pricing
+anna.k · merge_request_event · 3m40s  6 jobs: 2 ✓ 1 ✗ 1 ◐ 1 ► 1 ○
+┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐
+│ build              ╭────────────────────────────────────╮            ► │
+│ ───────────────────│ Attempts of test:unit              │───────────── │
+│  ✓ build       1m00│                                    │oy            │
+│  ✓ lint            │ ›#3  ◐ running       2m  latest    │nup           │
+└────────────────────│  #9  ✗ failed   42s  1h            │──────────────┘
+                     │                                    │                    ▸
+                     │ j/k choose · enter log · esc close │
+                     ╰────────────────────────────────────╯
+
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ test:unit  ◐ running                                                         │
+│ job #3 · test · runner runner-1                                              │
+│ allow_failure: false · attempts: #3 ◐ · #9 ✗                                 │
+│ ▎ compiled 100%                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────
+h/l stage  j/k job  enter log  P play  R retry  c cancel  ? help         poll 3s

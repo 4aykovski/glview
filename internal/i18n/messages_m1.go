@@ -99,21 +99,25 @@ type PipelineMessages struct {
 	PrevStagesLoading, PrevNoStages           string
 
 	// Pipeline screen
-	Crumb                                 string
-	Summary                               func(jobs string, parts string) string // "9 jobs: 4 ✓ 2 ◐"
-	PanelStage, PanelRunner, PanelRetries string
-	PanelAllowFailure                     string
-	PanelNoLog                            string
-	BridgeWaiting, BridgeNoAccess         string
-	Downstream                            string
-	YAMLErrors                            string
-	ToastNoAccess                         string
-	NoJobs                                string
-	JobRetried, JobCanceled, JobPlayed    func(name string) string
-	CancelJobTitle                        func(name string) string
-	CancelJobBody                         string
-	PlayTitle                             func(name string) string
-	NotManual                             string
+	Crumb                                  string
+	Summary                                func(jobs string, parts string) string // "9 jobs: 4 ✓ 2 ◐"
+	PanelStage, PanelRunner, PanelAttempts string
+	PanelAllowFailure                      string
+	PanelNoLog                             string
+	BridgeWaiting, BridgeNoAccess          string
+	Downstream                             string
+	YAMLErrors                             string
+	ToastNoAccess                          string
+	NoJobs                                 string
+	JobRetried, JobCanceled, JobPlayed     func(name string) string
+	CancelJobTitle                         func(name string) string
+	CancelJobBody                          string
+	PlayTitle                              func(name string) string
+	NotManual                              string
+
+	// Attempts overlay
+	AttemptsTitle               func(name string) string
+	AttemptLatest, AttemptsKeys string
 }
 
 // LogMessages are the strings of the job log.
@@ -127,6 +131,7 @@ type LogMessages struct {
 	NoMatches        string
 	Crumb            string
 	SearchKeys       string
+	Attempt          func(i, n int) string // "attempt 2/3" of a retried job
 }
 
 // FormMessages are the strings of overlays and forms.

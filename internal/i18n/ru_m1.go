@@ -26,6 +26,8 @@ func fillM1RU(m *Messages) {
 	k.Submit = "запустить"
 	k.Next = "далее"
 	k.Details = "детали"
+	k.Attempts = "попытки"
+	k.PrevNextAttempt = "пред./след. попытка"
 	k.State, k.Status, k.Reset = "состояние", "статус", "сброс фильтров"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "список в браузере", "пайплайн в браузере", "джоба в браузере"
 	k.Find = "поиск по логу"
@@ -94,7 +96,7 @@ func fillM1RU(m *Messages) {
 
 	pp.Crumb = "Pipelines"
 	pp.Summary = func(jobs, parts string) string { return jobs + ": " + parts }
-	pp.PanelStage, pp.PanelRunner, pp.PanelRetries, pp.PanelAllowFailure = "стейдж", "раннер", "ретраи", "allow_failure"
+	pp.PanelStage, pp.PanelRunner, pp.PanelAttempts, pp.PanelAllowFailure = "стейдж", "раннер", "попытки", "allow_failure"
 	pp.PanelNoLog = "(лог пуст)"
 	pp.BridgeWaiting, pp.BridgeNoAccess = "ждёт", "нет доступа"
 	pp.Downstream = "downstream"
@@ -108,6 +110,9 @@ func fillM1RU(m *Messages) {
 	pp.CancelJobBody = "Джоба будет остановлена."
 	pp.PlayTitle = func(n string) string { return "Запуск " + n }
 	pp.NotManual = "запускать можно только manual-джобы"
+	pp.AttemptsTitle = func(n string) string { return "Попытки " + n }
+	pp.AttemptLatest = "последняя"
+	pp.AttemptsKeys = "j/k выбор · enter лог · esc закрыть"
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "тип"
@@ -141,6 +146,7 @@ func fillM1RU(m *Messages) {
 	lg.NoMatches = "совпадений нет"
 	lg.SearchKeys = "n / N далее / назад"
 	lg.Crumb = "лог"
+	lg.Attempt = func(i, n int) string { return fmt.Sprintf("попытка %d/%d", i, n) }
 
 	r := &m.MR
 	r.ColIID, r.ColTitle, r.ColAuthor, r.ColBranch = "IID", "Заголовок", "Автор", "Ветка"

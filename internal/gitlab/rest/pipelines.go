@@ -34,7 +34,7 @@ func (pipelines) Stages(context.Context, gitlab.ProjectRef, int64) ([]gitlab.Sta
 }
 
 // Get returns the pipeline with its jobs (retries collapsed into
-// RetryCount), bridges and the stages in pipeline order.
+// Attempts), bridges and the stages in pipeline order.
 func (s pipelines) Get(ctx context.Context, p gitlab.ProjectRef, id int64) (gitlab.Pipeline, error) {
 	api := s.c.api
 	pl, _, err := api.Pipelines.GetPipeline(pid(p), id, gl.WithContext(ctx))
@@ -82,9 +82,9 @@ func (s pipelines) Get(ctx context.Context, p gitlab.ProjectRef, id int64) (gitl
 	return out, nil
 }
 
-// collapseRetries keeps the newest job per name and counts the older ones.
-// The result is ordered by ID, which is the order GitLab created them in
-// (and therefore the stage order).
+// collapseRetries keeps the newest job per stage and name; the older ones go
+// to its Attempts, newest first. The result is ordered by ID, which is the
+// order GitLab created them in (and therefore the stage order).
 func collapseRetries(jobs []gitlab.Job) []gitlab.Job {
 	slices.SortStableFunc(jobs, func(a, b gitlab.Job) int {
 		switch {
@@ -100,7 +100,8 @@ func collapseRetries(jobs []gitlab.Job) []gitlab.Job {
 	for _, j := range jobs {
 		key := j.Stage + "\x00" + j.Name
 		if i, ok := idx[key]; ok {
-			j.RetryCount = out[i].RetryCount + 1
+			j.Attempts = append([]gitlab.Job{out[i]}, out[i].Attempts...)
+			j.Attempts[0].Attempts = nil
 			out[i] = j
 			continue
 		}

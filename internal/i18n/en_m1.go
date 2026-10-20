@@ -25,6 +25,8 @@ func fillM1EN(m *Messages) {
 	k.Submit = "run"
 	k.Next = "next"
 	k.Details = "details"
+	k.Attempts = "attempts"
+	k.PrevNextAttempt = "prev/next attempt"
 	k.State, k.Status, k.Reset = "state", "status", "reset filters"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "list in browser", "pipeline in browser", "job in browser"
 	k.Find = "find in log"
@@ -88,7 +90,7 @@ func fillM1EN(m *Messages) {
 
 	pp.Crumb = "Pipelines"
 	pp.Summary = func(jobs, parts string) string { return jobs + ": " + parts }
-	pp.PanelStage, pp.PanelRunner, pp.PanelRetries, pp.PanelAllowFailure = "stage", "runner", "retries", "allow_failure"
+	pp.PanelStage, pp.PanelRunner, pp.PanelAttempts, pp.PanelAllowFailure = "stage", "runner", "attempts", "allow_failure"
 	pp.PanelNoLog = "(log is empty)"
 	pp.BridgeWaiting, pp.BridgeNoAccess = "waiting", "no access"
 	pp.Downstream = "downstream"
@@ -102,6 +104,9 @@ func fillM1EN(m *Messages) {
 	pp.CancelJobBody = "The job will be stopped."
 	pp.PlayTitle = func(n string) string { return "Run " + n }
 	pp.NotManual = "only manual jobs can be played"
+	pp.AttemptsTitle = func(n string) string { return "Attempts of " + n }
+	pp.AttemptLatest = "latest"
+	pp.AttemptsKeys = "j/k choose · enter log · esc close"
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "type"
@@ -133,6 +138,7 @@ func fillM1EN(m *Messages) {
 	lg.NoMatches = "no matches"
 	lg.SearchKeys = "n / N next / previous"
 	lg.Crumb = "log"
+	lg.Attempt = func(i, n int) string { return fmt.Sprintf("attempt %d/%d", i, n) }
 
 	r := &m.MR
 	r.ColIID, r.ColTitle, r.ColAuthor, r.ColBranch = "IID", "Title", "Author", "Branch"
