@@ -9,6 +9,10 @@ context: |
   colleagues' names or logins, tokens, logs, bot reports). Use invented data
   only (gitlab.example.com, anna.k, !479); write "checked on the work
   instance" without any details. See CLAUDE.md, "Конфиденциальность".
+  Tasks live in GitHub Issues (milestones M0-M3, roadmap #36), not in files:
+  read them with `gh issue list --milestone ...` / `gh issue view N` and
+  reference them as #N in proposal and tasks. See CLAUDE.md,
+  "Задачи — GitHub Issues".
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

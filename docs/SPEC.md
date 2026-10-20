@@ -1576,7 +1576,7 @@ type Runner interface {
 
 ### 12.3. Ручная проверка
 
-Перед закрытием M3, чек-лист в `docs/TASKS.md`:
+Перед закрытием M3, чек-лист в issue T25 ([#25](https://github.com/4aykovski/glview/issues/25)):
 
 - светлая и тёмная тема терминала (iTerm2/Ghostty/Terminal.app), `NO_COLOR=1`;
 - 80×24 и широкий экран;

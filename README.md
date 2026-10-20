@@ -18,7 +18,7 @@ Self-hosted GitLab — первоклассный сценарий: свой URL
 
 Проект в разработке. Готово: каркас (M0) и режим проекта (M1). Дальше — workspace и поиск (M2), теги, issues и полировка (M3).
 
-План и прогресс — в [Дорожной карте](https://github.com/4aykovski/glview/issues/36) и [вехах](https://github.com/4aykovski/glview/milestones); исходник задач — [docs/TASKS.md](docs/TASKS.md).
+План и прогресс — в [Дорожной карте](https://github.com/4aykovski/glview/issues/36) и [вехах](https://github.com/4aykovski/glview/milestones).
 
 ## Установка
 
@@ -123,7 +123,7 @@ make confidential  # проверить все файлы репозитория
 ```
 
 - [docs/SPEC.md](docs/SPEC.md) — спецификация: поведение, хоткеи, API, архитектура.
-- [docs/TASKS.md](docs/TASKS.md) — задачи и вехи.
+- [GitHub Issues](https://github.com/4aykovski/glview/issues) — задачи и вехи, дорожная карта — [#36](https://github.com/4aykovski/glview/issues/36).
 - [docs/design/](docs/design/README.md) — макеты экранов.
 - [CLAUDE.md](CLAUDE.md) — правила проекта, в том числе для ИИ-агентов.
 - Планирование изменений — [OpenSpec](openspec/): одна change на веху.
