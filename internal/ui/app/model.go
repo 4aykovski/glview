@@ -117,6 +117,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.pop()
 	case ReplaceRootMsg:
 		return m, m.replaceRoot(msg.Screen)
+	case OpenProjectMsg:
+		return m, m.openProject(msg.Screen)
 
 	case OpenOverlayMsg:
 		m.overlay = msg.Overlay
@@ -193,6 +195,11 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	case "?":
 		m.overlay = NewHelp(m.env, m.Top().KeyMap(), m.globalBindings())
 		return nil
+	case "p", "F":
+		if m.env.Search != nil && m.env.Client != nil {
+			m.overlay = m.env.Search(k.String() == "F")
+			return nil
+		}
 	case "ctrl+l":
 		return m.toggleLanguage()
 	case "q":
@@ -250,6 +257,25 @@ func (m *Model) replaceRoot(s Screen) tea.Cmd {
 	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred())...)
 }
 
+// openProject keeps a Workspace root under the project and closes every
+// other screen; without a Workspace root the project becomes the root.
+func (m *Model) openProject(s Screen) tea.Cmd {
+	if _, ok := m.stack[0].(WorkspaceRoot); !ok {
+		return m.replaceRoot(s)
+	}
+	var cmds []tea.Cmd
+	for i := len(m.stack) - 1; i >= 1; i-- {
+		_, cmd := m.stack[i].Update(DeactivatedMsg{})
+		cmds = append(cmds, cmd)
+	}
+	if len(m.stack) == 1 {
+		cmds = append(cmds, m.sendTop(DeactivatedMsg{}))
+	}
+	m.stack = append(m.stack[:1], s)
+	s.SetSize(m.contentSize())
+	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}))...)
+}
+
 func (m *Model) updateTop(msg tea.Msg) tea.Cmd { return m.sendTop(msg) }
 
 func (m *Model) sendTop(msg tea.Msg) tea.Cmd {
@@ -280,6 +306,10 @@ func (m *Model) contentSize() (int, int) { return m.width, max(0, m.height-2) }
 
 func (m *Model) globalBindings() []common.Binding {
 	k := m.env.Msg.Keys
+	search := func(b common.Binding) common.Binding {
+		b.Hidden = m.env.Search == nil
+		return b
+	}
 	return []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k ↑/↓", k.Down+" / "+k.Up, common.PriorityLow),
 		common.NewBinding([]string{"g"}, "g/G", k.Top+" / "+k.Bottom, common.PriorityLow),
@@ -287,6 +317,8 @@ func (m *Model) globalBindings() []common.Binding {
 		common.NewBinding([]string{"esc"}, "esc", k.Back, common.PriorityLow),
 		common.NewBinding([]string{"r"}, "r", k.Refresh, common.PriorityLow),
 		common.NewBinding([]string{"o"}, "o", k.Browser, common.PriorityLow),
+		search(common.NewBinding([]string{"p"}, "p", m.env.Msg.Search.KeyPicker, common.PriorityLow)),
+		search(common.NewBinding([]string{"F"}, "F", m.env.Msg.Search.KeyGlobal, common.PriorityLow)),
 		common.NewBinding([]string{"ctrl+l"}, "ctrl+l", k.Language, common.PriorityLow),
 		common.NewBinding([]string{"q"}, "q", k.Quit, common.PriorityLow),
 		common.NewBinding([]string{"?"}, "?", k.Help, common.PriorityHelp),

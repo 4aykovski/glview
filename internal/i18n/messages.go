@@ -84,7 +84,6 @@ type Messages struct {
 		PickProject          string
 		GlobalSearch         string
 		OpenWorkspace        string
-		ComingSoon           string
 		SkippedNoGit         func(names string) string
 		ForeignRemote        string
 		NoRemote             string

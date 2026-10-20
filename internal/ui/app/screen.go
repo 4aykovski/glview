@@ -83,6 +83,9 @@ type Env struct {
 	Disk *cache.Disk
 	// Catalog lists the projects known without network for p and F.
 	Catalog *Catalog
+	// Search builds the project picker (p, global false) and the global
+	// search (F, global true) overlays; nil disables both keys.
+	Search func(global bool) Overlay
 }
 
 // NewEnv returns an Env with messages, default (dark) styles and clock set,
@@ -145,6 +148,10 @@ type (
 	// DeactivatedMsg is sent when another screen covers it or it is popped.
 	DeactivatedMsg struct{}
 
+	// OpenProjectMsg opens a project chosen in search: above a Workspace
+	// root (everything above it is closed), otherwise as the new root.
+	OpenProjectMsg struct{ Screen Screen }
+
 	OpenOverlayMsg  struct{ Overlay Overlay }
 	CloseOverlayMsg struct{}
 
@@ -203,6 +210,9 @@ func Pop() tea.Cmd { return msgCmd(PopMsg{}) }
 
 // ReplaceRoot clears the stack and makes s the only screen.
 func ReplaceRoot(s Screen) tea.Cmd { return msgCmd(ReplaceRootMsg{Screen: s}) }
+
+// OpenProject opens a project screen chosen in search (OpenProjectMsg).
+func OpenProject(s Screen) tea.Cmd { return msgCmd(OpenProjectMsg{Screen: s}) }
 
 // OpenOverlay shows o above the current screen.
 func OpenOverlay(o Overlay) tea.Cmd { return msgCmd(OpenOverlayMsg{Overlay: o}) }

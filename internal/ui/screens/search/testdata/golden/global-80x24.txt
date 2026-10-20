@@ -1,0 +1,24 @@
+gitlab-tui  not here                                                       @egor
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ Search GitLab   gitlab.example.com                                       │
+  │ › route                                                                  │
+  │ ──────────────────────────────────────────────────────────────────────── │
+  │ PROJECTS                                                                 │
+  │ › platform/route-service  local · ★                                      │
+  │   platform/routing-engine  local · ★ · 1h                                │
+  │   qa/e2e-routes  local                                                   │
+  │   infra/router-configs  local                                            │
+  │   logistics/route-api  5h                                                │
+  │   frontend/route-planner-ui  6h                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │ ──────────────────────────────────────────────────────────────────────── │
+  │ ↑↓ select  enter open (a group opens as a workspace)  esc close          │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+────────────────────────────────────────────────────────────────────────────────
+p pick project  F search GitLab  q quit  ? help

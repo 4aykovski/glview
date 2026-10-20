@@ -106,7 +106,6 @@ var en = func() Messages {
 	m.Startup.PickProject = "pick project"
 	m.Startup.GlobalSearch = "search GitLab"
 	m.Startup.OpenWorkspace = "workspace of parent folder"
-	m.Startup.ComingSoon = "coming in the next milestone"
 	m.Startup.SkippedNoGit = func(names string) string { return "skipped without .git: " + names }
 	m.Startup.ForeignRemote = "not GitLab"
 	m.Startup.NoRemote = "no remote"

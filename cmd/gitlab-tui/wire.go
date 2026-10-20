@@ -22,6 +22,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
+	"github.com/4aykovski/glview/internal/ui/screens/search"
 	"github.com/4aykovski/glview/internal/ui/screens/setup"
 	"github.com/4aykovski/glview/internal/ui/screens/start"
 	wsscreen "github.com/4aykovski/glview/internal/ui/screens/workspace"
@@ -44,6 +45,7 @@ func buildRoot(opts options) (*app.Model, error) {
 	env.Cache = cache.New()
 	env.Disk = &cache.Disk{Dir: xdg.CacheDir()}
 	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"))
+	env.Search = func(global bool) app.Overlay { return search.New(env, global) }
 	toasts := applyConfig(env, cfg, warns, cfgPath)
 
 	gl := glab.Detect(cfg.Glab.Path, cfg.Glab.Disabled())

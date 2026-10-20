@@ -1,0 +1,40 @@
+gitlab-tui  ~/src · workspace · 2 GitLab projects                                                          @egor · ⟳ <1m
+ 1 Projects 2   2 MRs   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  search
+  Folder          GitLab                                              Local branch  ↑↓   MRs   Default branch  Tag   Act
+──────────────────╭──────────────────────────────────────────────────────────────────────────────────╮──────────────────
+› route-service   │ Switch project   gitlab.example.com                                              │         —      1h
+  router-configs  │ › rou                                                                            │         —      3h
+                  │ ──────────────────────────────────────────────────────────────────────────────── │
+                  │ FROM GIT REMOTE                                                                  │
+                  │ › platform/route-service  current · ★ · 1 MR · 1h                                │
+                  │ WORKSPACE                                                                        │
+                  │   infra/router-configs  1 MR · 3h                                                │
+                  │ STARRED                                                                          │
+                  │   platform/routing-engine  ★ · 1h                                                │
+                  │ RECENT                                                                           │
+                  │   qa/e2e-routes                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │ ──────────────────────────────────────────────────────────────────────────────── │
+                  │ ↑↓ select  enter open  esc close                                           4 / 4 │
+                  ╰──────────────────────────────────────────────────────────────────────────────────╯
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ route-service  → platform/route-service                                                                              │
+│ 1 open MR  ·  main no pipelines  ·  on main locally · no open MR                                                     │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open project  / filter  o browser  y copy  1-4 tabs  r refresh  q quit  ? help                 poll 1m0s

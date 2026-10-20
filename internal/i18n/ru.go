@@ -112,7 +112,6 @@ var ru = func() Messages {
 	m.Startup.PickProject = "выбрать проект"
 	m.Startup.GlobalSearch = "поиск по GitLab"
 	m.Startup.OpenWorkspace = "workspace родительской папки"
-	m.Startup.ComingSoon = "появится в следующей вехе"
 	m.Startup.SkippedNoGit = func(names string) string { return "пропущено без .git: " + names }
 	m.Startup.ForeignRemote = "не GitLab"
 	m.Startup.NoRemote = "нет remote"

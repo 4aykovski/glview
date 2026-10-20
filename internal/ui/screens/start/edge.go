@@ -18,7 +18,7 @@ type NotOnInstanceInfo struct {
 }
 
 // NotOnInstance explains why the project could not be opened and offers
-// the next steps (SPEC §2.4). p and F are wired in M2.
+// the next steps (SPEC §2.4). p and F are handled by the root.
 type NotOnInstance struct {
 	env           *app.Env
 	info          NotOnInstanceInfo
@@ -51,8 +51,6 @@ func (n *NotOnInstance) KeyMap() common.KeyMap {
 func (n *NotOnInstance) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok {
 		switch k.String() {
-		case "p", "F":
-			return n, app.Toast(common.ToastInfo, n.env.Msg.Startup.ComingSoon, "")
 		case "w":
 			if n.openWorkspace != nil {
 				return n, app.ReplaceRoot(n.openWorkspace())

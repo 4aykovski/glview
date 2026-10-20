@@ -31,8 +31,6 @@ func TestNotOnInstance(t *testing.T) {
 	})
 	d := uitest.New(t, app.New(env, scr, app.Options{}))
 	d.RequireView("This project is not on gitlab.example.com", "github.com", "git@github.com:me/dotfiles.git", "pick project", "workspace of parent folder")
-	d.Key("p")
-	d.RequireView("coming in the next milestone")
 	d.Key("w")
 	if !opened {
 		t.Fatal("w must open the parent workspace")
