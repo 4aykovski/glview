@@ -422,8 +422,16 @@ func (s pipelineService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab
 		if f.Username != "" && (pl.User == nil || pl.User.Username != f.Username) {
 			continue
 		}
-		if f.Scope != "" && s.c.isTag(path, pl.Ref) != (f.Scope == "tags") {
-			continue
+		// Other scopes (running, finished…) are ignored, as in the GraphQL client.
+		switch f.Scope {
+		case "tags":
+			if !s.c.isTag(path, pl.Ref) {
+				continue
+			}
+		case "branches":
+			if s.c.isTag(path, pl.Ref) {
+				continue
+			}
 		}
 		all = append(all, pl.PipelineSummary)
 	}

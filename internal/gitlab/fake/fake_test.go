@@ -197,4 +197,9 @@ func TestFakePipelineScope(t *testing.T) {
 	if len(tags.Items) != 1 || tags.Items[0].ID != 1 || len(branches.Items) != 1 || branches.Items[0].ID != 2 {
 		t.Fatalf("tags = %+v, branches = %+v", tags.Items, branches.Items)
 	}
+	// Other scopes are not filters of the fake, as in the GraphQL client.
+	other, _ := c.Pipelines().List(ctx, ref, gitlab.PipelineFilter{Scope: "finished"}, "", 10)
+	if len(other.Items) != 2 {
+		t.Fatalf("scope finished = %+v", other.Items)
+	}
 }
