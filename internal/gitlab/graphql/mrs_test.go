@@ -230,6 +230,9 @@ func TestMRDetail(t *testing.T) {
 	if mr.Description == "" || !mr.RebaseInProgress || mr.MergeError != "Rebase failed: conflict in slot.go" || !mr.ForceRemoveSourceBranch {
 		t.Errorf("detail fields = %+v", mr)
 	}
+	if mr.CommitCount != 3 || !strings.Contains(rec.queries[0], "commitCount") {
+		t.Errorf("commit count = %d", mr.CommitCount)
+	}
 	if mr.Discussions.Unresolved != 0 || mr.Discussions.Total != 4 {
 		t.Errorf("discussions = %+v", mr.Discussions)
 	}
@@ -249,6 +252,24 @@ func TestMRDetailWithoutDiffStats(t *testing.T) {
 	for range 2 {
 		mr, err := c.MR(context.Background(), testProject, 1, "egor")
 		if err != nil || mr.Diff != nil || mr.IID != 1 {
+			t.Fatalf("%+v %v", mr, err)
+		}
+	}
+	if rec.count() != 3 {
+		t.Fatalf("requests = %d, want 3 (retry once, then straight)", rec.count())
+	}
+}
+
+func TestMRDetailWithoutCommitCount(t *testing.T) {
+	c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
+		if strings.Contains(q, "commitCount") {
+			return `{"errors":[{"message":"Field 'commitCount' doesn't exist on type 'MergeRequest'"}]}`
+		}
+		return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE"}}}}`
+	})
+	for range 2 {
+		mr, err := c.MR(context.Background(), testProject, 1, "egor")
+		if err != nil || mr.CommitCount != 0 || mr.IID != 1 {
 			t.Fatalf("%+v %v", mr, err)
 		}
 	}
@@ -298,7 +319,7 @@ func TestMRDetailMergeTimes(t *testing.T) {
 }
 
 func TestMRRowFragmentHasNoMergeFields(t *testing.T) {
-	for _, f := range []string{"mergedAt", "closedAt", "mergeUser"} {
+	for _, f := range []string{"mergedAt", "closedAt", "mergeUser", "commitCount"} {
 		if strings.Contains(mrRowFragment, f) {
 			t.Errorf("MRRow must not select %s (complexity limit)", f)
 		}

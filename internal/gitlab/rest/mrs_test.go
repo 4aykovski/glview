@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/4aykovski/glview/internal/gitlab"
 )
@@ -180,6 +182,51 @@ func TestDiscussionsAllPagesAndPositions(t *testing.T) {
 	}
 	if !ds[1].Notes[0].System || ds[1].Resolvable {
 		t.Errorf("d2 = %+v", ds[1])
+	}
+}
+
+func TestCommitsAllPagesInAPIOrder(t *testing.T) {
+	var pages []string
+	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
+		"GET /api/v4/projects/42/merge_requests/479/commits": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			pages = append(pages, q.Get("page")+"/"+q.Get("per_page"))
+			w.Header().Set("Content-Type", "application/json")
+			switch q.Get("page") {
+			case "1":
+				w.Header().Set("X-Next-Page", "2")
+				w.Write([]byte(`[{"id":"c3c3c3c3c3c3","short_id":"c3c3c3c3","title":"slot: fix race","author_name":"Anna K","created_at":"2026-10-19T11:00:00Z"}]`))
+			case "2":
+				w.Header().Set("X-Next-Page", "3")
+				w.Write([]byte(`[{"id":"b2b2b2b2b2b2","short_id":"b2b2b2b2","title":"slot: add test","author_name":"Egor","created_at":"2026-10-19T10:00:00Z"}]`))
+			default:
+				w.Write([]byte(`[{"id":"a1a1a1a1a1a1","short_id":"a1a1a1a1","title":"slot: first","author_name":"Egor","created_at":"2026-10-18T09:00:00Z"}]`))
+			}
+		},
+	})
+	cs, err := c.MergeRequests().Commits(context.Background(), proj, 479)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(pages, ",") != "1/100,2/100,3/100" {
+		t.Errorf("pages = %v", pages)
+	}
+	if len(cs) != 3 || cs[0].ShortSHA != "c3c3c3c3" || cs[1].ShortSHA != "b2b2b2b2" || cs[2].ShortSHA != "a1a1a1a1" {
+		t.Fatalf("commits must keep API order: %+v", cs)
+	}
+	want := gitlab.CommitSummary{SHA: "c3c3c3c3c3c3", ShortSHA: "c3c3c3c3", Title: "slot: fix race", AuthorName: "Anna K",
+		CreatedAt: time.Date(2026, 10, 19, 11, 0, 0, 0, time.UTC)}
+	if got := cs[0]; got.SHA != want.SHA || got.Title != want.Title || got.AuthorName != want.AuthorName || !got.CreatedAt.Equal(want.CreatedAt) {
+		t.Errorf("mapping = %+v", got)
+	}
+}
+
+func TestCommitsError(t *testing.T) {
+	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
+		"GET /api/v4/projects/42/merge_requests/479/commits": jsonReply(404, `{"message":"404 Not found"}`),
+	})
+	if _, err := c.MergeRequests().Commits(context.Background(), proj, 479); !errors.Is(err, gitlab.ErrNotFound) {
+		t.Fatalf("err = %v", err)
 	}
 }
 

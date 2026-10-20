@@ -93,6 +93,7 @@ type gqlMR struct {
 	MergedAt         string   `json:"mergedAt"`
 	ClosedAt         string   `json:"closedAt"`
 	MergeUser        *gqlUser `json:"mergeUser"`
+	CommitCount      *int     `json:"commitCount"`
 }
 
 // domain maps a node to a MergeRequest; me is the current user's name.
@@ -153,6 +154,9 @@ func (m gqlMR) domain(project gitlab.ProjectRef, me, origin string) gitlab.Merge
 	}
 	if d := m.DiffStatsSummary; d != nil {
 		mr.Diff = &gitlab.DiffStats{Additions: d.Additions, Deletions: d.Deletions, Files: d.FileCount}
+	}
+	if m.CommitCount != nil {
+		mr.CommitCount = *m.CommitCount
 	}
 	if m.HeadPipeline != nil {
 		ps := m.HeadPipeline.summary(project, origin)
@@ -415,6 +419,9 @@ fragment MRDetail on MergeRequest {
   rebaseInProgress
   mergeError
   mergedAt closedAt mergeUser { username name }
+  #@opt commitCount
+  commitCount
+  #@end
   headPipeline {
     stages { nodes { name detailedStatus { group } jobs { nodes { status duration } } } }
   }

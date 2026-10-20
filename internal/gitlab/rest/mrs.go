@@ -12,7 +12,8 @@ import (
 )
 
 // Merge requests: list, details and pipelines come from GraphQL (see package
-// hybrid); this file holds the REST part — discussions and mutations.
+// hybrid); this file holds the REST part — discussions, commits and
+// mutations.
 type mrs struct{ c *Client }
 
 func (mrs) List(context.Context, gitlab.ProjectRef, gitlab.MRFilter, string, int) (gitlab.Page[gitlab.MergeRequest], error) {
@@ -70,6 +71,26 @@ func (mrs) Pipelines(context.Context, gitlab.ProjectRef, int64) ([]gitlab.Pipeli
 	return nil, errGraphQLOnly
 }
 
+// Commits returns every commit of the MR (all pages) in API order, newest
+// first.
+func (s mrs) Commits(ctx context.Context, p gitlab.ProjectRef, iid int64) ([]gitlab.CommitSummary, error) {
+	var out []gitlab.CommitSummary
+	opt := &gl.GetMergeRequestCommitsOptions{ListOptions: gl.ListOptions{PerPage: 100, Page: 1}}
+	for {
+		page, resp, err := s.c.api.MergeRequests.GetMergeRequestCommits(pid(p), iid, opt, gl.WithContext(ctx))
+		if err != nil {
+			return nil, mapError(err)
+		}
+		for _, c := range page {
+			out = append(out, mapCommit(c))
+		}
+		if resp.NextPage == 0 {
+			return out, nil
+		}
+		opt.Page = resp.NextPage
+	}
+}
+
 func (s mrs) Approve(ctx context.Context, p gitlab.ProjectRef, iid int64, sha string) error {
 	opt := &gl.ApproveMergeRequestOptions{}
 	if sha != "" {
@@ -82,6 +103,10 @@ func (s mrs) Approve(ctx context.Context, p gitlab.ProjectRef, iid int64, sha st
 func (s mrs) Unapprove(ctx context.Context, p gitlab.ProjectRef, iid int64) error {
 	_, err := s.c.api.MergeRequestApprovals.UnapproveMergeRequest(pid(p), iid, gl.WithContext(ctx))
 	return mapError(err)
+}
+
+func mapCommit(c *gl.Commit) gitlab.CommitSummary {
+	return gitlab.CommitSummary{SHA: c.ID, ShortSHA: c.ShortID, Title: c.Title, AuthorName: c.AuthorName, CreatedAt: deref(c.CreatedAt)}
 }
 
 // Merge merges the MR, or sets it to merge when the pipeline succeeds. The

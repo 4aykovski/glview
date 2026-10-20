@@ -41,6 +41,8 @@ type MergeRequestService interface {
 	// (the UI filters them).
 	Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
 	Pipelines(ctx context.Context, p ProjectRef, iid int64) ([]PipelineSummary, error)
+	// Commits returns all commits of the MR, newest first (REST, all pages).
+	Commits(ctx context.Context, p ProjectRef, iid int64) ([]CommitSummary, error)
 	// Approve passes sha, the head SHA the user has seen.
 	Approve(ctx context.Context, p ProjectRef, iid int64, sha string) error
 	Unapprove(ctx context.Context, p ProjectRef, iid int64) error
