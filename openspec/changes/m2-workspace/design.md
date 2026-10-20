@@ -37,7 +37,7 @@ M0 и M1 закрыты (архив `2026-10-19-m0-foundation`, `2026-10-20-m1-p
 
 ### 2. Сервисы `gitlab`
 - Новый тип `ProjectOverview` (правка SPEC §4): `Project` (id, имя, `WebURL`, `DefaultBranch`, `LastActivityAt`, `Archived`), `OpenMRs`, `ReviewMRs int`, `DefaultPipeline *PipelineSummary`, `LastTag string`, `Phase int` (1 или 2 — что уже заполнено).
-- `WorkspaceService`: `ProjectsOverview(ctx, ps []ProjectRef, rootRefs map[string]string)`, `MergeRequests(ctx, ps, f MRFilter, perProject)`, `Pipelines(ctx, ps, f PipelineFilter, perProject)` — все возвращают `<-chan BatchResult[T]`. `Tags` в интерфейс не добавляется до M3. `me` hybrid уже знает.
+- `WorkspaceService`: `ProjectsOverview(ctx, ps []ProjectRef, o OverviewOptions)` (`OverviewOptions{RootRefs map[string]string, ForceTags bool}`: известные `rootRef` из снимка и признак `r` для тегов — правка SPEC §6.3), `MergeRequests(ctx, ps, f MRFilter, perProject)`, `Pipelines(ctx, ps, f PipelineFilter, perProject)` — все возвращают `<-chan BatchResult[T]`. `Tags` в интерфейс не добавляется до M3. `me` hybrid уже знает.
 - `SearchService.Search(ctx, q) ([]Project, []Group, error)`.
 - `ProjectService`: + `Starred(ctx) ([]Project, error)`, `ListGroupProjects(ctx, groupID, limit) ([]Project, int, error)` — второе значение — общее число (`X-Total`); сигнатура с `total` — правка SPEC §6.3.
 - `MRFilter.SourceBranch string` (правка SPEC §6.3) — для MR локальной ветки в превью «Проектов»: `MergeRequests().List(p, {State: opened, SourceBranch: b}, "", 1)`.

@@ -230,19 +230,22 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 **Табы MRs / Pipelines / Tags** (макеты `WSMRs`, `WSPipelines`, `WSTags`):
 
-- Записи сгруппированы по проектам, у группы заголовок `▾ platform/route-service  6 open · 2 твоих · показано 3`.
+- Записи сгруппированы по проектам, у группы заголовок `▾ platform/route-service  6 open · 2 ждут тебя · показано 3` (MRs; «ждут тебя» — открытые MR, где я ревьюер, из обзора проектов: точное «моих» счётчиками GraphQL без пересечений не получить; в макете — «2 твоих»). У Pipelines сводка — `показано K`.
 - В группе не больше `per_project` записей (по умолчанию 3), затем строка `↳ ещё N · f фильтр по проекту`.
 - Пустая группа сворачивается в одну строку `▸ qa/e2e-routes  нет открытых`.
 - Группы отсортированы по активности. `J/K` прыгают между заголовками групп, `space` сворачивает.
 - Группы рендерятся по мере прихода пачек GraphQL. Ещё не пришедшие — строкой `◐ platform/x загрузка…`.
 - **MRs:** колонки IID, Title, Author, «Ты» (author/assignee/reviewer), Pipeline, Appr, Upd. Фильтр state (opened по умолчанию).
+- **Строка фильтров табов:** «Проекты» — `/` локальный текстовый фильтр по имени папки и пути проекта без запросов; MRs — `state` и свободный текст (поиск по заголовку), `s` — цикл state; Pipelines — `status` и `ref`, `s` — цикл status. `backspace` сбрасывает фильтры таба (включая «я»). Подсказок с сервера в строке фильтров workspace нет.
 - **Pipelines:** Status, ID, Ref, Source, Commit, Dur, Ago. Превью — стейджи выбранного пайплайна.
 - **Tags:** Tag, Commit, Message, Pipeline, Ago. Превью: «main опережает на 2 коммита · n предложит v1.14.3» — compare считается только для выбранного тега.
 - **Фильтр `m`:**
   - MRs — я автор, assignee или ревьюер;
   - Pipelines — `username = me`;
   - Tags — в строке фильтров «я: не применяется к тегам».
-- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над объектами (`a`, `P`, `R`, `c`, `n`, `D`) работают и здесь, в контексте проекта строки. Для `n` в Pipelines и Tags берётся проект выбранной строки.
+- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над записями — те же, что в списках режима проекта, в контексте проекта строки: MRs — `a`, `M`, `b`, `C` (если у проекта есть локальная папка и найден glab), `o` (список MR проекта с фильтрами таба), `O`, `y`; Pipelines — `l`, `n`, `R`, `c`, `o`, `O`, `y`; Tags (M3) — `n`, `D`. `P` в списках нет: в строке пайплайна нет выбранной джобы. Для `n` в Pipelines и Tags берётся проект выбранной строки. На заголовке группы и строке «ещё N» действия над записью недоступны.
+- **`f`** с любой строки таба (запись, заголовок, «ещё N») — экран проекта на том же табе (2.7). Фильтры таба (state или status и «я») переносятся в экран проекта; `backspace` в проекте их сбрасывает. Локальная папка — первая папка проекта в workspace.
+- **Поллинг:** активный таб — раз в `polling.workspace` (60 с). В Pipelines, пока в загруженных группах есть running/pending, дополнительно раз в `polling.active` (3 с) перезапрашиваются только проекты с такими пайплайнами. MRs быстрого тика не имеют.
 - **Ленивая загрузка:** таб грузится только при первом открытии, дальше — из кэша с фоновым обновлением.
 
 ### 3.4. Project — корневой экран проекта
@@ -430,7 +433,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 - **Оверлей:** поле ввода и два раздела, «Проекты» и «Группы».
 - **Запрос:**
-  - до 2 символов ничего не ищем;
+  - пока в поле меньше 3 символов, ничего не ищем (GitLab не ищет совпадения короче 3 символов);
   - сразу показываем локальные fuzzy-совпадения из источников picker'а;
   - через 300 мс после последнего ввода — серверный запрос; результаты подмешиваются без дублей, локальные помечены.
 - **Действия:** `enter` на проекте → режим проекта; `enter` на группе → workspace из проектов группы (`GroupSource`).
@@ -634,6 +637,16 @@ type Group struct {
     WebURL   string
 }
 
+// Строка таба «Проекты» workspace: обзор проекта в две фазы (5.2).
+type ProjectOverview struct {
+    Project                       // id, имя, WebURL, DefaultBranch (rootRef), LastActivityAt, Archived
+    OpenMRs   int                 // открытые MR
+    ReviewMRs int                 // открытые MR, где я ревьюер («ждут меня»)
+    DefaultPipeline *PipelineSummary // последний пайплайн default-ветки (фаза 2); nil — нет или неизвестно
+    LastTag   string              // последний тег (фаза 2, REST); "" — нет
+    Phase     int                 // 1 или 2: какие поля уже заполнены
+}
+
 // Результат батча по нескольким проектам.
 type ProjectGroup[T any] struct {
     Project ProjectRef
@@ -713,7 +726,8 @@ type LocalProject struct {
 |---|---|
 | Старт, Setup | REST `GET /user`, `GET /version` |
 | Workspace → Проекты (фаза 1) | GraphQL батч: `project(fullPath)` × N: `id name webUrl lastActivityAt archived repository{rootRef}`, `opened: mergeRequests(state: opened){count}`, `review: mergeRequests(state: opened, reviewerUsername: $me){count}` |
-| Workspace → Проекты (фаза 2) | GraphQL батч: `pipelines(ref: $rootRef_i, first: 1){nodes{id status}}`; REST `GET /projects/:id/repository/tags?order_by=updated&per_page=1` на проект (параллельно ≤ 4). `rootRef` кэшируется на 24 ч, поэтому обычно фазы склеиваются в один запрос. |
+| Workspace → Проекты (фаза 2) | GraphQL батч: `pipelines(ref: $rN, first: 1){nodes{id iid status}}` на проект, где `$rN` — переменная своего алиаса (`p3: project(fullPath: $p3) { ...WsOverview dp: pipelines(ref: $r3, first: 1) {…} }`); REST `GET /projects/:id/repository/tags?order_by=updated&per_page=1` на проект (параллельно ≤ 4, кэш 10 мин). `rootRef` кэшируется на 24 ч: если он известен для всех проектов пачки, фазы склеиваются в один запрос (фаза 1 и `dp` в теле алиаса). Пустой репозиторий без `rootRef` в фазу 2 не идёт. |
+| Workspace → Проекты, превью | MR из локальной ветки, лениво по выбранной строке: `project{mergeRequests(sourceBranches: [$b], state: opened, first: 1){nodes{…MRRow}}}` (`MRFilter.SourceBranch`) |
 | Workspace → MRs | GraphQL батч, фрагмент `MRRow`: `mergeRequests(state, first: $perProject, sort: UPDATED_DESC){count nodes{…MRRow}}`. С фильтром `m` — три алиаса на проект (`a: authorUsername`, `s: assigneeUsername`, `r: reviewerUsername`), объединение и дедупликация по IID на клиенте, `Total` — по объединению загруженного (помечается «≥»). |
 | Workspace → Pipelines | GraphQL батч: `pipelines(first: $perProject, username: $me?, status?){count nodes{…PipelineRow}}` |
 | Workspace → Tags | REST на проект (≤ 4 параллельно): `GET /repository/tags?order_by=version&sort=desc&per_page=3` (+ `X-Total`), `GET /pipelines?scope=tags&per_page=50` → сопоставление по `ref`. GraphQL не отдаёт список тегов репозитория ([gitlab#332144](https://gitlab.com/gitlab-org/gitlab/-/work_items/332144)). |
@@ -826,7 +840,7 @@ fragment WsMRGroup on Project {
 |---|---|
 | Есть running/pending пайплайны или джобы на экране, rebase в процессе | 3 с |
 | Списки режима проекта, детали | 30 с |
-| Workspace (табы MRs/Pipelines/Tags/Проекты) | 60 с |
+| Workspace (табы MRs/Pipelines/Tags/Проекты) | 60 с; в Pipelines при running/pending — дополнительно 3 с, но только по проектам с такими пайплайнами |
 | Терминал не в фокусе (`tea.BlurMsg`, если терминал сообщает о фокусе) | ×5, но не реже 5 мин |
 
 - **`r`** — немедленное обновление со сбросом кэша для экрана. В шапке `⟳ 14s` — время с последнего успешного обновления.
@@ -844,10 +858,11 @@ fragment WsMRGroup on Project {
 | `rootRef` и метаданные проекта | 24 ч |
 | Списки | 30 с |
 | Финальные пайплайны и джобы | 10 мин |
+| Последний тег проекта workspace | 10 мин (только для тиков поллинга; `r` перезапрашивает) |
 | Running | 0 (не кэшируются) |
 
 - **Stale-while-revalidate:** устаревшее значение отдаётся сразу (`Stale: true`), фоновый запрос обновляет его, экран перерисовывается по приходу.
-- **На диске** (`$XDG_CACHE_HOME/gitlab-tui/`): только starred (1 ч) и метаданные проектов workspace (для мгновенного старта). Недавние проекты — в `$XDG_STATE_HOME/gitlab-tui/state.json` (последние 20).
+- **На диске** (`$XDG_CACHE_HOME/gitlab-tui/`): только starred (`starred.json`, 1 ч) и метаданные проектов workspace (для мгновенного старта): `workspace/<sha256(хост + "\n" + источник)[:16]>.json` — список `ProjectOverview` без MR, со статусом пайплайна default-ветки, `rootRef` и временем снимка; без токенов. Недавние проекты — в `$XDG_STATE_HOME/gitlab-tui/state.json` (последние 20).
 - **Инвалидация:** любое действие сбрасывает ключи этого объекта и его списков.
 
 ---
@@ -876,8 +891,10 @@ internal/ui/common/        keymap, help, confirm, footer, styles/theme, markdown
 internal/ui/common/table/  таблица: приоритеты колонок, курсор по ID, подгрузка
 internal/ui/common/filterline/ строка фильтров key:value с автодополнением
 internal/ui/common/vartable/   таблица переменных KEY | VALUE | type
-internal/ui/screens/       setup, workspace, project, mrdetail, mractions, pipeline, joblog,
-                           runpipeline, newtag, picker, search, help
+internal/ui/common/grouped/    таблица с группами по проектам (workspace): заголовки, «ещё N», сворачивание
+internal/ui/localgit/      состояние git-операций (fetch/pull, ↑↓) для всех экранов: Tracker в Env
+internal/ui/screens/       setup, start, workspace, project, mrdetail, mractions, pipeactions,
+                           pipeline, joblog, runpipeline, newtag, search (p и F), help
 internal/joblog/           разбор трейса: секции, ANSI, \r (без зависимостей от UI)
 internal/semver/           предложение следующей версии тега
 ```
@@ -941,7 +958,8 @@ type UserService interface {
 type ProjectService interface {
     Get(ctx context.Context, ref ProjectRef) (Project, error)
     Starred(ctx context.Context) ([]Project, error)
-    ListGroupProjects(ctx context.Context, groupID int64, limit int) ([]Project, error)
+    // Проекты группы с подгруппами, без архивных, по активности; total — общее число (X-Total).
+    ListGroupProjects(ctx context.Context, groupID int64, limit int) (ps []Project, total int, err error)
     Branches(ctx context.Context, p ProjectRef, search string) ([]string, error)
     CIConfigVariables(ctx context.Context, p ProjectRef, ref string) ([]CIConfigVariable, error)
 }
@@ -954,6 +972,7 @@ type MRFilter struct {
     Labels    []string
     Search    string
     Mine      bool    // фильтр «я»: author ∪ assignee ∪ reviewer
+    SourceBranch string // MR из ветки (превью «Проектов» workspace)
 }
 
 type MergeOptions struct {
@@ -1023,10 +1042,15 @@ type IssueService interface {
 
 // Батчи workspace. Каждый метод отдаёт результаты по мере готовности пачек.
 type WorkspaceService interface {
-    ProjectsOverview(ctx context.Context, ps []ProjectRef, me string) <-chan BatchResult[ProjectOverview]
+    ProjectsOverview(ctx context.Context, ps []ProjectRef, o OverviewOptions) <-chan BatchResult[ProjectOverview]
     MergeRequests(ctx context.Context, ps []ProjectRef, f MRFilter, perProject int) <-chan BatchResult[MergeRequest]
     Pipelines(ctx context.Context, ps []ProjectRef, f PipelineFilter, perProject int) <-chan BatchResult[PipelineSummary]
-    Tags(ctx context.Context, ps []ProjectRef, perProject int) <-chan BatchResult[Tag]
+    // Tags(ctx, ps, perProject) — в M3 (#23).
+}
+
+type OverviewOptions struct {
+    RootRefs  map[string]string // известные default-ветки (снимок с диска) по пути проекта
+    ForceTags bool              // r: последний тег мимо кэша 10 мин
 }
 
 type BatchResult[T any] struct {
@@ -1068,6 +1092,22 @@ type Scope struct {
 
 func ProjectScope(p Project, pageSize int) Scope
 func WorkspaceScope(src ProjectSource, ps []Project, perProject int) Scope
+```
+
+```go
+// internal/ui/screens/project
+
+// Options открытия экрана проекта: из cwd, -p, поиска или workspace.
+type Options struct {
+    Path           string
+    Repo           *gitremote.Repo        // локальная папка или nil
+    Tab            int                    // 0 MRs, 1 Pipelines
+    MRFilter       *gitlab.MRFilter       // фильтры таба workspace (state, «я»); nil — умолчания
+    PipelineFilter *gitlab.PipelineFilter // status, «мои»
+    Crumb          string                 // источник workspace: шапка «~/src › platform/route-service»
+}
+
+func New(env *app.Env, o Options) *Project
 ```
 
 ```go

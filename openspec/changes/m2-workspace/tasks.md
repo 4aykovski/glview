@@ -1,7 +1,7 @@
 ## 0. Подготовка
 
-- [ ] 0.1 Ветка `m2` от свежего `main`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); проверка: `git branch --show-current` = `m2`
-- [ ] 0.2 Правки SPEC по design.md, решение 11: §3.3, §3.12, §4, §5.2, §5.7, §5.8, §6.1, §6.3; проверка: `git diff docs/SPEC.md` содержит все пункты, `make confidential` зелёный, коммит «SPEC: уточнения под M2 (#36)»
+- [x] 0.1 Ветка `m2` от свежего `main`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); проверка: `git branch --show-current` = `m2`
+- [x] 0.2 Правки SPEC по design.md, решение 11: §3.3, §3.12, §4, §5.2, §5.7, §5.8, §6.1, §6.3; проверка: `git diff docs/SPEC.md` содержит все пункты, `make confidential` зелёный, коммит «SPEC: уточнения под M2 (#36)»
 
 ## 1. gitlab-слой (части #19, #20, #21)
 
