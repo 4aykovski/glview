@@ -59,9 +59,29 @@ type (
 	commitsLoadedMsg struct {
 		tok     common.Token
 		commits []gitlab.CommitSummary
+		force   bool // requested past the cache
 		err     error
 	}
 )
+
+// commitsTab is the state of the Commits tab: loaded lazily on the first
+// visit, then once per r and when the head SHA differs from reqSHA. A list
+// with a failed reload (loaded and err) is a valid state.
+type commitsTab struct {
+	list    []gitlab.CommitSummary
+	loaded  bool   // a list arrived; it stays after a failed reload
+	loading bool   // a request is in flight
+	err     bool   // the last request failed
+	opened  bool   // the tab was visited: r and new head SHAs reload it
+	reqSHA  string // the MR head SHA at the last request
+	refresh bool   // r: reload once the MR details answer
+}
+
+// current reports whether the list belongs to head SHA sha: its first
+// commit is the head, or there is nothing to compare.
+func (c *commitsTab) current(sha string) bool {
+	return sha == "" || len(c.list) == 0 || c.list[0].SHA == sha
+}
 
 // Screen is the MR detail screen.
 type Screen struct {
@@ -75,14 +95,7 @@ type Screen struct {
 	pipes       []gitlab.PipelineSummary
 	pipesLoaded bool
 
-	// Commits tab: loaded lazily on the first visit, then on r and when the
-	// head SHA differs from commitsSHA (the SHA of the last request).
-	commits        []gitlab.CommitSummary
-	commitsLoaded  bool
-	commitsLoading bool
-	commitsErr     bool
-	commitsOpened  bool
-	commitsSHA     string
+	commits commitsTab
 
 	mrGen, discGen, pipeGen, poll common.Gen
 	recheckGen, commitGen         common.Gen
@@ -214,7 +227,8 @@ func (s *Screen) loadPipelines(force bool) tea.Cmd {
 // requested at.
 func (s *Screen) loadCommits(force bool) tea.Cmd {
 	tok := s.commitGen.Next()
-	s.commitsLoading, s.commitsErr, s.commitsSHA = true, false, s.mr.SHA
+	c := &s.commits
+	c.loading, c.err, c.reqSHA = true, false, s.mr.SHA
 	s.rebuildCommits()
 	env, ref, iid, key := s.env, s.ref, s.iid, s.key("mrcommits")
 	return func() tea.Msg {
@@ -223,17 +237,33 @@ func (s *Screen) loadCommits(force bool) tea.Cmd {
 		c, _, err := common.Fetch(ctx, env.Cache, key, dataTTL, force, func(ctx context.Context) ([]gitlab.CommitSummary, error) {
 			return env.Client.MergeRequests().Commits(ctx, ref, iid)
 		})
-		return commitsLoadedMsg{tok: tok, commits: c, err: err}
+		return commitsLoadedMsg{tok: tok, commits: c, force: force, err: err}
 	}
 }
 
-// loadAll reloads everything; commits only once their tab was opened.
+// loadAll reloads everything. Commits (once their tab was opened) follow
+// the MR details, so they are requested once and at the new head SHA.
 func (s *Screen) loadAll(force bool) tea.Cmd {
-	cmds := []tea.Cmd{s.loadMR(force), s.loadDiscussions(force), s.loadPipelines(force)}
-	if s.commitsOpened {
-		cmds = append(cmds, s.loadCommits(force))
+	if s.commits.opened {
+		s.commits.refresh = true
 	}
-	return tea.Batch(cmds...)
+	return tea.Batch(s.loadMR(force), s.loadDiscussions(force), s.loadPipelines(force))
+}
+
+// reloadCommits runs on every answer to the MR details: it reloads an
+// opened Commits tab after r, or (fresh details) when the head SHA moved
+// past the last commits request.
+func (s *Screen) reloadCommits(fresh bool) tea.Cmd {
+	c := &s.commits
+	if !c.opened {
+		return nil
+	}
+	moved := fresh && s.mr.SHA != "" && s.mr.SHA != c.reqSHA
+	if !c.refresh && !moved {
+		return nil
+	}
+	c.refresh = false
+	return s.loadCommits(true)
 }
 
 // recheckWindow is how long after a recheck request the MR is polled fast
@@ -321,16 +351,15 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, nil
 		}
 		if msg.err != nil {
-			return s, tea.Batch(env.Fail(msg.err), s.schedulePoll())
+			return s, tea.Batch(env.Fail(msg.err), s.reloadCommits(false), s.schedulePoll())
 		}
 		s.mr = msg.mr
 		s.updated = env.Now()
+		// Once per poll cycle: refresh the relative times of the tables.
+		s.rebuildTable()
+		s.rebuildCommits()
 		recheck := s.maybeRecheck()
-		var commits tea.Cmd
-		if s.commitsOpened && s.mr.SHA != "" && s.mr.SHA != s.commitsSHA {
-			commits = s.loadCommits(true)
-		}
-		return s, tea.Batch(recheck, commits, s.schedulePoll())
+		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -364,14 +393,20 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if !s.commitGen.Valid(msg.tok) {
 			return s, nil
 		}
-		s.commitsLoading = false
+		c := &s.commits
+		c.loading = false
 		if msg.err != nil {
-			s.commitsErr = true
+			c.err = true
 			s.rebuildCommits()
 			return s, env.Fail(msg.err)
 		}
-		s.commits, s.commitsLoaded = msg.commits, true
+		c.list, c.loaded = msg.commits, true
 		s.rebuildCommits()
+		if !msg.force && !c.current(s.mr.SHA) {
+			// A cached list of an older head: ask GitLab once. A forced
+			// answer is taken as is, so a lagging API cannot loop.
+			return s, s.loadCommits(true)
+		}
 
 	case common.PollTickMsg:
 		if !s.poll.Valid(msg.Token) || !s.active || env.AuthLost {
@@ -386,7 +421,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, s.loadDiscussions(false)
 		case msg.Key == s.key("mrpipes"):
 			return s, s.loadPipelines(false)
-		case msg.Key == s.key("mrcommits") && s.commitsOpened:
+		case msg.Key == s.key("mrcommits") && s.commits.opened:
 			return s, s.loadCommits(false)
 		}
 	case app.AuthLostMsg:
@@ -468,8 +503,9 @@ func (s *Screen) setTab(i int) tea.Cmd {
 	if s.tab != tabCommits {
 		return nil
 	}
-	s.commitsOpened = true
-	if (!s.commitsLoaded || s.commitsErr) && !s.commitsLoading {
+	c := &s.commits
+	c.opened = true
+	if (!c.loaded || c.err) && !c.loading {
 		return s.loadCommits(false)
 	}
 	return nil
@@ -477,9 +513,10 @@ func (s *Screen) setTab(i int) tea.Cmd {
 
 func (s *Screen) selectedCommit() *gitlab.CommitSummary {
 	id := s.ctbl.CursorID()
-	for i := range s.commits {
-		if s.commits[i].SHA == id {
-			return &s.commits[i]
+	list := s.commits.list
+	for i := range list {
+		if list[i].SHA == id {
+			return &list[i]
 		}
 	}
 	return nil
@@ -545,11 +582,11 @@ func (s *Screen) rebuildCommits() {
 		{Title: m.ColAuthor, Min: 8, Max: 20, Priority: 50},
 		{Title: m.ColAgo, Min: 4, Priority: 60, AlignRight: true},
 	})
-	rows := make([]table.Row, len(s.commits))
-	for i, c := range s.commits {
+	rows := make([]table.Row, len(s.commits.list))
+	for i, c := range s.commits.list {
 		short := c.ShortSHA
 		if short == "" {
-			short = c.SHA[:min(8, len(c.SHA))]
+			short = render.ShortSHA(c.SHA)
 		}
 		rows[i] = table.Row{ID: c.SHA, Cells: []string{
 			st.Accent.Render(short), c.Title, c.AuthorName, render.Ago(env.Lang, env.Now(), c.CreatedAt),
@@ -558,9 +595,9 @@ func (s *Screen) rebuildCommits() {
 	s.ctbl.SetRows(rows)
 	s.ctbl.SetEmpty("\n  " + m.EmptyCommits)
 	switch {
-	case s.commitsErr && len(s.commits) == 0:
+	case s.commits.err && len(s.commits.list) == 0:
 		s.ctbl.SetTail(table.TailError, env.Msg.Project.LoadFailed)
-	case !s.commitsLoaded:
+	case !s.commits.loaded:
 		s.ctbl.SetTail(table.TailLoading, m.Loading)
 	default:
 		s.ctbl.SetTail(table.TailNone, "")
@@ -762,12 +799,17 @@ func (s *Screen) tabBar() string {
 	if s.pipesLoaded {
 		pipes = fmt.Sprintf(" %d", len(s.pipes))
 	}
+	// The loaded list counts unless it is behind the head SHA (a reload
+	// after a push failed or is in flight): then the MR's own count.
 	commits := ""
+	c := &s.commits
 	switch {
-	case s.commitsLoaded:
-		commits = fmt.Sprintf(" %d", len(s.commits))
+	case c.loaded && c.current(s.mr.SHA):
+		commits = fmt.Sprintf(" %d", len(c.list))
 	case s.mr.CommitCount > 0:
 		commits = fmt.Sprintf(" %d", s.mr.CommitCount)
+	case c.loaded:
+		commits = fmt.Sprintf(" %d", len(c.list))
 	}
 	names := []string{m.TabOverview, m.TabDiscussions + discs, m.TabPipelines + pipes, m.TabCommits + commits}
 	parts := make([]string, len(names))

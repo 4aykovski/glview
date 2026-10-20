@@ -178,21 +178,11 @@ func (s *Screen) link() string {
 		}
 	}
 	if s.tab == tabCommits {
-		if c := s.selectedCommit(); c != nil {
-			return s.commitURL(c.SHA)
+		if c := s.selectedCommit(); c != nil && c.WebURL != "" {
+			return c.WebURL
 		}
 	}
 	return s.mr.WebURL
-}
-
-// commitURL is <project>/-/commit/<sha>; the project URL is the MR URL cut
-// before /-/merge_requests/, or the instance URL and the full path.
-func (s *Screen) commitURL(sha string) string {
-	base, _, ok := strings.Cut(s.mr.WebURL, "/-/merge_requests/")
-	if !ok || base == "" {
-		base = strings.TrimRight(s.env.Host, "/") + "/" + s.ref.FullPath
-	}
-	return base + "/-/commit/" + sha
 }
 
 func (s *Screen) cardIndex(cards []card) int {

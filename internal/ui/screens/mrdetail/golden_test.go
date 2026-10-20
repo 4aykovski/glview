@@ -40,7 +40,9 @@ func TestGoldenDiscussionsRich(t *testing.T) {
 }
 
 func TestGoldenCommits(t *testing.T) {
-	d, _, _, client := setup(t, baseMR())
+	mr := baseMR()
+	mr.SHA = testCommits()[0].SHA
+	d, _, _, client := setup(t, mr)
 	client.SetMRCommits(path, 479, testCommits())
 	d.Key("shift+tab")
 	d.RequireGoldenSizes("mrdetail-commits")
