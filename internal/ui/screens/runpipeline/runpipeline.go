@@ -276,7 +276,8 @@ func (f *Form) loadHints(attempt int) tea.Cmd {
 
 // rebuildCands orders the suggestions: the local branch first when it is
 // prefilled (run_pipeline.prefill_local_branch), then the groups in the
-// order of run_pipeline.refs_first.
+// order of run_pipeline.refs_first. The untouched prefilled branch is
+// always listed, first in its group when the answer did not include it.
 func (f *Form) rebuildCands() {
 	q := strings.ToLower(f.query)
 	seen := map[string]bool{}
@@ -284,6 +285,10 @@ func (f *Form) rebuildCands() {
 	if f.env.Settings.PrefillLocalBranch && f.localRef != "" && strings.Contains(strings.ToLower(f.localRef), q) {
 		head = append(head, cand{name: f.localRef, kind: kindBranch, current: true})
 		seen[f.localRef] = true
+	}
+	if ref := f.Ref(); f.prefilled && !seen[ref] && !slices.Contains(f.branches, ref) {
+		branches = append(branches, cand{name: ref, kind: kindBranch, current: ref == f.localRef})
+		seen[ref] = true
 	}
 	for _, b := range f.branches {
 		if !seen[b] {
@@ -453,12 +458,18 @@ func (f *Form) answered() tea.Cmd {
 		cmds = append(cmds, f.env.Fail(f.tagErr))
 	}
 	// When the typed ref is exactly a known branch or tag, load its hints.
-	if ref := f.Ref(); ref != "" && ref != f.hintFor {
+	if ref := f.Ref(); ref != "" && !f.hintsHeld(ref) {
 		if slices.ContainsFunc(f.cands, func(c cand) bool { return c.name == ref }) {
 			cmds = append(cmds, f.loadHints(0))
 		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// hintsHeld reports whether the hints of ref are loaded or loading, so
+// they are not asked for again.
+func (f *Form) hintsHeld(ref string) bool {
+	return ref == f.hintFor && (f.hintState == hintsLoading || f.hintState == hintsReady)
 }
 
 func (f *Form) onHints(msg hintsMsg) tea.Cmd {
@@ -561,10 +572,14 @@ func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "enter":
 		if f.candCursor < len(f.cands) {
-			f.input.SetValue(f.cands[f.candCursor].name)
+			name := f.cands[f.candCursor].name
+			f.input.SetValue(name)
 			f.input.CursorEnd()
 			f.prefilled = false
 			f.inputGen.Next() // drop a pending debounce
+			if f.hintsHeld(name) {
+				return nil
+			}
 			return f.loadHints(0)
 		}
 		return nil

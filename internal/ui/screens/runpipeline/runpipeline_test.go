@@ -832,6 +832,24 @@ func TestBranchThatIsAlsoATagIsChecked(t *testing.T) {
 	}
 }
 
+func TestPrefilledBranchOutsideTheAnswerKeepsTheCursor(t *testing.T) {
+	c := newFake()
+	bs := make([]string, 25)
+	for i := range bs {
+		bs[i] = fmt.Sprintf("feat/b%02d", i)
+	}
+	c.SetBranches(path, append(bs, "trunk")...) // past the 20 of the answer
+	d, _, f := open(t, c, "trunk", "")
+	if f.cands[0].name != "trunk" || f.candCursor != 0 {
+		t.Fatalf("the prefilled branch must lead its group: cursor = %d, cands = %v", f.candCursor, names(f))
+	}
+	d.RequireView("› trunk", "branches 20+")
+	d.Key("enter")
+	if f.Ref() != "trunk" {
+		t.Fatalf("enter must keep the prefilled branch, got %q", f.Ref())
+	}
+}
+
 func TestNewSuggestionsReplaceTheListAtOnce(t *testing.T) {
 	d, _, f := open(t, newFake(), "", "")
 	f.input.SetValue("feat")
@@ -842,4 +860,19 @@ func TestNewSuggestionsReplaceTheListAtOnce(t *testing.T) {
 	d.Send(tagsMsg{tok: f.searchGen.Current()})
 	d.RequireView("feat/new", "branches 1 · tags 0 · 1/1")
 	d.RequireNoView("v1.14.2", "fix/race", "searching…")
+}
+
+func TestPickingTheSameRefKeepsItsHints(t *testing.T) {
+	c := newFake()
+	c.SetCIVariables(path, "main", gitlab.CIConfigVariable{Key: "DEPLOY_ENV"})
+	d, _, f := open(t, c, "main", "")
+	d.Key("enter") // the cursor is on main
+	if f.Ref() != "main" || c.CallCount("Projects.CIConfigVariables") != 1 {
+		t.Fatalf("ref = %q, hint loads = %d", f.Ref(), c.CallCount("Projects.CIConfigVariables"))
+	}
+	d.RequireView("1 DEPLOY_ENV")
+	d.Key("down", "enter") // another ref loads its own hints
+	if c.CallCount("Projects.CIConfigVariables") != 2 {
+		t.Fatalf("hint loads = %d", c.CallCount("Projects.CIConfigVariables"))
+	}
 }
