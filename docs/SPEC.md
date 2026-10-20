@@ -173,7 +173,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `c` комментарий (M3) |
 | MR detail, вкладка Discussions | `J/K` следующий/предыдущий тред (текущий — толстая рамка Accent), `j/k` построчно, `space` свернуть/развернуть текущий тред (на других вкладках `space` листает, `pgdown`/`ctrl+d` листают везде), `o` открыть текущий тред в браузере (`<ссылка MR>#note_<id>` первой заметки), `y` копировать эту ссылку |
 | Pipelines (список) | `enter` пайплайн, `l` лог первой упавшей (иначе running) джобы, `n` новый пайплайн, `R` retry, `c` cancel, `o` список пайплайнов проекта в браузере с текущими фильтрами, `O` выделенный пайплайн в браузере |
-| Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
+| Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `a` попытки джобы, `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
 | Job log | `f` follow, `space` свернуть секцию, `z` свернуть/развернуть все, `/` поиск, `n/N` следующее/предыдущее совпадение, `g/G`, `R` retry, `c` cancel |
 | Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега |
 | Issues | `enter` открыть, `c` комментарий, `x` close/reopen |
@@ -183,6 +183,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 - **`m`: merge vs фильтр «я».** `m` везде остаётся фильтром «я»: он глобальный и нужен в каждом табе. Merge — `M`, открывает диалог merge. В диалоге выбор «сейчас / когда пайплайн пройдёт» (auto-merge), чекбоксы squash и «удалить ветку». Отдельный хоткей для «merge when pipeline succeeds» не нужен: это вариант в том же диалоге, и в нём по умолчанию выбран auto-merge, если пайплайн ещё идёт.
 - **`l`: лог vs `h/l` в пайплайне.** Внутри Pipeline `h/l` — навигация по стейджам-колонкам (как в макете), лог открывается `enter`. В списке пайплайнов `l` — короткий путь к логу первой упавшей или running джобы.
 - **Checkout — `C`.** Не занят ни в одном контексте MR и совпадает с примером custom command из брифа. `c` в MR — комментарий, `C` — checkout.
+- **`a` в Pipeline — попытки джобы.** В макете `a` — артефакты, но они убраны из MVP, а к прежним попыткам обращаются чаще. Артефакты после MVP получат другой хоткей.
 - **Язык — `ctrl+l`.** `L` зарезервирован под метки issue после MVP. `ctrl+l` не используется в полях ввода bubbles. Тему после MVP повесим на `ctrl+t`.
 - **Пайплайны «мои/все».** В макете Pipelines это `f`. Заменяем на общий `m` (`user=@me`).
 
@@ -320,9 +321,13 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
   - Bridges (trigger-джобы) показываются в своём стейдже с глифом `⇢`. Если есть downstream-пайплайн, в отдельной колонке «downstream» — `⇢ qa/e2e-routes  ◐ running`.
   - Колонки растягиваются на ширину экрана: `w/n`, но не уже 25 символов; остаток ширины достаётся последней колонке. Ref в шапке показывается как `!<iid>` для MR-пайплайнов.
   - Если стейджей больше, чем влезает, колонки скроллятся горизонтально, активная всегда видна.
-- **Панель выбранной джобы:** имя, `job #id · stage`, runner, длительность, `allow_failure`, число ретраев, последняя непустая строка лога (только у running/failed, ленивый запрос).
+- **Панель выбранной джобы:** имя, `job #id · stage`, runner, длительность, `allow_failure`, попытки, последняя непустая строка лога (только у running/failed, ленивый запрос).
+- **Попытки джобы.** После retry у джобы несколько попыток: последняя показывается в колонке, прежние — в `Job.Attempts`.
+  - В панели строка `попытки: #305 ✓ · #303 ✗ · #302 ✗`, новые первыми; что не влезло по ширине — `+N`. Строки нет, если попытка одна.
+  - `a` открывает оверлей со списком попыток: `#id статус длительность время старта`, последняя отмечена «последняя». `j/k` выбор, `enter` — Job log выбранной попытки, `esc` закрыть. На джобе без прежних попыток `a` ничего не делает.
 - **Действия:**
-  - `enter` — Job log; на bridge — Pipeline downstream-пайплайна;
+  - `enter` — Job log последней попытки; на bridge — Pipeline downstream-пайплайна;
+  - `a` — попытки джобы (см. выше);
   - `P` — play manual: форма переменных, пустая форма = play без переменных;
   - `R` — retry джобы (retry всего пайплайна — `R` в списке пайплайнов);
   - `c` — cancel джобы;
@@ -342,7 +347,8 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
   - ручной скролл вверх выключает follow, `f` или `G` включают обратно.
 - **Поиск `/`:** подстрока без учёта регистра. Совпадения подсвечиваются, `n/N` переходят по ним, свёрнутые секции с совпадением раскрываются. Строка поиска показывает «совпадение 1 из 3».
 - **Длинные строки** не переносятся, горизонтальный скролл `←/→`.
-- **Действия:** `R` retry (открывает лог новой джобы), `c` cancel, `o`.
+- **Прежняя попытка:** в шапке после длительности — `· попытка 2/3`. Прежняя попытка всегда в финальном статусе: follow выключен, лог запрашивается один раз, без поллинга.
+- **Действия:** `R` retry (открывает лог новой джобы), `c` cancel, `o`. В логе прежней попытки `R` и `c` действуют на последнюю попытку этой джобы, `o` открывает в браузере ту попытку, лог которой на экране.
 
 ### 3.9. Run pipeline (макет `RunPipeline`)
 
@@ -520,9 +526,9 @@ type Job struct {
     AllowFailure bool
     Duration     time.Duration
     Runner       string
-    RetryCount   int
     StartedAt    *time.Time
     WebURL       string
+    Attempts     []Job // прежние попытки (retried), новые первыми; пусто, если попытка одна
 }
 
 type Bridge struct {
@@ -674,7 +680,7 @@ type LocalProject struct {
 | approve / unapprove | REST `POST /merge_requests/:iid/approve` (`sha`), `POST …/unapprove` |
 | merge | REST `PUT /merge_requests/:iid/merge` (`sha`, `squash`, `should_remove_source_branch`, `auto_merge` или `merge_when_pipeline_succeeds`) |
 | rebase | REST `PUT /merge_requests/:iid/rebase` → 202; далее GraphQL `MergeRequests().Get` (`rebaseInProgress`, `mergeError`) каждые 2 с до `rebaseInProgress=false`, ошибка — из `mergeError` |
-| Pipeline | REST `GET /pipelines/:id`, `GET /pipelines/:id/jobs?per_page=100&include_retried=true` (все страницы, ретраи сворачиваются в `RetryCount`), `GET /pipelines/:id/bridges?per_page=100` |
+| Pipeline | REST `GET /pipelines/:id`, `GET /pipelines/:id/jobs?per_page=100&include_retried=true` (все страницы; джобы с одинаковыми стейджем и именем сворачиваются в последнюю, прежние — в `Attempts`), `GET /pipelines/:id/bridges?per_page=100` |
 | retry / cancel пайплайна | REST `POST /pipelines/:id/retry`, `POST /pipelines/:id/cancel` |
 | retry / cancel / play джобы | REST `POST /jobs/:id/retry`, `POST /jobs/:id/cancel`, `POST /jobs/:id/play` (`job_variables_attributes`) |
 | Job log | REST `GET /jobs/:id/trace` (поллинг), `GET /jobs/:id` (статус) |
@@ -1163,7 +1169,7 @@ type Messages struct {
     }
     Keys struct { // подписи в футере и хелпе
         Up, Down, Open, Back, Refresh, Browser, Help, Approve, Merge, Rebase,
-        Checkout, Play, Retry, Cancel, Log, New, Delete, Follow, Fold string
+        Checkout, Play, Retry, Cancel, Log, New, Delete, Follow, Fold, Attempts string
         // …
     }
     Toast struct {
