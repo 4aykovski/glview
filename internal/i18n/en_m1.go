@@ -110,6 +110,7 @@ func fillM1EN(m *Messages) {
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "type"
+	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "no variables — the job starts as it is"
 	f.VarsHint = "a add · d delete · enter edit · space type"
 	f.RunHint = "ctrl+s run · esc cancel"
@@ -124,7 +125,7 @@ func fillM1EN(m *Messages) {
 	f.PickValue = func(key string) string { return "Value for " + key }
 	f.PickHint = "1-9 add a hint · tab switch block"
 	f.Created = func(id int64) string { return fmt.Sprintf("pipeline #%d created", id) }
-	f.RunNoVars = "no variables"
+	f.RunNoVars = "no variables — a to add"
 	f.RunButton = "Run"
 	f.RunKeys = "↑/↓ pick ref · enter accept · tab switch · esc cancel"
 

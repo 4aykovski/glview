@@ -136,11 +136,12 @@ type LogMessages struct {
 
 // FormMessages are the strings of overlays and forms.
 type FormMessages struct {
-	ColKey, ColValue, ColType string
-	VarsEmpty                 string
-	VarsHint                  string
-	RunHint                   string
-	TypeEnv, TypeFile         string
+	ColKey, ColValue, ColType        string
+	KeyPlaceholder, ValuePlaceholder string // empty cells of the variables table
+	VarsEmpty                        string
+	VarsHint                         string
+	RunHint                          string
+	TypeEnv, TypeFile                string
 
 	// Run pipeline
 	RunTitle, RefLabel, VarsLabel       string

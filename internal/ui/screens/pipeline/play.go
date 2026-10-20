@@ -24,6 +24,7 @@ func newPlayForm(env *app.Env, ref gitlab.ProjectRef, job gitlab.Job) *playForm 
 	f := env.Msg.Form
 	return &playForm{env: env, ref: ref, job: job, vt: vartable.New(env.Styles, vartable.Labels{
 		Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.VarsEmpty, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile,
+		KeyPlaceholder: f.KeyPlaceholder, ValuePlaceholder: f.ValuePlaceholder,
 	})}
 }
 

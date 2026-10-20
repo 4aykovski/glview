@@ -116,6 +116,7 @@ func fillM1RU(m *Messages) {
 
 	f := &m.Form
 	f.ColKey, f.ColValue, f.ColType = "KEY", "VALUE", "тип"
+	f.KeyPlaceholder, f.ValuePlaceholder = "KEY", "value"
 	f.VarsEmpty = "переменных нет — джоба запустится как есть"
 	f.VarsHint = "a добавить · d удалить · enter правка · space тип"
 	f.RunHint = "ctrl+s запустить · esc отмена"
@@ -132,7 +133,7 @@ func fillM1RU(m *Messages) {
 	f.PickValue = func(key string) string { return "Значение для " + key }
 	f.PickHint = "1-9 добавить подсказку · tab — другой блок"
 	f.Created = func(id int64) string { return fmt.Sprintf("пайплайн #%d создан", id) }
-	f.RunNoVars = "переменных нет"
+	f.RunNoVars = "переменных нет — a добавить"
 	f.RunButton = "Запустить"
 	f.RunKeys = "↑/↓ ref · enter принять · tab блок · esc отмена"
 

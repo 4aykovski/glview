@@ -113,7 +113,7 @@ func New(env *app.Env, ref gitlab.ProjectRef, initial, local string) *Form {
 	f := env.Msg.Form
 	return &Form{
 		env: env, ref: ref, localRef: local, input: in,
-		vt: vartable.New(env.Styles, vartable.Labels{Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.RunNoVars, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile}),
+		vt: vartable.New(env.Styles, vartable.Labels{Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.RunNoVars, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile, KeyPlaceholder: f.KeyPlaceholder, ValuePlaceholder: f.ValuePlaceholder}),
 	}
 }
 
