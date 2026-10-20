@@ -27,6 +27,7 @@ func fillM1RU(m *Messages) {
 	k.Next = "далее"
 	k.Details = "детали"
 	k.Attempts = "попытки"
+	k.PrevNextAttempt = "пред./след. попытка"
 	k.State, k.Status, k.Reset = "состояние", "статус", "сброс фильтров"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "список в браузере", "пайплайн в браузере", "джоба в браузере"
 	k.Find = "поиск по логу"

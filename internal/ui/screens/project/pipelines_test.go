@@ -149,6 +149,28 @@ func TestPipelinesLogKey(t *testing.T) {
 	d.RequireView("no failed or running jobs")
 }
 
+func TestPipelinesLogKeyBringsAttempts(t *testing.T) {
+	client := newFake(1)
+	client.AddPipeline(path, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{
+		ID: 103, IID: 13, Status: gitlab.StatusFailed, Ref: "main", SHA: "0c1d2e3f4a", Source: "push", CreatedAt: now.Add(-time.Minute)},
+		Jobs: []gitlab.Job{{ID: 12, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed,
+			Attempts: []gitlab.Job{{ID: 11, Name: "test:unit", Stage: "test", Status: gitlab.StatusFailed}}}}})
+	client.SetTrace(12, "second try\n")
+	client.SetTrace(11, "first try\n")
+	d, _, _ := openPipelines(t, client)
+	n := client.CallCount("Pipelines.Get")
+	d.Key("l")
+	d.RequireView("#103 › test:unit", "attempt 2/2", "second try")
+	if got := client.CallCount("Pipelines.Get"); got != n+1 {
+		t.Fatalf("Pipelines.Get calls = %d, want one", got-n)
+	}
+	d.Key("[")
+	d.RequireView("attempt 1/2", "first try")
+	if got := client.CallCount("Pipelines.Get"); got != n+1 {
+		t.Fatal("switching attempts needs no pipeline request")
+	}
+}
+
 func TestPickLogJob(t *testing.T) {
 	jobs := []gitlab.Job{{ID: 1, Status: gitlab.StatusRunning}, {ID: 2, Status: gitlab.StatusFailed}, {ID: 3, Status: gitlab.StatusFailed}}
 	if j := pickLogJob(jobs); j == nil || j.ID != 2 {

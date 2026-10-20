@@ -269,6 +269,13 @@ func TestOpenInBrowserAndNarrow(t *testing.T) {
 // setupAttempt opens attempt 1 of 2 of a retried job: #5 failed, #7 is the latest.
 func setupAttempt(t *testing.T, latest gitlab.PipelineStatus) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
 	t.Helper()
+	return setupAttempts(t, latest, 1)
+}
+
+// setupAttempts opens attempt sel (0 is the latest) of the retried job of
+// setupAttempt.
+func setupAttempts(t *testing.T, latest gitlab.PipelineStatus, sel int) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
+	t.Helper()
 	c := fake.New()
 	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	old := gitlab.Job{ID: 5, Name: "test:integration", Stage: "test", Status: gitlab.StatusFailed, Duration: 30 * time.Second, WebURL: "https://gitlab.example.com/job/5"}
@@ -279,7 +286,7 @@ func setupAttempt(t *testing.T, latest gitlab.PipelineStatus) (*uitest.Driver, *
 	env := app.NewEnv(i18n.EN)
 	env.Client, env.User, env.Host = c, c.User, "https://gitlab.example.com"
 	env.Now = func() time.Time { return now }
-	scr := NewAttempt(env, gitlab.ProjectRef{ID: 42, FullPath: path}, 91840, old, job, 1, 2)
+	scr := NewAttempt(env, gitlab.ProjectRef{ID: 42, FullPath: path}, 91840, job, sel)
 	root := app.New(env, scr, app.Options{})
 	return uitest.New(t, root), root, scr, c
 }
@@ -327,9 +334,92 @@ func TestEarlierAttemptActsOnLatest(t *testing.T) {
 	if c.CallCount("Jobs.Retry") != 1 || scr.Job().ID == 5 || scr.Job().ID == 7 {
 		t.Fatalf("retry calls=%d job=%d", c.CallCount("Jobs.Retry"), scr.Job().ID)
 	}
-	d.RequireView("retrying test:integration", "● follow")
+	d.RequireView("retrying test:integration", "● follow", "attempt 3/3")
 	d.RequireNoView("attempt 1/2", "FAIL: TestFlaky")
 	if !scr.polling() {
 		t.Fatal("the new job is polled")
 	}
+	// The new job is the latest of three attempts; the list grew without a
+	// request.
+	if len(scr.jobs) != 3 || scr.jobs[0].ID != scr.Job().ID || scr.jobs[1].ID != 7 || scr.jobs[2].ID != 5 {
+		t.Fatalf("attempts after retry: %+v", scr.jobs)
+	}
+	if n := c.CallCount("Pipelines.Get"); n != 0 {
+		t.Fatalf("Pipelines.Get calls = %d", n)
+	}
+	d.Key("[", "[")
+	d.RequireView("attempt 1/3", "FAIL: TestFlaky")
+}
+
+func TestAttemptLabelOnLatest(t *testing.T) {
+	d, _, _, _ := setupAttempts(t, gitlab.StatusSuccess, 0)
+	d.RequireView("✓ success", "· attempt 2/2", "second try")
+	d.Key("?")
+	d.RequireView("[/]", "prev/next attempt", "attempts")
+	d.Key("esc")
+
+	d, _, _, _ = setup(t, gitlab.StatusFailed, "x\n")
+	d.RequireNoView("attempt")
+	d.Key("?")
+	d.RequireNoView("[/]", "attempt")
+	d.Key("esc")
+	d.Key("a", "[", "]") // nothing to switch to
+	d.RequireNoView("Attempts of")
+}
+
+func TestSwitchAttemptsInPlace(t *testing.T) {
+	d, _, scr, c := setupAttempts(t, gitlab.StatusRunning, 0)
+	d.RequireView("· attempt 2/2", "● follow", "second try")
+	if !scr.polling() {
+		t.Fatal("the running latest attempt is polled")
+	}
+	d.Key("]") // already the newest
+	if scr.Job().ID != 7 {
+		t.Fatalf("job = %d", scr.Job().ID)
+	}
+
+	// A search is dropped with the attempt.
+	d.Key("/", "t", "r", "y", "enter")
+	d.RequireView("match 1 of 1")
+	d.Key("[")
+	d.RequireView("✗ failed", "30s · attempt 1/2", "○ paused", "FAIL: TestFlaky")
+	d.RequireNoView("second try", "match 1 of", "● follow")
+	if scr.Job().ID != 5 || scr.Following() || scr.polling() {
+		t.Fatalf("job %d: follow=%v polling=%v", scr.Job().ID, scr.Following(), scr.polling())
+	}
+	n := c.CallCount("Jobs.Trace")
+	d.Send(common.PollTickMsg{Token: scr.poll.Current()})
+	d.Key("[") // already the oldest
+	if c.CallCount("Jobs.Trace") != n || scr.Job().ID != 5 {
+		t.Fatal("an earlier attempt is loaded once; [ on the oldest does nothing")
+	}
+
+	d.Key("]")
+	d.RequireView("· attempt 2/2", "● follow", "second try")
+	d.RequireNoView("FAIL: TestFlaky")
+	if !scr.polling() {
+		t.Fatal("back on the running latest attempt, polling resumes")
+	}
+	n = c.CallCount("Jobs.Trace")
+	d.Send(common.PollTickMsg{Token: scr.poll.Current()})
+	if c.CallCount("Jobs.Trace") != n+1 {
+		t.Fatal("the latest attempt is polled again")
+	}
+}
+
+func TestAttemptsOverlaySwitchesInPlace(t *testing.T) {
+	d, root, scr, _ := setupAttempts(t, gitlab.StatusSuccess, 0)
+	d.Key("a")
+	d.RequireView("Attempts of test:integration", "#7  ✓ success", "latest", "#5  ✗ failed   30s")
+	d.Key("enter") // the attempt on screen: nothing changes
+	d.RequireNoView("Attempts of")
+	d.Key("a", "j", "enter")
+	d.RequireNoView("Attempts of")
+	d.RequireView("attempt 1/2", "FAIL: TestFlaky")
+	if root.Depth() != 1 || root.Top() != app.Screen(scr) {
+		t.Fatalf("depth = %d, top = %T", root.Depth(), root.Top())
+	}
+	d.Key("a") // the shown attempt is selected
+	d.Key("k", "enter")
+	d.RequireView("attempt 2/2", "second try")
 }

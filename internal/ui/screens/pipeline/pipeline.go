@@ -461,7 +461,10 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if it.bridge != nil || len(it.job.Attempts) == 0 {
 			return nil
 		}
-		return app.OpenOverlay(newAttemptsList(env, s.ref, s.id, it.job))
+		ref, id, job := s.ref, s.id, it.job
+		return app.OpenOverlay(joblog.NewAttemptsList(env, joblog.AttemptsOf(job), 0, func(i int) tea.Cmd {
+			return app.Push(joblog.NewAttempt(env, ref, id, job, i))
+		}))
 	case "c":
 		if it.bridge != nil {
 			return nil

@@ -131,7 +131,7 @@ type LogMessages struct {
 	NoMatches        string
 	Crumb            string
 	SearchKeys       string
-	Attempt          func(i, n int) string // "attempt 2/3" of an earlier attempt
+	Attempt          func(i, n int) string // "attempt 2/3" of a retried job
 }
 
 // FormMessages are the strings of overlays and forms.

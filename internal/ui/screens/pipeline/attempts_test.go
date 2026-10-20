@@ -30,6 +30,9 @@ func TestAttemptsOverlayOpensEarlierAttempt(t *testing.T) {
 	if log.Following() {
 		t.Fatal("an earlier attempt does not follow")
 	}
+	d.Key("]") // the overlay hands the log every attempt
+	d.RequireView("◐ running", "attempt 2/2")
+	d.Key("[")
 
 	// R and c act on the latest attempt.
 	d.Key("c")
@@ -45,7 +48,7 @@ func TestAttemptsOverlayOpensEarlierAttempt(t *testing.T) {
 	if log.Job().ID == 9 || log.Job().ID == 3 {
 		t.Fatalf("after retry the log shows job %d", log.Job().ID)
 	}
-	d.RequireView("retrying test:unit")
+	d.RequireView("retrying test:unit", "attempt 3/3")
 	d.RequireNoView("attempt 1/2", "FAIL: TestFlaky")
 }
 
@@ -60,7 +63,37 @@ func TestAttemptsOverlayLatestAndClose(t *testing.T) {
 	if !ok || log.Job().ID != 3 {
 		t.Fatalf("top = %T", root.Top())
 	}
-	d.RequireNoView("attempt ")
+	d.RequireView("attempt 2/2")
+}
+
+func TestLogFromPipelineSwitchesAttemptsInPlace(t *testing.T) {
+	d, root, _ := open(t, fixture())
+	d.Key("l", "enter") // test:unit, the latest attempt
+	log, ok := root.Top().(*joblog.Screen)
+	if !ok || log.Job().ID != 3 || root.Depth() != 2 {
+		t.Fatalf("top = %T, depth = %d", root.Top(), root.Depth())
+	}
+	d.RequireView("◐ running · attempt 2/2", "compiled 100%")
+	d.Key("]") // already the newest
+	d.Key("[")
+	d.RequireView("✗ failed", "attempt 1/2", "FAIL: TestFlaky")
+	d.RequireNoView("compiled 100%")
+	d.Key("[") // already the oldest
+	if root.Depth() != 2 || root.Top() != app.Screen(log) || log.Job().ID != 9 {
+		t.Fatalf("depth = %d, job = %d", root.Depth(), log.Job().ID)
+	}
+	d.Key("]")
+	d.RequireView("attempt 2/2", "compiled 100%")
+	d.Key("a", "j", "enter")
+	d.RequireView("attempt 1/2", "FAIL: TestFlaky")
+	if root.Depth() != 2 {
+		t.Fatalf("depth = %d", root.Depth())
+	}
+	d.Key("esc")
+	if root.Depth() != 1 {
+		t.Fatalf("esc must return to Pipeline, depth = %d", root.Depth())
+	}
+	d.RequireView("#91840", "test:unit")
 }
 
 func TestAttemptsKeyWithoutEarlierAttempts(t *testing.T) {

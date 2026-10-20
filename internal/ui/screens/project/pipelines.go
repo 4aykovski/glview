@@ -368,6 +368,7 @@ func (t *pipelinesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if env.Cache != nil {
 			env.Cache.Invalidate("pipes:" + t.sh.ref.FullPath + ":")
 			env.Cache.Invalidate("stages:" + t.sh.ref.FullPath + ":")
+			env.Cache.Invalidate(fmt.Sprintf("pipe:%s:%d", t.sh.ref.Key(), msg.id))
 		}
 		if msg.err != nil {
 			return t, env.Fail(msg.err)
@@ -581,13 +582,21 @@ func (t *pipelinesTab) mutate(p gitlab.PipelineSummary, retry bool) tea.Cmd {
 }
 
 // findLogJob looks for the first failed job of the pipeline, else the first
-// running one.
+// running one; the job comes with its earlier attempts for the log. The
+// pipeline is cached under the key of the Pipeline screen.
 func (t *pipelinesTab) findLogJob(p gitlab.PipelineSummary) tea.Cmd {
-	client, ref := t.env().Client, t.sh.ref
+	env, ref := t.env(), t.sh.ref
+	key := fmt.Sprintf("pipe:%s:%d", ref.Key(), p.ID)
+	ttl := time.Duration(0)
+	if p.Status.Final() {
+		ttl = finalTTL
+	}
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
-		pl, err := client.Pipelines().Get(ctx, ref, p.ID)
+		pl, _, err := common.Fetch(ctx, env.Cache, key, ttl, false, func(ctx context.Context) (gitlab.Pipeline, error) {
+			return env.Client.Pipelines().Get(ctx, ref, p.ID)
+		})
 		if err != nil {
 			return pipeJobMsg{pipe: p, err: err}
 		}
