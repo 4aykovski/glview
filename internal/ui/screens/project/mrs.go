@@ -702,10 +702,6 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 // equivalent and is never included. Parameters that need the own login are
 // dropped while it is unknown.
 func (t *mrsTab) listURL() string {
-	base := t.sh.webURL
-	if base == "" {
-		base = strings.TrimRight(t.env().Host, "/") + "/" + t.sh.ref.FullPath
-	}
 	me := t.env().User.Username
 	set := func(q url.Values, k, v string) {
 		if v != "" {
@@ -735,7 +731,7 @@ func (t *mrsTab) listURL() string {
 		q.Add("label_name[]", l)
 	}
 	set(q, "search", f.Search)
-	u := strings.TrimRight(base, "/") + "/-/merge_requests"
+	u := t.sh.projectURL() + "/-/merge_requests"
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
