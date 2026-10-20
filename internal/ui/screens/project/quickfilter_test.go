@@ -3,6 +3,8 @@ package project
 import (
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 )
@@ -115,4 +117,80 @@ func TestPipelinesBrowserKeys(t *testing.T) {
 	}
 	d.Key("?")
 	d.RequireView("list in browser", "pipeline in browser")
+}
+
+func TestMRsListURL(t *testing.T) {
+	_, _, scr := open(t, newFake(1), nil)
+	tab := scr.tabs[0].(*mrsTab)
+	base := "https://gitlab.example.com/platform/route-service/-/merge_requests"
+	yes, no := true, false
+	def := gitlab.MRFilter{State: gitlab.MRStateOpened, Scope: gitlab.MRScopeAll}
+	with := func(fn func(f *gitlab.MRFilter)) gitlab.MRFilter {
+		f := def
+		fn(&f)
+		return f
+	}
+	cases := []struct {
+		name string
+		f    gitlab.MRFilter
+		want string
+	}{
+		{"defaults", def, base},
+		{"state merged", with(func(f *gitlab.MRFilter) { f.State = gitlab.MRStateMerged }), base + "?state=merged"},
+		{"state all", with(func(f *gitlab.MRFilter) { f.State = gitlab.MRStateAll }), base + "?state=all"},
+		{"created by me", with(func(f *gitlab.MRFilter) { f.Scope = gitlab.MRScopeCreatedByMe }), base + "?author_username=egor"},
+		{"assigned to me", with(func(f *gitlab.MRFilter) { f.Scope = gitlab.MRScopeAssignedToMe }), base + "?assignee_username=egor"},
+		{"reviewer @me", with(func(f *gitlab.MRFilter) { f.Reviewer = "@me" }), base + "?reviewer_username=egor"},
+		{"reviewer login", with(func(f *gitlab.MRFilter) { f.Reviewer = "anna.k" }), base + "?reviewer_username=anna.k"},
+		{"draft yes", with(func(f *gitlab.MRFilter) { f.Draft = &yes }), base + "?draft=yes"},
+		{"draft no", with(func(f *gitlab.MRFilter) { f.Draft = &no }), base + "?draft=no"},
+		{"labels", with(func(f *gitlab.MRFilter) { f.Labels = []string{"backend", "needs review"} }),
+			base + "?label_name%5B%5D=backend&label_name%5B%5D=needs+review"},
+		{"search", with(func(f *gitlab.MRFilter) { f.Search = "slot race" }), base + "?search=slot+race"},
+		{"mine is not in the URL", with(func(f *gitlab.MRFilter) { f.Mine = true }), base},
+		{"combined", with(func(f *gitlab.MRFilter) {
+			f.State, f.Scope, f.Draft, f.Labels = gitlab.MRStateClosed, gitlab.MRScopeCreatedByMe, &no, []string{"bug"}
+		}), base + "?author_username=egor&draft=no&label_name%5B%5D=bug&state=closed"},
+	}
+	for _, c := range cases {
+		tab.filter = c.f
+		if got := tab.listURL(); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+
+	// Without the own login the parameters that need it are dropped.
+	tab.env().User.Username = ""
+	tab.filter = with(func(f *gitlab.MRFilter) {
+		f.Scope, f.Reviewer, f.Search = gitlab.MRScopeAssignedToMe, "@me", "fix"
+	})
+	if got := tab.listURL(); got != base+"?search=fix" {
+		t.Fatalf("unknown login: %q", got)
+	}
+}
+
+func TestMRsBrowserKeys(t *testing.T) {
+	d, _, scr := open(t, newFake(2), nil)
+	tab := scr.tabs[0].(*mrsTab)
+	var opened []string
+	tab.env().Browser = func(u string) error { opened = append(opened, u); return nil }
+
+	d.Key("s", "o")
+	if len(opened) != 1 || opened[0] != "https://gitlab.example.com/platform/route-service/-/merge_requests?state=merged" {
+		t.Fatalf("o opens the filtered list: %v", opened)
+	}
+	d.Key("backspace", "m", "o")
+	if opened[1] != "https://gitlab.example.com/platform/route-service/-/merge_requests" {
+		t.Fatalf("mine stays out of the URL: %q", opened[1])
+	}
+	d.Key("backspace")
+	sel := tab.selected()
+	d.Key("O")
+	if len(opened) != 3 || opened[2] != sel.WebURL {
+		t.Fatalf("O opens the selected MR: %v vs %q", opened, sel.WebURL)
+	}
+	d.Send(tea.WindowSizeMsg{Width: 260, Height: 40})
+	d.RequireView("o list in browser", "O MR in browser")
+	d.Key("?")
+	d.RequireView("list in browser", "MR in browser")
 }

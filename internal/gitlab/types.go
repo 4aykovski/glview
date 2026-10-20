@@ -79,6 +79,7 @@ type MergeRequest struct {
 	Approvals    Approvals
 	Discussions  DiscussionStats
 	Diff         *DiffStats
+	CommitCount  int // detail views only (commitCount); 0 = unknown
 	WebURL       string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -280,6 +281,7 @@ type CommitSummary struct {
 	ShortSHA   string
 	Title      string
 	AuthorName string
+	WebURL     string // web_url: the commit page in the web UI
 	CreatedAt  time.Time
 }
 

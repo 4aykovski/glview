@@ -2,7 +2,7 @@ gitlab-tui  platform/route-service › MRs › !479                    @egor · 
 Fix race in courier slot allocator
 anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
 ✗ not_approved  ✓ 1/2 approved  ✗ pipeline #91840 · failed  1 thread unresolved
- Overview   Discussions 3   Pipelines 2
+ Overview   Discussions 3   Pipelines 2   Commits
 ────────────────────────────────────────────────────────────────────────────────
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ a.petrov 3h  ● unresolved  internal/ids/ref.go:118                           ┃

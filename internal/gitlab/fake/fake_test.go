@@ -203,3 +203,34 @@ func TestFakePipelineScope(t *testing.T) {
 		t.Fatalf("scope finished = %+v", other.Items)
 	}
 }
+
+func TestFakeMRCommits(t *testing.T) {
+	c := New()
+	ref := gitlab.ProjectRef{ID: 1, FullPath: "a/b"}
+	c.AddProject(gitlab.Project{ProjectRef: ref})
+	c.AddMR("a/b", gitlab.MergeRequest{IID: 1, State: gitlab.MRStateOpened})
+	ctx := context.Background()
+	if got, err := c.MergeRequests().Commits(ctx, ref, 1); err != nil || len(got) != 0 {
+		t.Fatalf("no commits yet: %+v %v", got, err)
+	}
+	commits := []gitlab.CommitSummary{
+		{SHA: "b2c3d4e5f6", ShortSHA: "b2c3d4e5", Title: "slot: fix race", AuthorName: "Anna", WebURL: "https://gitlab.example.com/a/b/-/commit/b2c3d4e5f6"},
+		{SHA: "a1b2c3d4e5", ShortSHA: "a1b2c3d4", Title: "slot: add test", AuthorName: "Egor"},
+	}
+	c.SetMRCommits("a/b", 1, commits)
+	got, err := c.MergeRequests().Commits(ctx, ref, 1)
+	if err != nil || len(got) != 2 || got[0].ShortSHA != "b2c3d4e5" || got[0].WebURL != "https://gitlab.example.com/a/b/-/commit/b2c3d4e5f6" {
+		t.Fatalf("commits = %+v %v", got, err)
+	}
+	got[0].Title = "changed"
+	if again, _ := c.MergeRequests().Commits(ctx, ref, 1); again[0].Title != "slot: fix race" {
+		t.Error("result must be a copy")
+	}
+	c.FailNext("MergeRequests.Commits", &gitlab.Error{Kind: gitlab.ErrServer, Status: 500})
+	if _, err := c.MergeRequests().Commits(ctx, ref, 1); !errors.Is(err, gitlab.ErrServer) {
+		t.Fatalf("scripted error: %v", err)
+	}
+	if n := c.CallCount("MergeRequests.Commits"); n != 4 {
+		t.Errorf("calls = %d", n)
+	}
+}

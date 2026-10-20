@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › MRs › !479                    @egor · ⟳ <1m
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
+✗ not_approved  ✓ 1/2 approved  ✗ pipeline #91840 · failed  1 thread unresolved
+ Overview   Discussions 2   Pipelines 2   Commits 2
+────────────────────────────────────────────────────────────────────────────────
+  SHA       Title                                                 Author     Ago
+────────────────────────────────────────────────────────────────────────────────
+› c3d4e5f6  slot: guard the map with a mutex                      Anna K     20m
+  b2c3d4e5  slot: add race test                                   Egor        2h
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+tab next tab  j/k down  a approve  M merge  r refresh  y copy  ? help   poll 30s

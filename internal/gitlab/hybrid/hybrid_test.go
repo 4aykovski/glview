@@ -49,6 +49,11 @@ func TestRoutesByTransport(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"iid":7,"detailed_merge_status":"checking"}`))
 	})
+	mux.HandleFunc("GET /api/v4/projects/42/merge_requests/7/commits", func(w http.ResponseWriter, r *http.Request) {
+		record("rest:commits")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"id":"a1a1a1","short_id":"a1a1","title":"fix"}]`))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -80,7 +85,10 @@ func TestRoutesByTransport(t *testing.T) {
 	if st, err := c.MergeRequests().RecheckMergeStatus(ctx, p, 7); err != nil || st != "checking" {
 		t.Fatalf("recheck: %q %v", st, err)
 	}
-	want := "graphql:ProjectMRs,graphql:MR,graphql:MRPipelines,rest:approve,rest:recheck=true"
+	if cs, err := c.MergeRequests().Commits(ctx, p, 7); err != nil || len(cs) != 1 {
+		t.Fatalf("commits: %+v %v", cs, err)
+	}
+	want := "graphql:ProjectMRs,graphql:MR,graphql:MRPipelines,rest:approve,rest:recheck=true,rest:commits"
 	if got := strings.Join(hits, ","); got != want {
 		t.Fatalf("hits = %s, want %s", got, want)
 	}

@@ -9,7 +9,7 @@
  "approvedBy":{"nodes":[]},"approvalsRequired":2,"approvalsLeft":2,
  "resolvableDiscussionsCount":4,"resolvedDiscussionsCount":4,
  "diffStatsSummary":{"additions":48,"deletions":12,"fileCount":3},
- "rebaseInProgress":true,"mergeError":"Rebase failed: conflict in slot.go",
+ "commitCount":3,"rebaseInProgress":true,"mergeError":"Rebase failed: conflict in slot.go",
  "headPipeline":{"id":"gid://gitlab/Ci::Pipeline/91840","iid":"512","status":"FAILED","ref":"fix/slot-race","sha":"a91f2c0d","source":"merge_request_event","duration":220,"createdAt":"2026-10-19T10:50:00Z","finishedAt":"2026-10-19T10:54:00Z","path":"/platform/route-service/-/pipelines/91840","user":{"username":"anna.k","name":"Anna K"},"commit":{"title":"fix"},
   "stages":{"nodes":[{"name":"build","detailedStatus":{"group":"success"},"jobs":{"nodes":[{"status":"SUCCESS"}]}},{"name":"test","detailedStatus":{"group":"failed"},"jobs":{"nodes":[{"status":"FAILED"},{"status":"SUCCESS"}]}}]}}}
 }}}

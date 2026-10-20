@@ -29,6 +29,7 @@ func fillM1EN(m *Messages) {
 	k.PrevNextAttempt = "prev/next attempt"
 	k.State, k.Status, k.Reset = "state", "status", "reset filters"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "list in browser", "pipeline in browser", "job in browser"
+	k.BrowserMR, k.BrowserCommit = "MR in browser", "commit in browser"
 	k.Find = "find in log"
 	k.Comment = "comment"
 	k.Threads = "threads"
@@ -211,6 +212,7 @@ func fillM1EN(m *Messages) {
 	r.EmptyDiscussions, r.EmptyPipelines, r.Loading = "No discussions", "No pipelines for this MR", "◐ loading…"
 	r.ColStatus, r.ColID, r.ColRef, r.ColSource, r.ColCommit, r.ColUser = "Status", "ID", "Ref", "Source", "Commit", "User"
 	r.ColDur, r.ColAgo = "Dur", "Ago"
+	r.TabCommits, r.EmptyCommits, r.ColSHA = "Commits", "No commits", "SHA"
 	r.NeedApprovals = func(left int) string { return fmt.Sprintf("%d more needed", left) }
 
 	r.ToastApproved = func(iid int64) string { return fmt.Sprintf("approved !%d", iid) }

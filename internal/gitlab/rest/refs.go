@@ -59,7 +59,7 @@ func (s tags) List(ctx context.Context, p gitlab.ProjectRef, search, cursor stri
 	for _, t := range list {
 		tag := gitlab.Tag{Project: p, Name: t.Name, Message: t.Message, Protected: t.Protected}
 		if t.Commit != nil {
-			tag.Commit = gitlab.CommitSummary{SHA: t.Commit.ID, ShortSHA: t.Commit.ShortID, Title: t.Commit.Title, AuthorName: t.Commit.AuthorName, CreatedAt: deref(t.Commit.CreatedAt)}
+			tag.Commit = mapCommit(t.Commit)
 		}
 		page.Items = append(page.Items, tag)
 	}

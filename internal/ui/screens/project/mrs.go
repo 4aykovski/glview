@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -498,6 +499,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr))
 		}
 	case "o":
+		return app.OpenURL(env, t.listURL())
+	case "O":
 		if mr := t.selected(); mr != nil && mr.WebURL != "" {
 			return app.OpenURL(env, mr.WebURL)
 		}
@@ -687,10 +690,52 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"s"}, "", k.State, common.PriorityNormal),
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
-		common.NewBinding([]string{"o"}, "", k.Browser, common.PriorityLow),
+		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
+		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
 	)
 	return common.KeyMap{Short: short}
+}
+
+// listURL is the project's merge requests page in the web UI with the
+// current filters. Defaults are omitted; the "me" filter (m) has no web
+// equivalent and is never included. Parameters that need the own login are
+// dropped while it is unknown.
+func (t *mrsTab) listURL() string {
+	me := t.env().User.Username
+	set := func(q url.Values, k, v string) {
+		if v != "" {
+			q.Set(k, v)
+		}
+	}
+	q := url.Values{}
+	f := t.filter
+	if f.State != "" && f.State != gitlab.MRStateOpened {
+		q.Set("state", string(f.State))
+	}
+	switch f.Scope {
+	case gitlab.MRScopeCreatedByMe:
+		set(q, "author_username", me)
+	case gitlab.MRScopeAssignedToMe:
+		set(q, "assignee_username", me)
+	}
+	if f.Reviewer == "@me" {
+		set(q, "reviewer_username", me)
+	} else {
+		set(q, "reviewer_username", f.Reviewer)
+	}
+	if f.Draft != nil {
+		q.Set("draft", map[bool]string{true: "yes", false: "no"}[*f.Draft])
+	}
+	for _, l := range f.Labels {
+		q.Add("label_name[]", l)
+	}
+	set(q, "search", f.Search)
+	u := t.sh.projectURL() + "/-/merge_requests"
+	if len(q) > 0 {
+		u += "?" + q.Encode()
+	}
+	return u
 }
 
 func asParseError(err error, target **filterline.ParseError) bool { return errors.As(err, target) }

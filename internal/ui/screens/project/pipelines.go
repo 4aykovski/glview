@@ -747,10 +747,6 @@ func (t *pipelinesTab) KeyMap() common.KeyMap {
 // listURL is the project's pipelines page in the web UI with the current
 // filters (ref, status, source, username).
 func (t *pipelinesTab) listURL() string {
-	base := t.sh.webURL
-	if base == "" {
-		base = strings.TrimRight(t.env().Host, "/") + "/" + t.sh.ref.FullPath
-	}
 	q := url.Values{}
 	f := t.filter
 	for k, v := range map[string]string{"ref": f.Ref, "status": f.Status, "source": f.Source, "username": f.Username} {
@@ -758,7 +754,7 @@ func (t *pipelinesTab) listURL() string {
 			q.Set(k, v)
 		}
 	}
-	u := strings.TrimRight(base, "/") + "/-/pipelines"
+	u := t.sh.projectURL() + "/-/pipelines"
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}

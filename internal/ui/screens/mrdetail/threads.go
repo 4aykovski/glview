@@ -170,11 +170,16 @@ func (s *Screen) discussionsView() []string {
 }
 
 // link is the browser/clipboard target: the current thread on the
-// Discussions tab, else the MR.
+// Discussions tab, the selected commit on the Commits tab, else the MR.
 func (s *Screen) link() string {
 	if s.tab == tabDiscussions && s.discLoaded {
 		if _, cards := s.layout(); len(cards) > 0 {
 			return cards[s.cardIndex(cards)].link
+		}
+	}
+	if s.tab == tabCommits {
+		if c := s.selectedCommit(); c != nil && c.WebURL != "" {
+			return c.WebURL
 		}
 	}
 	return s.mr.WebURL

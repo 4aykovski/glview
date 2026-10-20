@@ -17,7 +17,8 @@ type data struct {
 	mrs        map[string][]gitlab.MergeRequest // by project path
 	discs      map[string][]gitlab.Discussion   // key: path!iid
 	mrPipes    map[string][]gitlab.PipelineSummary
-	pipes      map[string][]gitlab.Pipeline // by project path
+	mrCommits  map[string][]gitlab.CommitSummary // key: path!iid, newest first
+	pipes      map[string][]gitlab.Pipeline      // by project path
 	traces     map[int64][]byte
 	branches   map[string][]string
 	tags       map[string][]gitlab.Tag
@@ -35,6 +36,7 @@ func newData() data {
 		mrs:        map[string][]gitlab.MergeRequest{},
 		discs:      map[string][]gitlab.Discussion{},
 		mrPipes:    map[string][]gitlab.PipelineSummary{},
+		mrCommits:  map[string][]gitlab.CommitSummary{},
 		pipes:      map[string][]gitlab.Pipeline{},
 		traces:     map[int64][]byte{},
 		branches:   map[string][]string{},
@@ -84,6 +86,14 @@ func (c *Client) SetMRPipelines(path string, iid int64, p []gitlab.PipelineSumma
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.data.mrPipes[mrKey(path, iid)] = p
+}
+
+// SetMRCommits replaces the commits of an MR (newest first, as the API
+// returns them). It does not touch MergeRequest.CommitCount.
+func (c *Client) SetMRCommits(path string, iid int64, commits []gitlab.CommitSummary) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data.mrCommits[mrKey(path, iid)] = commits
 }
 
 // AddPipeline registers a pipeline (newest first by ID order of insertion).
@@ -298,6 +308,15 @@ func (s mrService) Pipelines(ctx context.Context, p gitlab.ProjectRef, iid int64
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
 	return slices.Clone(s.c.data.mrPipes[mrKey(s.c.pathOf(p), iid)]), nil
+}
+
+func (s mrService) Commits(ctx context.Context, p gitlab.ProjectRef, iid int64) ([]gitlab.CommitSummary, error) {
+	if err := s.c.enter(ctx, "MergeRequests.Commits", p.FullPath, iid); err != nil {
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	return slices.Clone(s.c.data.mrCommits[mrKey(s.c.pathOf(p), iid)]), nil
 }
 
 func (s mrService) Approve(ctx context.Context, p gitlab.ProjectRef, iid int64, sha string) error {
