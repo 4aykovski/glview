@@ -193,3 +193,14 @@ func (s instance) Version(ctx context.Context) (gitlab.Version, error) {
 	defer s.c.mu.Unlock()
 	return s.c.Ver, nil
 }
+
+// CallsOf returns the arguments of every call of method, in order.
+func (c *Client) CallsOf(method string) [][]any {
+	var out [][]any
+	for _, call := range c.Calls() {
+		if call.Method == method {
+			out = append(out, call.Args)
+		}
+	}
+	return out
+}

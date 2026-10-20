@@ -10,6 +10,7 @@ import (
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/screens/pipeactions"
 	"github.com/4aykovski/glview/internal/ui/uitest"
 )
 
@@ -204,13 +205,13 @@ func TestPipelinesLogKeyReadsPipelineAnew(t *testing.T) {
 
 func TestPickLogJob(t *testing.T) {
 	jobs := []gitlab.Job{{ID: 1, Status: gitlab.StatusRunning}, {ID: 2, Status: gitlab.StatusFailed}, {ID: 3, Status: gitlab.StatusFailed}}
-	if j := pickLogJob(jobs); j == nil || j.ID != 2 {
+	if j := pipeactions.PickLogJob(jobs); j == nil || j.ID != 2 {
 		t.Fatalf("failed wins over running, first failed: %+v", j)
 	}
-	if j := pickLogJob(jobs[:1]); j == nil || j.ID != 1 {
+	if j := pipeactions.PickLogJob(jobs[:1]); j == nil || j.ID != 1 {
 		t.Fatal("running when nothing failed")
 	}
-	if pickLogJob([]gitlab.Job{{Status: gitlab.StatusSuccess}}) != nil {
+	if pipeactions.PickLogJob([]gitlab.Job{{Status: gitlab.StatusSuccess}}) != nil {
 		t.Fatal("nothing to show")
 	}
 }

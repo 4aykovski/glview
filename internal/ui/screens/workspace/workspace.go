@@ -223,7 +223,7 @@ func NewGroup(env *app.Env, g gitlab.Group) *Screen {
 func newScreen(env *app.Env, source string) *Screen {
 	sh := &shared{env: env, source: source, over: map[string]gitlab.ProjectOverview{}, errs: map[string]error{}}
 	s := &Screen{sh: sh, gen: common.NewGen(), ovGen: common.NewGen(), poll: common.NewGen()}
-	s.tabs = []tab{newProjectsTab(sh), newPlaceholder(sh, TabMRs), newPlaceholder(sh, TabPipelines), newPlaceholder(sh, TabTags)}
+	s.tabs = []tab{newProjectsTab(sh), newMRsTab(sh), newPipelinesTab(sh), newPlaceholder(sh, TabTags)}
 	return s
 }
 

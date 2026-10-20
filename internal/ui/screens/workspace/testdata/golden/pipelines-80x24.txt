@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1 Projects 5   2 MRs 6   3 Pipelines 6   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  status:any  ref:any
+  Status      ID       Ref            Source    Commit                 Dur   Ago
+────────────────────────────────────────────────────────────────────────────────
+› ▾ platform/route-service  showing 2
+  ✓ success   #91822   fix/slot-race  push      0b7d3e9 Merge bran…  5m51s    1h
+  ► manual    #91790   main           push      0b7d3e9 Merge bran…  5m51s    5h
+  ▾ platform/routing-engine  showing 1
+  ✗ failed    #40098   main           push      0b7d3e9 Merge bran…  5m51s    9h
+  ▾ frontend/route-planner-ui  showing 1
+  ◐ running   #7001    main           push      0b7d3e9 Merge bran…  5m51s    3m
+  ▾ infra/router-configs  showing 1
+  ✓ success   #7741    main           push      0b7d3e9 Merge bran…  5m51s    1w
+  ▾ qa/e2e-routes  showing 1
+  ✓ success   #5501    main           push      0b7d3e9 Merge bran…  5m51s    2w
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  f filter by project  ? help      live: 1 running · poll 3s

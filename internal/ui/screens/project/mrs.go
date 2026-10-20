@@ -651,31 +651,7 @@ func (t *mrsTab) preview() string {
 	if mr == nil {
 		return frame("", "", "")
 	}
-	dot := s.Muted.Render(" · ")
-	line2 := []string{render.MergeChip(s, mr)}
-	if lbl := m.MR.StatusLabel(mr.MergeStatus); lbl != "" && mr.State == gitlab.MRStateOpened {
-		line2[0] += " " + s.Muted.Render(lbl)
-	}
-	if len(mr.Approvals.ApprovedBy) > 0 {
-		line2 = append(line2, render.Approvals(s, mr.Approvals)+" "+s.Muted.Render("("+render.Names(mr.Approvals.ApprovedBy)+")"))
-	} else {
-		line2 = append(line2, s.Muted.Render(m.MR.PrevNoApprovals))
-	}
-	if p := mr.HeadPipeline; p != nil {
-		line2 = append(line2, m.MR.PrevPipeline+" "+s.Accent.Render(fmt.Sprintf("#%d", p.ID))+" "+s.StatusGlyph(p.Status)+" "+s.Muted.Render(render.Duration(p.Duration)))
-	}
-	if d := mr.Diff; d != nil {
-		line2 = append(line2, s.DiffAdd.Render(fmt.Sprintf("+%d", d.Additions))+" "+s.DiffDel.Render(fmt.Sprintf("−%d", d.Deletions))+" "+s.Muted.Render(m.Plural.Files(d.Files)))
-	}
-	desc := render.FirstLine(mr.Description)
-	if desc == "" {
-		desc = s.Muted.Render(m.MR.PrevNoDesc)
-	}
-	return frame(
-		s.Accent.Render(fmt.Sprintf("!%d", mr.IID))+"  "+s.PreviewTitle.Render(mr.Title),
-		strings.Join(line2, dot),
-		desc,
-	)
+	return frame(render.MRPreview(s, m, mr)...)
 }
 
 func (t *mrsTab) KeyMap() common.KeyMap {
