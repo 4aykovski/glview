@@ -17,18 +17,19 @@ import (
 
 // Config mirrors config.yaml (SPEC §7).
 type Config struct {
-	Host        string    `yaml:"host"`
-	Token       string    `yaml:"token"`
-	HostAliases []string  `yaml:"host_aliases"`
-	Language    string    `yaml:"language"`
-	Theme       string    `yaml:"theme"`
-	TLS         TLS       `yaml:"tls"`
-	Workspace   Workspace `yaml:"workspace"`
-	Project     Project   `yaml:"project"`
-	GraphQL     GraphQL   `yaml:"graphql"`
-	Polling     Polling   `yaml:"polling"`
-	Glab        Tool      `yaml:"glab"`
-	Git         Git       `yaml:"git"`
+	Host        string      `yaml:"host"`
+	Token       string      `yaml:"token"`
+	HostAliases []string    `yaml:"host_aliases"`
+	Language    string      `yaml:"language"`
+	Theme       string      `yaml:"theme"`
+	TLS         TLS         `yaml:"tls"`
+	Workspace   Workspace   `yaml:"workspace"`
+	Project     Project     `yaml:"project"`
+	RunPipeline RunPipeline `yaml:"run_pipeline"`
+	GraphQL     GraphQL     `yaml:"graphql"`
+	Polling     Polling     `yaml:"polling"`
+	Glab        Tool        `yaml:"glab"`
+	Git         Git         `yaml:"git"`
 }
 
 type TLS struct {
@@ -43,6 +44,21 @@ type Workspace struct {
 
 type Project struct {
 	PageSize int `yaml:"page_size"`
+}
+
+// Values of RunPipeline.RefsFirst.
+const (
+	RefsBranchesFirst = "branches"
+	RefsTagsFirst     = "tags"
+)
+
+// RunPipeline configures the Run pipeline form (SPEC §3.9).
+type RunPipeline struct {
+	// RefsFirst is the group shown first in ref suggestions: "branches" or "tags".
+	RefsFirst string `yaml:"refs_first"`
+	// PrefillLocalBranch puts the current local branch into the ref field
+	// and first among the suggestions.
+	PrefillLocalBranch bool `yaml:"prefill_local_branch"`
 }
 
 type GraphQL struct {
@@ -96,7 +112,11 @@ func Default() Config {
 		Theme:     "terminal",
 		Workspace: Workspace{PerProject: 3, MaxGroupProjects: 100},
 		Project:   Project{PageSize: 20},
-		GraphQL:   GraphQL{BatchSize: 10},
+		RunPipeline: RunPipeline{
+			RefsFirst:          RefsBranchesFirst,
+			PrefillLocalBranch: true,
+		},
+		GraphQL: GraphQL{BatchSize: 10},
 		Polling: Polling{
 			Active:    Duration(3 * time.Second),
 			Idle:      Duration(30 * time.Second),
@@ -118,6 +138,9 @@ func DefaultPath() string { return filepath.Join(xdg.ConfigDir(), "config.yaml")
 type Warning struct {
 	Kind WarningKind
 	Text string
+	// Key, Value and Default describe a WarnValue warning: the dotted key,
+	// the rejected value and the default used instead.
+	Key, Value, Default string
 }
 
 type WarningKind int
@@ -127,6 +150,8 @@ const (
 	WarnParse WarningKind = iota
 	// WarnPermissions means the file holds a token but is readable by others.
 	WarnPermissions
+	// WarnValue means a key has an unknown enum value; the default is used.
+	WarnValue
 )
 
 // Load reads the config at path. A missing file is not an error. Parse
@@ -147,7 +172,7 @@ func Load(path string) (Config, []Warning, error) {
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
 		return cfg, []Warning{{Kind: WarnParse, Text: err.Error()}}, nil
 	}
-	parsed.normalize()
+	warns = append(warns, parsed.normalize()...)
 
 	if parsed.Token != "" {
 		if info, err := os.Stat(path); err == nil && info.Mode().Perm()&0o077 != 0 {
@@ -160,9 +185,11 @@ func Load(path string) (Config, []Warning, error) {
 	return parsed, warns, nil
 }
 
-// normalize replaces invalid values with defaults.
-func (c *Config) normalize() {
+// normalize replaces invalid values with defaults. Unknown values of
+// enum keys are reported as warnings.
+func (c *Config) normalize() []Warning {
 	d := Default()
+	var warns []Warning
 	if c.Language != "en" && c.Language != "ru" {
 		c.Language = d.Language
 	}
@@ -183,5 +210,21 @@ func (c *Config) normalize() {
 	}
 	if c.Git.Parallel <= 0 {
 		c.Git.Parallel = d.Git.Parallel
+	}
+	switch c.RunPipeline.RefsFirst {
+	case RefsBranchesFirst, RefsTagsFirst:
+	case "":
+		c.RunPipeline.RefsFirst = d.RunPipeline.RefsFirst
+	default:
+		warns = append(warns, badValue("run_pipeline.refs_first", c.RunPipeline.RefsFirst, d.RunPipeline.RefsFirst))
+		c.RunPipeline.RefsFirst = d.RunPipeline.RefsFirst
+	}
+	return warns
+}
+
+func badValue(key, value, def string) Warning {
+	return Warning{
+		Kind: WarnValue, Key: key, Value: value, Default: def,
+		Text: fmt.Sprintf("%s: unknown value %q, using %q", key, value, def),
 	}
 }
