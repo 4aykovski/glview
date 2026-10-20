@@ -38,3 +38,10 @@ func TestGoldenDiscussionsRich(t *testing.T) {
 	d.Key("r", "tab")
 	d.RequireGoldenSizes("mrdetail-discussions-rich")
 }
+
+func TestGoldenCommits(t *testing.T) {
+	d, _, _, client := setup(t, baseMR())
+	client.SetMRCommits(path, 479, testCommits())
+	d.Key("shift+tab")
+	d.RequireGoldenSizes("mrdetail-commits")
+}

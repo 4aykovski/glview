@@ -30,7 +30,7 @@ func fillM1RU(m *Messages) {
 	k.PrevNextAttempt = "пред./след. попытка"
 	k.State, k.Status, k.Reset = "состояние", "статус", "сброс фильтров"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "список в браузере", "пайплайн в браузере", "джоба в браузере"
-	k.BrowserMR = "MR в браузере"
+	k.BrowserMR, k.BrowserCommit = "MR в браузере", "коммит в браузере"
 	k.Find = "поиск по логу"
 	k.Comment = "коммент"
 
@@ -224,6 +224,7 @@ func fillM1RU(m *Messages) {
 	r.EmptyDiscussions, r.EmptyPipelines, r.Loading = "Обсуждений нет", "У MR нет пайплайнов", "◐ загружаю…"
 	r.ColStatus, r.ColID, r.ColRef, r.ColSource, r.ColCommit, r.ColUser = "Статус", "ID", "Ref", "Источник", "Коммит", "Автор"
 	r.ColDur, r.ColAgo = "Длит", "Назад"
+	r.TabCommits, r.EmptyCommits, r.ColSHA = "Коммиты", "Нет коммитов", "SHA"
 	r.NeedApprovals = func(left int) string { return fmt.Sprintf("нужно ещё %d", left) }
 
 	r.ToastApproved = func(iid int64) string { return fmt.Sprintf("одобрено !%d", iid) }

@@ -1,5 +1,5 @@
 // Package mrdetail is the merge request screen: title block, status chips
-// and the Overview / Discussions / Pipelines tabs.
+// and the Overview / Discussions / Pipelines / Commits tabs.
 package mrdetail
 
 import (
@@ -31,6 +31,8 @@ const (
 	tabOverview    = 0
 	tabDiscussions = 1
 	tabPipelines   = 2
+	tabCommits     = 3
+	tabCount       = 4
 )
 
 type (
@@ -54,6 +56,11 @@ type (
 		pipes []gitlab.PipelineSummary
 		err   error
 	}
+	commitsLoadedMsg struct {
+		tok     common.Token
+		commits []gitlab.CommitSummary
+		err     error
+	}
 )
 
 // Screen is the MR detail screen.
@@ -68,14 +75,24 @@ type Screen struct {
 	pipes       []gitlab.PipelineSummary
 	pipesLoaded bool
 
+	// Commits tab: loaded lazily on the first visit, then on r and when the
+	// head SHA differs from commitsSHA (the SHA of the last request).
+	commits        []gitlab.CommitSummary
+	commitsLoaded  bool
+	commitsLoading bool
+	commitsErr     bool
+	commitsOpened  bool
+	commitsSHA     string
+
 	mrGen, discGen, pipeGen, poll common.Gen
-	recheckGen                    common.Gen
+	recheckGen, commitGen         common.Gen
 
 	// Merge status recheck: GitLab computes detailed_merge_status lazily, so
 	// an "unchecked" MR is nudged once per iid@sha and polled fast for a while.
 	rechecked map[string]bool
 	recheckAt time.Time
-	tbl       *table.Model
+	tbl       *table.Model // Pipelines tab
+	ctbl      *table.Model // Commits tab
 	act       *mractions.Controller
 
 	tab     int
@@ -98,11 +115,13 @@ type Screen struct {
 func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest) *Screen {
 	s := &Screen{
 		env: env, ref: ref, iid: initial.IID, mr: initial,
-		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), rechecked: map[string]bool{},
-		tbl: table.New(env.Styles), md: map[string]string{}, fold: map[string]bool{},
+		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), commitGen: common.NewGen(),
+		rechecked: map[string]bool{},
+		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{}, fold: map[string]bool{},
 	}
 	s.act = mractions.New(env, func() gitlab.ProjectRef { return s.ref }, func() *gitremote.Repo { return repo })
 	s.rebuildTable()
+	s.rebuildCommits()
 	return s
 }
 
@@ -113,6 +132,7 @@ func (s *Screen) Title() string { return fmt.Sprintf("%s !%d", s.ref.FullPath, s
 func (s *Screen) SetSize(w, h int) {
 	s.w, s.h = w, h
 	s.tbl.SetSize(w, max(1, h-s.headerLines()))
+	s.ctbl.SetSize(w, max(1, h-s.headerLines()))
 }
 
 // MR returns the merge request as currently known (for tests and actions).
@@ -123,7 +143,9 @@ func (s *Screen) KeyMap() common.KeyMap {
 	short := []common.Binding{
 		common.NewBinding([]string{"tab"}, "tab", k.NextTab, common.PriorityHigh),
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh),
-		common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityNormal),
+	}
+	if s.tab != tabCommits { // enter on a commit does nothing until diffs exist
+		short = append(short, common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityNormal))
 	}
 	if s.tab == tabDiscussions {
 		short = append(short,
@@ -131,10 +153,14 @@ func (s *Screen) KeyMap() common.KeyMap {
 			common.NewBinding([]string{"space"}, "space", k.Fold, common.PriorityNormal),
 		)
 	}
+	browser := k.Browser
+	if s.tab == tabCommits {
+		browser = k.BrowserCommit
+	}
 	short = append(short, s.act.Bindings()...)
 	short = append(short,
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
-		common.NewBinding([]string{"o"}, "", k.Browser, common.PriorityLow),
+		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
 		common.NewBinding([]string{"esc"}, "", k.Back, common.PriorityLow),
 	)
@@ -184,8 +210,30 @@ func (s *Screen) loadPipelines(force bool) tea.Cmd {
 	}
 }
 
+// loadCommits requests the MR commits and remembers the head SHA they are
+// requested at.
+func (s *Screen) loadCommits(force bool) tea.Cmd {
+	tok := s.commitGen.Next()
+	s.commitsLoading, s.commitsErr, s.commitsSHA = true, false, s.mr.SHA
+	s.rebuildCommits()
+	env, ref, iid, key := s.env, s.ref, s.iid, s.key("mrcommits")
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		defer cancel()
+		c, _, err := common.Fetch(ctx, env.Cache, key, dataTTL, force, func(ctx context.Context) ([]gitlab.CommitSummary, error) {
+			return env.Client.MergeRequests().Commits(ctx, ref, iid)
+		})
+		return commitsLoadedMsg{tok: tok, commits: c, err: err}
+	}
+}
+
+// loadAll reloads everything; commits only once their tab was opened.
 func (s *Screen) loadAll(force bool) tea.Cmd {
-	return tea.Batch(s.loadMR(force), s.loadDiscussions(force), s.loadPipelines(force))
+	cmds := []tea.Cmd{s.loadMR(force), s.loadDiscussions(force), s.loadPipelines(force)}
+	if s.commitsOpened {
+		cmds = append(cmds, s.loadCommits(force))
+	}
+	return tea.Batch(cmds...)
 }
 
 // recheckWindow is how long after a recheck request the MR is polled fast
@@ -278,7 +326,11 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		s.mr = msg.mr
 		s.updated = env.Now()
 		recheck := s.maybeRecheck()
-		return s, tea.Batch(recheck, s.schedulePoll())
+		var commits tea.Cmd
+		if s.commitsOpened && s.mr.SHA != "" && s.mr.SHA != s.commitsSHA {
+			commits = s.loadCommits(true)
+		}
+		return s, tea.Batch(recheck, commits, s.schedulePoll())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -308,6 +360,18 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 		s.pipes, s.pipesLoaded = msg.pipes, true
 		s.rebuildTable()
+	case commitsLoadedMsg:
+		if !s.commitGen.Valid(msg.tok) {
+			return s, nil
+		}
+		s.commitsLoading = false
+		if msg.err != nil {
+			s.commitsErr = true
+			s.rebuildCommits()
+			return s, env.Fail(msg.err)
+		}
+		s.commits, s.commitsLoaded = msg.commits, true
+		s.rebuildCommits()
 
 	case common.PollTickMsg:
 		if !s.poll.Valid(msg.Token) || !s.active || env.AuthLost {
@@ -322,6 +386,8 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, s.loadDiscussions(false)
 		case msg.Key == s.key("mrpipes"):
 			return s, s.loadPipelines(false)
+		case msg.Key == s.key("mrcommits") && s.commitsOpened:
+			return s, s.loadCommits(false)
 		}
 	case app.AuthLostMsg:
 		s.poll.Next()
@@ -337,6 +403,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		s.md = map[string]string{}
 		s.tbl.SetStyles(env.Styles)
 		s.rebuildTable()
+		s.rebuildCommits()
 
 	case tea.KeyPressMsg:
 		return s, s.onKey(msg)
@@ -350,17 +417,19 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	switch k.String() {
 	case "tab":
-		s.setTab(s.tab + 1)
-		return nil
+		return s.setTab(s.tab + 1)
 	case "shift+tab":
-		s.setTab(s.tab + 2)
-		return nil
+		return s.setTab(s.tab + tabCount - 1)
 	case "r":
 		return s.loadAll(true)
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":
 		return app.Copy(s.env, s.link(), render.ShortURL(s.link()))
+	}
+	if s.tab == tabCommits {
+		s.ctbl.HandleKey(k) // enter does nothing: diffs come after the MVP
+		return nil
 	}
 	if s.tab == tabPipelines {
 		if k.String() == "enter" {
@@ -390,10 +459,30 @@ func (s *Screen) selectedPipeline() *gitlab.PipelineSummary {
 	return nil
 }
 
-func (s *Screen) setTab(i int) {
-	s.tab = i % 3
+// setTab switches the tab. The first visit to Commits (or one after a
+// failed load) requests the commits.
+func (s *Screen) setTab(i int) tea.Cmd {
+	s.tab = i % tabCount
 	s.scroll = 0
 	s.curThread = ""
+	if s.tab != tabCommits {
+		return nil
+	}
+	s.commitsOpened = true
+	if (!s.commitsLoaded || s.commitsErr) && !s.commitsLoading {
+		return s.loadCommits(false)
+	}
+	return nil
+}
+
+func (s *Screen) selectedCommit() *gitlab.CommitSummary {
+	id := s.ctbl.CursorID()
+	for i := range s.commits {
+		if s.commits[i].SHA == id {
+			return &s.commits[i]
+		}
+	}
+	return nil
 }
 
 func (s *Screen) scrollKey(k string) {
@@ -442,6 +531,39 @@ func (s *Screen) rebuildTable() {
 		s.tbl.SetTail(table.TailLoading, m.Loading)
 	} else {
 		s.tbl.SetTail(table.TailNone, "")
+	}
+}
+
+func (s *Screen) rebuildCommits() {
+	env := s.env
+	m := env.Msg.MR
+	st := env.Styles
+	s.ctbl.SetStyles(st)
+	s.ctbl.SetColumns([]table.Column{
+		{Title: m.ColSHA, Min: 8, Priority: 100},
+		{Title: m.ColTitle, Min: 20, Flex: true, Priority: 90},
+		{Title: m.ColAuthor, Min: 8, Max: 20, Priority: 50},
+		{Title: m.ColAgo, Min: 4, Priority: 60, AlignRight: true},
+	})
+	rows := make([]table.Row, len(s.commits))
+	for i, c := range s.commits {
+		short := c.ShortSHA
+		if short == "" {
+			short = c.SHA[:min(8, len(c.SHA))]
+		}
+		rows[i] = table.Row{ID: c.SHA, Cells: []string{
+			st.Accent.Render(short), c.Title, c.AuthorName, render.Ago(env.Lang, env.Now(), c.CreatedAt),
+		}}
+	}
+	s.ctbl.SetRows(rows)
+	s.ctbl.SetEmpty("\n  " + m.EmptyCommits)
+	switch {
+	case s.commitsErr && len(s.commits) == 0:
+		s.ctbl.SetTail(table.TailError, env.Msg.Project.LoadFailed)
+	case !s.commitsLoaded:
+		s.ctbl.SetTail(table.TailLoading, m.Loading)
+	default:
+		s.ctbl.SetTail(table.TailNone, "")
 	}
 }
 
@@ -506,6 +628,8 @@ func (s *Screen) View() string {
 		body = s.window(s.overview())
 	case tabDiscussions:
 		body = s.window(s.discussionsView())
+	case tabCommits:
+		body = s.ctbl.View()
 	default:
 		body = s.tbl.View()
 	}
@@ -638,7 +762,14 @@ func (s *Screen) tabBar() string {
 	if s.pipesLoaded {
 		pipes = fmt.Sprintf(" %d", len(s.pipes))
 	}
-	names := []string{m.TabOverview, m.TabDiscussions + discs, m.TabPipelines + pipes}
+	commits := ""
+	switch {
+	case s.commitsLoaded:
+		commits = fmt.Sprintf(" %d", len(s.commits))
+	case s.mr.CommitCount > 0:
+		commits = fmt.Sprintf(" %d", s.mr.CommitCount)
+	}
+	names := []string{m.TabOverview, m.TabDiscussions + discs, m.TabPipelines + pipes, m.TabCommits + commits}
 	parts := make([]string, len(names))
 	for i, n := range names {
 		if i == s.tab {

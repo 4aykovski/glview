@@ -21,7 +21,7 @@ type Messages struct {
 		Details, Comment, Attempts, PrevNextAttempt string
 		State, Status, Reset                string
 		BrowserList, BrowserOne, BrowserJob string
-		BrowserMR                           string
+		BrowserMR, BrowserCommit            string
 		Find                                string
 		Threads                             string
 	}

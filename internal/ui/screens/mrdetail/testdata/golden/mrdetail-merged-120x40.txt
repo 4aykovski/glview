@@ -4,7 +4,7 @@ anna.k · fix/slot-race → main · merged by d.orlov 5h ago · +48 −12 3 file
 ╭──────────╮ ╭────────────────╮ ╭────────────────────────────╮ ╭─────────────────────╮
 │ ✓ merged │ │ ✓ 1/2 approved │ │ ✗ pipeline #91840 · failed │ │ 1 thread unresolved │
 ╰──────────╯ ╰────────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
- Overview   Discussions 2   Pipelines 2
+ Overview   Discussions 2   Pipelines 2   Commits
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Why                                                                                 │ APPROVALS
                                                                                      │ ✓ bob

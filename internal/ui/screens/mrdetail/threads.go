@@ -170,14 +170,29 @@ func (s *Screen) discussionsView() []string {
 }
 
 // link is the browser/clipboard target: the current thread on the
-// Discussions tab, else the MR.
+// Discussions tab, the selected commit on the Commits tab, else the MR.
 func (s *Screen) link() string {
 	if s.tab == tabDiscussions && s.discLoaded {
 		if _, cards := s.layout(); len(cards) > 0 {
 			return cards[s.cardIndex(cards)].link
 		}
 	}
+	if s.tab == tabCommits {
+		if c := s.selectedCommit(); c != nil {
+			return s.commitURL(c.SHA)
+		}
+	}
 	return s.mr.WebURL
+}
+
+// commitURL is <project>/-/commit/<sha>; the project URL is the MR URL cut
+// before /-/merge_requests/, or the instance URL and the full path.
+func (s *Screen) commitURL(sha string) string {
+	base, _, ok := strings.Cut(s.mr.WebURL, "/-/merge_requests/")
+	if !ok || base == "" {
+		base = strings.TrimRight(s.env.Host, "/") + "/" + s.ref.FullPath
+	}
+	return base + "/-/commit/" + sha
 }
 
 func (s *Screen) cardIndex(cards []card) int {

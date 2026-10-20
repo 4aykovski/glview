@@ -62,6 +62,7 @@ type MRMessages struct {
 	EmptyDiscussions, EmptyPipelines, Loading               string
 	ColStatus, ColID, ColRef, ColSource, ColCommit, ColUser string
 	ColDur, ColAgo                                          string
+	TabCommits, EmptyCommits, ColSHA                        string
 	NeedApprovals                                           func(left int) string
 
 	// Actions
