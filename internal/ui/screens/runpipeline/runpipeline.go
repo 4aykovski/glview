@@ -765,68 +765,85 @@ func (f *Form) create(run launch) tea.Cmd {
 
 // View renders the form. The suggestion and hint lists show up to 6 and 8
 // rows; on a short terminal they shrink so the whole form stays on screen.
+// Every line is clipped to the form width, so the rest of the form is
+// measured by counting its lines, without rendering the form twice.
 func (f *Form) View(width, height int) string {
 	if f.confirm != nil {
 		return f.confirm.View(width, height)
 	}
-	base := lipgloss.Height(f.render(width, 1, 1))
-	extra := max(0, height-base)
-	f.candShown, f.hintShown = min(candRows, 1+extra), min(hintRows, 1+extra)
-	f.candOff = window(f.candCursor, f.candOff, len(f.cands), f.candShown)
-	f.hintOff = window(f.hintIdx, f.hintOff, len(f.hints), f.hintShown)
-	return f.render(width, f.candShown, f.hintShown)
+	s := f.env.Styles
+	w := min(76, width-6)
+	head, vars, foot := f.headView(w), f.varsView(w), f.footView(w)
+	// The lists get the rows the rest leaves, at least one. The sizes are
+	// kept for Update, which scrolls the lists by them.
+	rest := s.Modal.GetVerticalFrameSize() + lines(head) + lines(vars) + lines(foot) +
+		lines(f.candidatesView(w, 0)) + lines(f.hintListView(w, 0))
+	free := max(1, height-rest)
+	f.candShown, f.hintShown = min(candRows, free), min(hintRows, free)
+	var parts []string
+	for _, p := range []string{head, f.candidatesView(w, f.candShown), vars, f.hintListView(w, f.hintShown), foot} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return s.Modal.Width(w + 4).Render(strings.Join(parts, "\n"))
 }
 
-// render draws the form with at most candN suggestions and hintN rows of
-// the hints list.
-func (f *Form) render(width, candN, hintN int) string {
-	s, m := f.env.Styles, f.env.Msg
-	w := min(76, width-6)
-	var b strings.Builder
-	b.WriteString(s.ModalTitle.Render(m.Form.RunTitle) + "  " + s.Muted.Render(f.ref.FullPath) + "\n\n")
+// lines is the number of lines of a part of the form, 0 for none.
+func lines(s string) int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
+}
 
-	refLabel := m.Form.RefLabel
-	varsLabel := m.Form.VarsLabel
-	refKind, varsKind := common.BoxNormal, common.BoxNormal
-	switch f.focus {
-	case focusRef:
-		refKind = common.BoxActive
-		refLabel = s.Accent.Render(refLabel)
-	case focusVars:
-		varsKind = common.BoxActive
-		varsLabel = s.Accent.Render(varsLabel)
+// headView is the title and the ref field.
+func (f *Form) headView(w int) string {
+	s, m := f.env.Styles, f.env.Msg.Form
+	label, kind := m.RefLabel, common.BoxNormal
+	if f.focus == focusRef {
+		label, kind = s.Accent.Render(label), common.BoxActive
 	}
-	b.WriteString(refLabel + "\n")
-	b.WriteString(common.Box(s, " "+f.refView(), w, 3, refKind) + "\n")
-	if list := f.candidatesView(w, candN); list != "" {
-		b.WriteString(list + "\n")
+	title := render.Clip(s.ModalTitle.Render(m.RunTitle)+"  "+s.Muted.Render(f.ref.FullPath), w)
+	return title + "\n\n" + label + "\n" + common.Box(s, " "+f.refView(), w, 3, kind)
+}
+
+// varsView is the variables table and the hints line.
+func (f *Form) varsView(w int) string {
+	s, m := f.env.Styles, f.env.Msg.Form
+	label, kind := m.VarsLabel, common.BoxNormal
+	if f.focus == focusVars {
+		label, kind = s.Accent.Render(label), common.BoxActive
 	}
-	b.WriteString(varsLabel + "\n")
-	table := f.vt.View(w - 4)
-	rows := strings.Split(table, "\n")
+	rows := strings.Split(f.vt.View(w-4), "\n")
 	for i := range rows {
 		rows[i] = " " + rows[i]
 	}
-	b.WriteString(common.Box(s, strings.Join(rows, "\n"), w, len(rows)+2, varsKind) + "\n")
+	out := label + "\n" + common.Box(s, strings.Join(rows, "\n"), w, len(rows)+2, kind)
 	if hints := f.hintsView(w); hints != "" {
-		b.WriteString(hints + "\n")
+		out += "\n" + hints
 	}
-	if f.hintList {
-		b.WriteString("\n" + f.hintListView(w, hintN) + "\n")
-	}
+	return out
+}
+
+// footView is the value picker, the preview and the key line with the
+// run button.
+func (f *Form) footView(w int) string {
+	s, m := f.env.Styles, f.env.Msg.Form
+	var b strings.Builder
 	if f.picking != nil {
-		b.WriteString("\n" + s.Bold.Render(m.Form.PickValue(f.picking.Key)) + "\n")
+		b.WriteString("\n" + render.Clip(s.Bold.Render(m.PickValue(f.picking.Key)), w) + "\n")
 		for i, o := range f.picking.ValueOptions {
+			mark := "  "
 			if i == f.pickIdx {
-				b.WriteString(s.Accent.Render("› ") + o + "\n")
-			} else {
-				b.WriteString("  " + o + "\n")
+				mark = s.Accent.Render("› ")
 			}
+			b.WriteString(render.Clip(mark+o, w) + "\n")
 		}
 	}
-	b.WriteString(common.Box(s, " "+s.Muted.Render(m.Form.WillCreate(f.Ref(), f.vt.Len())), w, 3, common.BoxNormal) + "\n")
+	b.WriteString(common.Box(s, " "+s.Muted.Render(m.WillCreate(f.Ref(), f.vt.Len())), w, 3, common.BoxNormal) + "\n")
 	b.WriteString(f.bottomView(w))
-	return s.Modal.Width(w + 4).Render(b.String())
+	return b.String()
 }
 
 // refView is the ref field; the prefilled value is shown as selected text.
@@ -955,14 +972,10 @@ func (f *Form) hintsView(w int) string {
 		}
 		parts := make([]string, len(f.hints))
 		for i, h := range f.hints {
-			p := h.Key
+			parts[i] = hintText(h)
 			if i < numberedHints {
-				p = fmt.Sprintf("%d %s", i+1, h.Key)
+				parts[i] = fmt.Sprintf("%d %s", i+1, parts[i])
 			}
-			if len(h.ValueOptions) > 0 {
-				p += " [" + strings.Join(h.ValueOptions, ", ") + "]"
-			}
-			parts[i] = p
 		}
 		line := s.Muted.Render(m.HintsLabel) + " " + strings.Join(parts, ", ")
 		if ansi.StringWidth(line) <= w {
@@ -974,17 +987,18 @@ func (f *Form) hintsView(w int) string {
 	return ""
 }
 
-// hintListView lists every hint with its options and description.
+// hintListView lists every hint with its options and description, after a
+// blank line; "" while the list is closed.
 func (f *Form) hintListView(w, rows int) string {
+	if !f.hintList {
+		return ""
+	}
 	s, m := f.env.Styles, f.env.Msg.Form
-	lines := []string{s.Bold.Render(m.HintsLabel)}
+	out := []string{"", s.Bold.Render(m.HintsLabel)}
 	off := window(f.hintIdx, f.hintOff, len(f.hints), rows)
 	for i := off; i < min(len(f.hints), off+rows); i++ {
 		h := f.hints[i]
-		text := h.Key
-		if len(h.ValueOptions) > 0 {
-			text += " [" + strings.Join(h.ValueOptions, ", ") + "]"
-		}
+		text := hintText(h)
 		if h.Description != "" {
 			text += "  " + s.Muted.Render(h.Description)
 		}
@@ -992,9 +1006,17 @@ func (f *Form) hintListView(w, rows int) string {
 		if i == f.hintIdx {
 			mark = s.Accent.Render("› ")
 		}
-		lines = append(lines, render.Clip(mark+text, w))
+		out = append(out, render.Clip(mark+text, w))
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(out, "\n")
+}
+
+// hintText is "KEY [opt1, opt2]": a hint with its value options.
+func hintText(h gitlab.CIConfigVariable) string {
+	if len(h.ValueOptions) == 0 {
+		return h.Key
+	}
+	return h.Key + " [" + strings.Join(h.ValueOptions, ", ") + "]"
 }
 
 // highlight marks the part of a candidate that matches the typed ref.
