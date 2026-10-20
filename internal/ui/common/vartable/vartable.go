@@ -102,14 +102,7 @@ func (m *Model) Has(key string) bool {
 
 func (m *Model) startEdit(col int, isNew bool) tea.Cmd {
 	m.col, m.editing, m.isNew = col, true, isNew
-	// The input scrolls inside its column, so the caret stays visible in
-	// long values; one cell is left for the caret itself.
-	keyW, valW, _ := colWidths(m.width)
-	w := valW
-	if col == colKey {
-		w = keyW
-	}
-	m.input.SetWidth(max(1, w-1))
+	m.fitInput()
 	switch col {
 	case colKey:
 		m.input.SetValue(m.rows[m.cursor].Key)
@@ -118,6 +111,19 @@ func (m *Model) startEdit(col int, isNew bool) tea.Cmd {
 	}
 	m.input.CursorEnd()
 	return m.input.Focus()
+}
+
+// fitInput sizes the input to the edited column. The input scrolls inside
+// its column, so the caret stays visible in long values; one cell is left
+// for the caret itself.
+func (m *Model) fitInput() {
+	keyW, valW, _ := colWidths(m.width)
+	w := valW
+	if m.col == colKey {
+		w = keyW
+	}
+	m.input.SetWidth(max(1, w-1))
+	m.input.SetCursor(m.input.Position()) // scroll the text to the new width
 }
 
 // Update handles a key press and reports whether the key was used.
@@ -221,7 +227,13 @@ func colWidths(width int) (keyW, valW, typeW int) {
 // highlighted across its column, empty cells show muted placeholders.
 func (m *Model) View(width int) string {
 	s := m.styles
-	m.width = width
+	if width != m.width {
+		// The terminal was resized: the edited cell follows its column.
+		m.width = width
+		if m.editing {
+			m.fitInput()
+		}
+	}
 	keyW, valW, typeW := colWidths(width)
 	out := []string{s.ColumnHeader.Render("  " + fit(m.labels.Key, keyW) + "  " + fit(m.labels.Value, valW) + "  " + fit(m.labels.Type, typeW))}
 	if len(m.rows) == 0 {

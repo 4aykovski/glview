@@ -192,3 +192,19 @@ func TestCaretVisibleInLongValue(t *testing.T) {
 		t.Fatalf("row is %d wide", w)
 	}
 }
+
+func TestCaretVisibleAfterResizeWhileEditing(t *testing.T) {
+	m := newModel()
+	m.Add("A", strings.Repeat("x", 200), gitlab.VarEnv)
+	m.View(80)
+	keys(m, "l", "enter")
+	for _, w := range []int{40, 120, 60} {
+		v := m.View(w)
+		if !caretVisible(v) {
+			t.Fatalf("width %d: the input must follow the column width:\n%q", w, v)
+		}
+		if rw := ansi.StringWidth(strings.Split(v, "\n")[1]); rw > w {
+			t.Fatalf("width %d: row is %d wide", w, rw)
+		}
+	}
+}
