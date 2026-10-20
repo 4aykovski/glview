@@ -106,7 +106,7 @@ func (s mrs) Unapprove(ctx context.Context, p gitlab.ProjectRef, iid int64) erro
 }
 
 func mapCommit(c *gl.Commit) gitlab.CommitSummary {
-	return gitlab.CommitSummary{SHA: c.ID, ShortSHA: c.ShortID, Title: c.Title, AuthorName: c.AuthorName, CreatedAt: deref(c.CreatedAt)}
+	return gitlab.CommitSummary{SHA: c.ID, ShortSHA: c.ShortID, Title: c.Title, AuthorName: c.AuthorName, WebURL: c.WebURL, CreatedAt: deref(c.CreatedAt)}
 }
 
 // Merge merges the MR, or sets it to merge when the pipeline succeeds. The

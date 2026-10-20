@@ -195,7 +195,7 @@ func TestCommitsAllPagesInAPIOrder(t *testing.T) {
 			switch q.Get("page") {
 			case "1":
 				w.Header().Set("X-Next-Page", "2")
-				w.Write([]byte(`[{"id":"c3c3c3c3c3c3","short_id":"c3c3c3c3","title":"slot: fix race","author_name":"Anna K","created_at":"2026-10-19T11:00:00Z"}]`))
+				w.Write([]byte(`[{"id":"c3c3c3c3c3c3","short_id":"c3c3c3c3","title":"slot: fix race","author_name":"Anna K","web_url":"https://gitlab.example.com/platform/route-service/-/commit/c3c3c3c3c3c3","created_at":"2026-10-19T11:00:00Z"}]`))
 			case "2":
 				w.Header().Set("X-Next-Page", "3")
 				w.Write([]byte(`[{"id":"b2b2b2b2b2b2","short_id":"b2b2b2b2","title":"slot: add test","author_name":"Egor","created_at":"2026-10-19T10:00:00Z"}]`))
@@ -215,8 +215,8 @@ func TestCommitsAllPagesInAPIOrder(t *testing.T) {
 		t.Fatalf("commits must keep API order: %+v", cs)
 	}
 	want := gitlab.CommitSummary{SHA: "c3c3c3c3c3c3", ShortSHA: "c3c3c3c3", Title: "slot: fix race", AuthorName: "Anna K",
-		CreatedAt: time.Date(2026, 10, 19, 11, 0, 0, 0, time.UTC)}
-	if got := cs[0]; got.SHA != want.SHA || got.Title != want.Title || got.AuthorName != want.AuthorName || !got.CreatedAt.Equal(want.CreatedAt) {
+		WebURL: "https://gitlab.example.com/platform/route-service/-/commit/c3c3c3c3c3c3", CreatedAt: time.Date(2026, 10, 19, 11, 0, 0, 0, time.UTC)}
+	if got := cs[0]; got.SHA != want.SHA || got.Title != want.Title || got.AuthorName != want.AuthorName || got.WebURL != want.WebURL || !got.CreatedAt.Equal(want.CreatedAt) {
 		t.Errorf("mapping = %+v", got)
 	}
 }

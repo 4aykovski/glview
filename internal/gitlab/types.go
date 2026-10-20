@@ -281,6 +281,7 @@ type CommitSummary struct {
 	ShortSHA   string
 	Title      string
 	AuthorName string
+	WebURL     string // web_url: the commit page in the web UI
 	CreatedAt  time.Time
 }
 

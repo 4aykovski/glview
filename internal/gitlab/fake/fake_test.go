@@ -214,12 +214,12 @@ func TestFakeMRCommits(t *testing.T) {
 		t.Fatalf("no commits yet: %+v %v", got, err)
 	}
 	commits := []gitlab.CommitSummary{
-		{SHA: "b2c3d4e5f6", ShortSHA: "b2c3d4e5", Title: "slot: fix race", AuthorName: "Anna"},
+		{SHA: "b2c3d4e5f6", ShortSHA: "b2c3d4e5", Title: "slot: fix race", AuthorName: "Anna", WebURL: "https://gitlab.example.com/a/b/-/commit/b2c3d4e5f6"},
 		{SHA: "a1b2c3d4e5", ShortSHA: "a1b2c3d4", Title: "slot: add test", AuthorName: "Egor"},
 	}
 	c.SetMRCommits("a/b", 1, commits)
 	got, err := c.MergeRequests().Commits(ctx, ref, 1)
-	if err != nil || len(got) != 2 || got[0].ShortSHA != "b2c3d4e5" {
+	if err != nil || len(got) != 2 || got[0].ShortSHA != "b2c3d4e5" || got[0].WebURL != "https://gitlab.example.com/a/b/-/commit/b2c3d4e5f6" {
 		t.Fatalf("commits = %+v %v", got, err)
 	}
 	got[0].Title = "changed"
