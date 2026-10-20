@@ -248,7 +248,7 @@ func TestNewPipelineFormPrefill(t *testing.T) {
 	// the local branch is only marked.
 	env := newEnv(client)
 	env.Settings.PrefillLocalBranch = false
-	d = uitest.New(t, app.New(env, New(env, path, repo), app.Options{}))
+	d = uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{}))
 	d.Key("2", "n")
 	d.RequireView("will be created: ref=,", "fix/slot-race  (current in git)")
 }

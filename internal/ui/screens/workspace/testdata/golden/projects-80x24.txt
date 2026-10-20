@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1 Projects 5   2 MRs   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  search
+  Folder       GitLab                  Local branch  ↑↓   MRs   Default br…  Act
+────────────────────────────────────────────────────────────────────────────────
+› route-serv…  platform/route-service  fix/slot-ra…       4 ·2  ► manual      1h
+  routing-en…  platform/routing-engi…  main               1 ·1  ✗ failed      3h
+  route-plan…  frontend/route-planne…  feat/map-la…       1     ◐ running     4h
+  router-con…  infra/router-configs    main               0     ✓ success     1w
+  e2e-routes   qa/e2e-routes           main               0     ✓ success     2w
+  dotfiles     github.com/egor/dotfi…  main               —     —              —
+
+
+
+
+
+
+
+
+
+  skipped without .git: notes, tmp
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open project  / filter  1-4 tabs  r refresh  ? help    poll 1m0s

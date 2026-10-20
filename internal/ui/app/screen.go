@@ -19,9 +19,13 @@ import (
 
 // Settings are the config values screens need.
 type Settings struct {
-	PageSize   int           // project.page_size
-	PollActive time.Duration // polling.active
-	PollIdle   time.Duration // polling.idle
+	PageSize      int           // project.page_size
+	PollActive    time.Duration // polling.active
+	PollIdle      time.Duration // polling.idle
+	PollWorkspace time.Duration // polling.workspace
+
+	PerProject       int // workspace.per_project
+	MaxGroupProjects int // workspace.max_group_projects
 
 	// RefsTagsFirst puts tags before branches in Run pipeline ref
 	// suggestions (run_pipeline.refs_first: tags).
@@ -36,6 +40,10 @@ const (
 	DefaultPageSize   = 20
 	DefaultPollActive = 3 * time.Second
 	DefaultPollIdle   = 30 * time.Second
+
+	DefaultPollWorkspace    = 60 * time.Second
+	DefaultPerProject       = 3
+	DefaultMaxGroupProjects = 100
 )
 
 // Env is shared by all screens. The root mutates it on language and theme
@@ -69,6 +77,12 @@ type Env struct {
 	// GlabLoggedIn caches the one-time `glab auth status` check (nil = not
 	// checked yet in this session).
 	GlabLoggedIn *bool
+
+	// Disk holds the snapshots on disk (workspace overview, starred); nil
+	// keeps nothing on disk.
+	Disk *cache.Disk
+	// Catalog lists the projects known without network for p and F.
+	Catalog *Catalog
 }
 
 // NewEnv returns an Env with messages, default (dark) styles and clock set,
@@ -80,10 +94,13 @@ func NewEnv(lang i18n.Lang) *Env {
 		Styles: common.NewStyles(common.TerminalTheme(true)),
 		Now:    time.Now,
 
-		Settings: Settings{PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle, PrefillLocalBranch: true},
-		Focused:  true,
-		Browser:  browser.Open,
-		Exec:     func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd { return tea.ExecProcess(c, done) },
+		Settings: Settings{
+			PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle, PrefillLocalBranch: true,
+			PollWorkspace: DefaultPollWorkspace, PerProject: DefaultPerProject, MaxGroupProjects: DefaultMaxGroupProjects,
+		},
+		Focused: true,
+		Browser: browser.Open,
+		Exec:    func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd { return tea.ExecProcess(c, done) },
 	}
 }
 

@@ -103,6 +103,9 @@ type Messages struct {
 	Pipe    PipelineMessages
 	Log     LogMessages
 	Form    FormMessages
+	WS      WorkspaceMessages
+	Search  SearchMessages
+	Git     GitMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

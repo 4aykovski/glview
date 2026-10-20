@@ -58,7 +58,7 @@ func newFake(nMRs int) *fake.Client {
 func open(t *testing.T, client *fake.Client, repo *gitremote.Repo) (*uitest.Driver, *app.Model, *Project) {
 	t.Helper()
 	env := newEnv(client)
-	scr := New(env, path, repo)
+	scr := New(env, Options{Path: path, Repo: repo})
 	root := app.New(env, scr, app.Options{})
 	return uitest.New(t, root), root, scr
 }
@@ -106,7 +106,7 @@ func TestBranchRereadOnRefresh(t *testing.T) {
 
 func TestProjectNotFound(t *testing.T) {
 	env := newEnv(fake.New())
-	d := uitest.New(t, app.New(env, New(env, "gone/project", nil), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: "gone/project", Repo: nil}), app.Options{}))
 	d.RequireView("Project not found or no access", "gone/project")
 }
 
@@ -306,7 +306,7 @@ func TestMRsOpenAndCopy(t *testing.T) {
 	env := newEnv(client)
 	var opened string
 	env.Browser = func(u string) error { opened = u; return nil }
-	d := uitest.New(t, app.New(env, New(env, path, nil), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: nil}), app.Options{}))
 	d.Key("O")
 	if opened != "https://gitlab.example.com/"+path+"/-/merge_requests/1" {
 		t.Fatalf("opened %q", opened)
@@ -323,7 +323,7 @@ func TestStaleResponseIsDropped(t *testing.T) {
 	client := newFake(3)
 	client.UpdateMR(path, 3, func(m *gitlab.MergeRequest) { m.State = gitlab.MRStateMerged })
 	env := newEnv(client)
-	scr := New(env, path, nil)
+	scr := New(env, Options{Path: path, Repo: nil})
 	mrs := scr.tabs[0].(*mrsTab)
 	mrs.SetSize(120, 30)
 	feed := func(cmd tea.Cmd) {
@@ -491,7 +491,7 @@ func TestCheckoutHiddenWithoutGlab(t *testing.T) {
 	env := newEnv(client)
 	ran := false
 	env.Exec = func(*exec.Cmd, func(error) tea.Msg) tea.Cmd { ran = true; return nil }
-	root := app.New(env, New(env, path, repo), app.Options{})
+	root := app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{})
 	d := uitest.New(t, root)
 	d.RequireNoView("checkout")
 	d.Key("C")
@@ -505,7 +505,7 @@ func TestCheckoutHiddenWithoutGlab(t *testing.T) {
 func TestCheckoutHiddenWithoutRepo(t *testing.T) {
 	env := newEnv(newFake(1))
 	env.Glab = fakeGlab(t, true)
-	d := uitest.New(t, app.New(env, New(env, path, nil), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: nil}), app.Options{}))
 	d.RequireNoView("checkout")
 }
 
@@ -522,7 +522,7 @@ func TestCheckoutRunsGlabInRepoAndRefreshesBranch(t *testing.T) {
 			return done(nil)
 		}
 	}
-	d := uitest.New(t, app.New(env, New(env, path, repo), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{}))
 	d.RequireView("checkout", "main")
 	d.Key("j", "C")
 	if got == nil {
@@ -550,7 +550,7 @@ func TestCheckoutNotLoggedIn(t *testing.T) {
 	repo, _ := tempRepo(t)
 	ran := false
 	env.Exec = func(*exec.Cmd, func(error) tea.Msg) tea.Cmd { ran = true; return nil }
-	d := uitest.New(t, app.New(env, New(env, path, repo), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{}))
 	d.Key("C")
 	if ran {
 		t.Fatal("glab mr checkout must not start")
@@ -565,7 +565,7 @@ func TestCheckoutNonZeroExit(t *testing.T) {
 	env.Exec = func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd {
 		return func() tea.Msg { return done(exec.Command("sh", "-c", "exit 3").Run()) }
 	}
-	d := uitest.New(t, app.New(env, New(env, path, repo), app.Options{}))
+	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{}))
 	d.Key("C")
 	d.RequireView("glab exited with an error (code 3)")
 }

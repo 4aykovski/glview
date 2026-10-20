@@ -1,0 +1,40 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                                                          @egor · ⟳ <1m
+ 1 Projects 5   2 MRs   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  search
+  Folder            GitLab                                      Local branch     ↑↓   MRs   Default branch  Tag      Act
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› route-service     platform/route-service                      fix/slot-race         4 ·2  ► manual        v1.14.2   1h
+  routing-engine    platform/routing-engine                     main                  1 ·1  ✗ failed        v0.9.0    3h
+  route-planner-ui  frontend/route-planner-ui                   feat/map-layers       1     ◐ running       v2.3.1    4h
+  router-configs    infra/router-configs                        main                  0     ✓ success       —         1w
+  e2e-routes        qa/e2e-routes                               main                  0     ✓ success       —         2w
+  dotfiles          github.com/egor/dotfiles · not GitLab       main                  —     —               —          —
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  skipped without .git: notes, tmp
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ route-service  → platform/route-service  · origin: git@gitlab.example.com:platform/route-service.git                 │
+│ 4 open MRs (2 waiting for your review)  ·  main #91790 ► manual  ·  on fix/slot-race locally → !479 ✓                │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open project  / filter  o browser  y copy  1-4 tabs  r refresh  q quit  ? help                 poll 1m0s

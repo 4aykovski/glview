@@ -35,6 +35,8 @@ type Model struct {
 
 	toast   *ToastMsg
 	toastID int
+
+	starredTried bool // the background starred refresh ran this session
 }
 
 // New creates the root with a first screen.
@@ -52,7 +54,24 @@ func New(env *Env, first Screen, opts Options) *Model {
 		m.isDark = env.Styles.Theme.IsDark
 	}
 	m.stack = []Screen{first}
+	m.registerRoot()
 	return m
+}
+
+// registerRoot tells the catalog which Workspace (if any) is the root.
+func (m *Model) registerRoot() {
+	w, _ := m.stack[0].(WorkspaceRoot)
+	m.env.Catalog.SetWorkspace(w)
+}
+
+// refreshStarred starts the background starred refresh once per session,
+// as soon as there is a client.
+func (m *Model) refreshStarred() tea.Cmd {
+	if m.starredTried || m.env.Client == nil {
+		return nil
+	}
+	m.starredTried = true
+	return m.env.Catalog.refreshStarred(m.env.Client)
 }
 
 // Env returns the shared environment (for tests and main).
@@ -65,7 +84,7 @@ func (m *Model) Top() Screen { return m.stack[len(m.stack)-1] }
 func (m *Model) Depth() int { return len(m.stack) }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.refreshStarred()}
 	for _, t := range m.opts.InitialToasts {
 		cmds = append(cmds, msgCmd(t))
 	}
@@ -136,6 +155,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onAuthLost(msg)
 	case authCheckedMsg:
 		return m, m.onAuthChecked(msg)
+
+	case starredLoadedMsg:
+		m.env.Catalog.onStarred(msg)
+		return m, nil
 
 	case langSavedMsg:
 		if msg.err != nil {
@@ -222,8 +245,9 @@ func (m *Model) replaceRoot(s Screen) tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 	m.stack = []Screen{s}
+	m.registerRoot()
 	s.SetSize(m.contentSize())
-	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}))...)
+	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred())...)
 }
 
 func (m *Model) updateTop(msg tea.Msg) tea.Cmd { return m.sendTop(msg) }

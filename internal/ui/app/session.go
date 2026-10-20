@@ -30,6 +30,16 @@ func (e *Env) PollInterval(active bool) time.Duration {
 	return common.PollInterval(base, e.Focused)
 }
 
+// WorkspacePoll is the workspace poll interval (polling.workspace), slowed
+// down while the terminal is not focused.
+func (e *Env) WorkspacePoll() time.Duration {
+	base := e.Settings.PollWorkspace
+	if base <= 0 {
+		base = DefaultPollWorkspace
+	}
+	return common.PollInterval(base, e.Focused)
+}
+
 // ErrorText turns a gitlab error into a translated message.
 func ErrorText(env *Env, err error) string {
 	t := env.Msg.Errors

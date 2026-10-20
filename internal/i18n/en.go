@@ -99,7 +99,7 @@ var en = func() Messages {
 	m.Startup.NoUsableRemote = "No usable remote (no origin and not exactly one remote)"
 	m.Startup.EmptyWorkspace = func(dir string) string { return "No GitLab projects in " + dir }
 	m.Startup.EmptyWorkspaceDetail = func(scanned, foreign, noGit int) string {
-		return fmt.Sprintf("scanned %s: %d with another remote, %d without .git",
+		return fmt.Sprintf("scanned %s, of them %d with another remote, %d without .git",
 			Count(EN, scanned, PluralForms{"folder", "", "folders"}), foreign, noGit)
 	}
 	m.Startup.TooSmall = func(w, h int) string { return fmt.Sprintf("Make the terminal at least %d×%d", w, h) }
@@ -131,5 +131,6 @@ var en = func() Messages {
 	m.Plural.Tags = func(n int) string { return Count(EN, n, PluralForms{"tag", "", "tags"}) }
 	m.Plural.Lines = func(n int) string { return Count(EN, n, PluralForms{"line", "", "lines"}) }
 	fillM1EN(&m)
+	fillM2EN(&m)
 	return m
 }()

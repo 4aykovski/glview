@@ -24,6 +24,7 @@ type shared struct {
 	repo          *gitremote.Repo // nil without a local folder (-p)
 	defaultBranch string
 	webURL        string // project page, set when the project is loaded
+	crumb         string // workspace source when opened from a workspace
 }
 
 // projectURL is the project page in the web UI without a trailing slash:
@@ -73,15 +74,60 @@ type Project struct {
 	loaded bool
 }
 
-// New creates the screen for path; repo may be nil.
-func New(env *app.Env, path string, repo *gitremote.Repo) *Project {
-	sh := &shared{env: env, ref: gitlab.ProjectRef{FullPath: path}, repo: repo}
+// Tabs of the project screen.
+const (
+	TabMRs = iota
+	TabPipelines
+	TabIssues
+	TabTags
+)
+
+// Options open the project screen: from the start folder, -p, search or a
+// workspace.
+type Options struct {
+	Path string
+	Repo *gitremote.Repo // local folder of the project, nil if none
+	Tab  int             // TabMRs (default) or TabPipelines
+	// MRFilter and PipelineFilter carry the filters of the workspace tab
+	// (state or status, "me", text); nil keeps the defaults.
+	MRFilter       *gitlab.MRFilter
+	PipelineFilter *gitlab.PipelineFilter
+	// Crumb is the workspace source shown before the path
+	// ("~/src › platform/route-service").
+	Crumb string
+}
+
+// New creates the screen.
+func New(env *app.Env, o Options) *Project {
+	sh := &shared{env: env, ref: gitlab.ProjectRef{FullPath: o.Path}, repo: o.Repo, crumb: o.Crumb}
 	p := &Project{sh: sh, gen: common.NewGen()}
-	p.tabs = []tab{newMRsTab(sh), newPipelinesTab(sh), newPlaceholder(sh, 2), newPlaceholder(sh, 3)}
+	mrs, pipes := newMRsTab(sh), newPipelinesTab(sh)
+	if f := o.MRFilter; f != nil {
+		mrs.filter = *f
+		if mrs.filter.Scope == "" {
+			mrs.filter.Scope = gitlab.MRScopeAll
+		}
+		if mrs.filter.State == "" {
+			mrs.filter.State = gitlab.MRStateOpened
+		}
+	}
+	if f := o.PipelineFilter; f != nil {
+		pipes.filter = *f
+	}
+	p.tabs = []tab{mrs, pipes, newPlaceholder(sh, 2), newPlaceholder(sh, 3)}
+	if o.Tab > 0 && o.Tab < len(p.tabs) {
+		p.cur = o.Tab
+	}
 	return p
 }
 
-func (p *Project) Init() tea.Cmd { return p.loadProject() }
+// Path returns the project path (for tests and the stack logic).
+func (p *Project) Path() string { return p.sh.ref.FullPath }
+
+// Init loads the project and records it among the recent projects.
+func (p *Project) Init() tea.Cmd {
+	return tea.Batch(p.loadProject(), p.sh.env.Catalog.Touch(p.sh.ref.FullPath))
+}
 
 func (p *Project) loadProject() tea.Cmd {
 	tok := p.gen.Next()
@@ -214,6 +260,9 @@ func (p *Project) View() string {
 	s, m := env.Styles, env.Msg
 	host := strings.TrimPrefix(strings.TrimPrefix(env.Host, "https://"), "http://")
 	ctx := p.sh.ref.FullPath + " " + s.Muted.Render("· "+host)
+	if p.sh.crumb != "" {
+		ctx = s.Breadcrumb.Render(p.sh.crumb+" › ") + ctx
+	}
 	if r := p.sh.repo; r != nil && r.Branch != "" {
 		branch := r.Branch
 		if r.Detached {
