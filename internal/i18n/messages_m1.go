@@ -146,15 +146,21 @@ type FormMessages struct {
 	// Run pipeline
 	RunTitle, RefLabel, VarsLabel       string
 	RefCurrent, RefTag                  string
-	RefSearching, NoRefs                string
+	RefSearching, NoRefs, RefsFailed    string
+	RefBranches, RefTags                string // group names in the summary line
 	HintsLabel, HintsLoading, HintsNone string
 	HintsUnavailable                    string
+	HintsAll                            func(n int) string // "s all (12)" at the end of a cut hints line
 	WillCreate                          func(ref string, vars int) string
 	RefRequired                         string
 	PickValue                           func(key string) string
-	PickHint                            string
 	Created                             func(id int64) string
-	RunKeys                             string
 	RunNoVars                           string
 	RunButton                           string
+	// Key lines at the bottom of the form, by focus.
+	RefKeys, VarsKeys, EditKeys, PickKeys string
+	// Running a pipeline on a tag that already has one.
+	TagRerunTitle  func(tag string) string
+	TagRerunBody   func(id int64, status string) string
+	TagCheckFailed func(err string) string
 }

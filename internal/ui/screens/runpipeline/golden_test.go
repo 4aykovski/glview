@@ -13,3 +13,22 @@ func TestGoldenForm(t *testing.T) {
 	f.vt.Add("DEPLOY_ENV", "staging", gitlab.VarEnv)
 	d.RequireGoldenSizes("runpipeline")
 }
+
+func TestGoldenVariablesWithHintsList(t *testing.T) {
+	c := newFake()
+	c.SetCIVariables(path, "main", manyHints()...)
+	d, _, _ := open(t, c, "main", "")
+	d.Key("tab", "a")
+	typeText(d, "TARGET")
+	d.Key("enter", "esc", "s")
+	d.RequireGoldenSizes("runpipeline-hints")
+}
+
+func TestGoldenTagConfirm(t *testing.T) {
+	c := tagWithPipeline()
+	d, _, f := open(t, c, "", "")
+	typeText(d, "v1.14.2")
+	d.Send(f.DebounceMsg())
+	d.Key("ctrl+s")
+	d.RequireGolden("runpipeline-tag-confirm")
+}

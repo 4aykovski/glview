@@ -765,13 +765,21 @@ func (t *pipelinesTab) listURL() string {
 	return u
 }
 
-// runForm opens the "run pipeline" overlay with the local branch (or the
-// default branch) preselected.
+// runForm opens the "run pipeline" overlay. With
+// run_pipeline.prefill_local_branch the field holds the local branch (or
+// the default branch without one), otherwise it starts empty.
 func (t *pipelinesTab) runForm() tea.Cmd {
-	local, initial := "", t.sh.defaultBranch
+	env := t.env()
+	local, initial := "", ""
 	if r := t.sh.repo; r != nil && !r.Detached && r.Branch != "" {
-		local, initial = r.Branch, r.Branch
+		local = r.Branch
 	}
-	f := runpipeline.New(t.env(), t.sh.ref, initial, local)
+	if env.Settings.PrefillLocalBranch {
+		initial = local
+		if initial == "" {
+			initial = t.sh.defaultBranch
+		}
+	}
+	f := runpipeline.New(env, t.sh.ref, initial, local)
 	return tea.Sequence(app.OpenOverlay(f), f.Init())
 }

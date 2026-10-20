@@ -1,30 +1,36 @@
 // Package runpipeline is the "run a new pipeline" overlay: a ref with
 // branch and tag autocompletion, a variables table and hints taken from
-// .gitlab-ci.yml.
+// .gitlab-ci.yml (SPEC §3.9).
 package runpipeline
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/vartable"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
+	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
 
 const (
 	debounce       = 300 * time.Millisecond
 	requestTimeout = 15 * time.Second
-	maxCands       = 6
-	searchLimit    = 20
+	candRows       = 6  // visible ref suggestions
+	hintRows       = 8  // visible rows of the hints list
+	searchLimit    = 20 // branches and tags per search (the REST page size)
+	numberedHints  = 9  // hints added with the keys 1-9
 )
 
 // hintRetries are the waits before asking for the CI config variables
@@ -36,12 +42,12 @@ type candKind int
 const (
 	kindBranch candKind = iota
 	kindTag
-	kindCurrent
 )
 
 type cand struct {
-	name string
-	kind candKind
+	name    string
+	kind    candKind
+	current bool // the branch of the local clone
 }
 
 type hintState int
@@ -76,23 +82,45 @@ type (
 		p   gitlab.PipelineSummary
 		err error
 	}
+	// tagCheckMsg answers "is ref a tag, and does it already have a pipeline?".
+	tagCheckMsg struct {
+		ref  string
+		tag  bool
+		last *gitlab.PipelineSummary
+		err  error
+	}
+	// confirmedMsg is sent by the confirm modal for a tag with a pipeline.
+	confirmedMsg struct{ ref string }
 )
 
 // Form is the overlay.
 type Form struct {
-	env        *app.Env
-	ref        gitlab.ProjectRef
-	localRef   string // current local branch, "" if unknown
-	input      textinput.Model
-	vt         *vartable.Model
-	focusVars  bool
-	inputTok   int // bumped on every edit of the ref (debounce)
-	searchTok  int
+	env      *app.Env
+	ref      gitlab.ProjectRef
+	localRef string // current local branch, "" if unknown
+	input    textinput.Model
+	vt       *vartable.Model
+
+	focusVars bool
+	// prefilled: the ref was put into the field on open and acts as
+	// selected text: it does not filter, the first typed character
+	// replaces it.
+	prefilled bool
+
+	inputTok  int // bumped on every edit of the ref (debounce)
+	searchTok int
+	query     string // query of the latest search
+	pending   int    // answers of the latest search still to come
+	branches  []string
+	tags      []string
+	branchErr error
+	tagErr    error
+
 	cands      []cand
-	branches   []string
-	tags       []string
 	candCursor int
-	searching  bool
+	candOff    int    // first visible suggestion
+	candShown  int    // suggestion rows that fit the last render
+	want       string // put the cursor on this ref once it is listed
 
 	hintTok   int
 	hintFor   string
@@ -100,12 +128,19 @@ type Form struct {
 	hintState hintState
 	picking   *gitlab.CIConfigVariable // choosing a value for this hint
 	pickIdx   int
+	hintList  bool // the list of all hints is open
+	hintIdx   int
+	hintOff   int
+	hintShown int // hints list rows that fit the last render
 
+	confirm  *app.Confirm // run on a tag that already has a pipeline
+	checking bool         // the tag check is running
 	creating bool
 }
 
 // New creates the form. initial is the starting ref (local branch or the
-// default branch), local the current branch of the local clone.
+// default branch, "" for an empty field), local the current branch of the
+// local clone. The order of suggestions follows env.Settings.
 func New(env *app.Env, ref gitlab.ProjectRef, initial, local string) *Form {
 	in := common.NewInput(env.Styles)
 	in.SetValue(initial)
@@ -113,7 +148,12 @@ func New(env *app.Env, ref gitlab.ProjectRef, initial, local string) *Form {
 	f := env.Msg.Form
 	return &Form{
 		env: env, ref: ref, localRef: local, input: in,
-		vt: vartable.New(env.Styles, vartable.Labels{Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.RunNoVars, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile, KeyPlaceholder: f.KeyPlaceholder, ValuePlaceholder: f.ValuePlaceholder}),
+		prefilled: initial != "", want: initial,
+		candShown: candRows, hintShown: hintRows,
+		vt: vartable.New(env.Styles, vartable.Labels{
+			Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.RunNoVars, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile,
+			KeyPlaceholder: f.KeyPlaceholder, ValuePlaceholder: f.ValuePlaceholder,
+		}),
 	}
 }
 
@@ -121,7 +161,7 @@ func New(env *app.Env, ref gitlab.ProjectRef, initial, local string) *Form {
 // opener runs it right after OpenOverlay.
 func (f *Form) Init() tea.Cmd {
 	cmds := []tea.Cmd{f.input.Focus(), f.search()}
-	if strings.TrimSpace(f.input.Value()) != "" {
+	if f.Ref() != "" {
 		cmds = append(cmds, f.loadHints(0))
 	}
 	return tea.Batch(cmds...)
@@ -137,12 +177,26 @@ func (f *Form) Vars() []gitlab.CIVariable { return f.vt.Vars() }
 // timers explicitly.
 func (f *Form) DebounceMsg() tea.Msg { return searchTickMsg{tok: f.inputTok} }
 
+// filter is what the suggestions are searched by: nothing while the
+// prefilled value is untouched.
+func (f *Form) filter() string {
+	if f.prefilled {
+		return ""
+	}
+	return f.Ref()
+}
+
+func (f *Form) searching() bool { return f.pending > 0 }
+
 // ---- loading ----
 
 func (f *Form) search() tea.Cmd {
 	f.searchTok++
-	tok, q := f.searchTok, strings.TrimSpace(f.input.Value())
-	f.searching = true
+	tok, q := f.searchTok, f.filter()
+	if q != f.query {
+		f.candCursor, f.candOff = 0, 0
+	}
+	f.query, f.pending = q, 2
 	client, ref := f.env.Client, f.ref
 	branches := func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -171,6 +225,7 @@ func (f *Form) loadHints(attempt int) tea.Cmd {
 	if attempt == 0 {
 		f.hintTok++
 		f.hintFor, f.hints, f.hintState = ref, nil, hintsLoading
+		f.hintList = false
 	}
 	tok := f.hintTok
 	client, project := f.env.Client, f.ref
@@ -182,27 +237,96 @@ func (f *Form) loadHints(attempt int) tea.Cmd {
 	}
 }
 
+// rebuildCands orders the suggestions: the local branch first when it is
+// prefilled (run_pipeline.prefill_local_branch), then the groups in the
+// order of run_pipeline.refs_first.
 func (f *Form) rebuildCands() {
-	q := strings.ToLower(f.Ref())
-	f.cands = f.cands[:0]
+	q := strings.ToLower(f.query)
 	seen := map[string]bool{}
-	if f.localRef != "" && strings.Contains(strings.ToLower(f.localRef), q) {
-		f.cands = append(f.cands, cand{f.localRef, kindCurrent})
+	var head, branches, tags []cand
+	if f.env.Settings.PrefillLocalBranch && f.localRef != "" && strings.Contains(strings.ToLower(f.localRef), q) {
+		head = append(head, cand{name: f.localRef, kind: kindBranch, current: true})
 		seen[f.localRef] = true
 	}
 	for _, b := range f.branches {
 		if !seen[b] {
-			f.cands = append(f.cands, cand{b, kindBranch})
+			branches = append(branches, cand{name: b, kind: kindBranch, current: b == f.localRef})
 			seen[b] = true
 		}
 	}
 	for _, t := range f.tags {
 		if !seen[t] {
-			f.cands = append(f.cands, cand{t, kindTag})
+			tags = append(tags, cand{name: t, kind: kindTag})
 			seen[t] = true
 		}
 	}
-	f.candCursor = max(0, min(f.candCursor, len(f.cands)-1))
+	if f.env.Settings.RefsTagsFirst {
+		f.cands = slices.Concat(head, tags, branches)
+	} else {
+		f.cands = slices.Concat(head, branches, tags)
+	}
+	if f.want != "" {
+		if i := slices.IndexFunc(f.cands, func(c cand) bool { return c.name == f.want }); i >= 0 {
+			f.candCursor = i
+		}
+	}
+	f.setCursor(f.candCursor)
+}
+
+// setCursor moves the suggestion cursor and scrolls the window so the
+// selected row stays visible.
+func (f *Form) setCursor(i int) {
+	f.candCursor = max(0, min(i, len(f.cands)-1))
+	f.candOff = window(f.candCursor, f.candOff, len(f.cands), f.candShown)
+}
+
+// window returns the first visible row of a list of n rows shown size at
+// a time, so that cursor is visible.
+func window(cursor, off, n, size int) int {
+	if cursor < off {
+		off = cursor
+	}
+	if cursor >= off+size {
+		off = cursor - size + 1
+	}
+	return max(0, min(off, n-size))
+}
+
+// groupStarts returns the indexes where a group of suggestions begins.
+func (f *Form) groupStarts() []int {
+	var out []int
+	for i, c := range f.cands {
+		if i == 0 || c.kind != f.cands[i-1].kind {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func (f *Form) nextGroup() {
+	for _, s := range f.groupStarts() {
+		if s > f.candCursor {
+			f.setCursor(s)
+			return
+		}
+	}
+}
+
+func (f *Form) prevGroup() {
+	starts := f.groupStarts()
+	cur := 0
+	for _, s := range starts {
+		if s <= f.candCursor {
+			cur = s
+		}
+	}
+	prev := 0
+	for _, s := range starts {
+		if s < cur {
+			prev = s
+		}
+	}
+	f.setCursor(prev)
 }
 
 // ---- update ----
@@ -216,17 +340,17 @@ func (f *Form) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 		}
 		return f, f.search()
 	case branchesMsg:
-		if msg.tok == f.searchTok && msg.err == nil {
-			f.branches = msg.names
-			f.rebuildCands()
+		if msg.tok != f.searchTok {
+			return f, nil
 		}
-		return f, f.settle(msg.tok)
+		f.branches, f.branchErr = msg.names, msg.err
+		return f, f.answered()
 	case tagsMsg:
-		if msg.tok == f.searchTok && msg.err == nil {
-			f.tags = msg.names
-			f.rebuildCands()
+		if msg.tok != f.searchTok {
+			return f, nil
 		}
-		return f, f.settle(msg.tok)
+		f.tags, f.tagErr = msg.names, msg.err
+		return f, f.answered()
 	case hintsMsg:
 		return f, f.onHints(msg)
 	case hintsRetryMsg:
@@ -234,6 +358,10 @@ func (f *Form) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 			return f, nil
 		}
 		return f, f.loadHints(msg.attempt)
+	case tagCheckMsg:
+		return f, f.onTagCheck(msg)
+	case confirmedMsg:
+		return f, f.create(msg.ref)
 	case createdMsg:
 		f.creating = false
 		if msg.err != nil {
@@ -253,21 +381,35 @@ func (f *Form) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 	return f, nil
 }
 
-// settle ends the searching state once the answers of the latest search are in.
-func (f *Form) settle(tok int) tea.Cmd {
-	if tok != f.searchTok {
+// answered handles one answer (branches or tags) of the latest search. A
+// failed request empties its group; the toast comes once both answers are
+// in, one toast even when both failed.
+func (f *Form) answered() tea.Cmd {
+	if f.branchErr != nil {
+		f.branches = nil
+	}
+	if f.tagErr != nil {
+		f.tags = nil
+	}
+	f.pending--
+	f.rebuildCands()
+	if f.searching() {
 		return nil
 	}
-	f.searching = false
+	var cmds []tea.Cmd
+	switch {
+	case f.branchErr != nil:
+		cmds = append(cmds, f.env.Fail(f.branchErr))
+	case f.tagErr != nil:
+		cmds = append(cmds, f.env.Fail(f.tagErr))
+	}
 	// When the typed ref is exactly a known branch or tag, load its hints.
 	if ref := f.Ref(); ref != "" && ref != f.hintFor {
-		for _, c := range f.cands {
-			if c.name == ref {
-				return f.loadHints(0)
-			}
+		if slices.ContainsFunc(f.cands, func(c cand) bool { return c.name == ref }) {
+			cmds = append(cmds, f.loadHints(0))
 		}
 	}
-	return nil
+	return tea.Batch(cmds...)
 }
 
 func (f *Form) onHints(msg hintsMsg) tea.Cmd {
@@ -287,9 +429,19 @@ func (f *Form) onHints(msg hintsMsg) tea.Cmd {
 }
 
 func (f *Form) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
+	if f.confirm != nil {
+		o, cmd := f.confirm.Update(k)
+		if o == nil {
+			f.confirm = nil
+		}
+		return f, cmd
+	}
 	s := k.String()
 	if f.picking != nil {
 		return f, f.pickKey(s)
+	}
+	if f.hintList {
+		return f, f.hintListKey(s)
 	}
 	switch s {
 	case "esc":
@@ -299,7 +451,7 @@ func (f *Form) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
 		}
 		return nil, nil
 	case "ctrl+s":
-		return f, f.create()
+		return f, f.run()
 	case "tab":
 		if f.focusVars && f.vt.CapturesInput() {
 			return f, nil
@@ -320,19 +472,45 @@ func (f *Form) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
 func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "down", "ctrl+n":
-		f.candCursor = min(f.candCursor+1, max(0, len(f.cands)-1))
+		f.want = ""
+		f.setCursor(f.candCursor + 1)
 		return nil
 	case "up", "ctrl+p":
-		f.candCursor = max(f.candCursor-1, 0)
+		f.want = ""
+		f.setCursor(f.candCursor - 1)
+		return nil
+	case "pgdown":
+		f.want = ""
+		f.nextGroup()
+		return nil
+	case "pgup":
+		f.want = ""
+		f.prevGroup()
 		return nil
 	case "enter":
 		if f.candCursor < len(f.cands) {
 			f.input.SetValue(f.cands[f.candCursor].name)
 			f.input.CursorEnd()
-			f.inputTok++
+			f.prefilled = false
+			f.inputTok++ // drop a pending debounce
 			return f.loadHints(0)
 		}
 		return nil
+	}
+	if f.prefilled {
+		switch k.String() {
+		case "left", "right", "home", "end":
+			f.prefilled = false // keep the text, edit it
+		case "backspace":
+			f.input.SetValue("")
+			f.prefilled = false
+			return f.edited(nil)
+		default:
+			if k.Key().Text != "" {
+				f.input.SetValue("") // typing replaces the selected text
+				f.prefilled = false
+			}
+		}
 	}
 	before := f.input.Value()
 	var cmd tea.Cmd
@@ -340,7 +518,14 @@ func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 	if f.input.Value() == before {
 		return cmd
 	}
-	// Debounce: only the tick of the last keystroke starts a search.
+	f.prefilled = false
+	return f.edited(cmd)
+}
+
+// edited starts the debounce after a change of the ref: only the tick of
+// the last keystroke starts a search.
+func (f *Form) edited(cmd tea.Cmd) tea.Cmd {
+	f.want = ""
 	f.inputTok++
 	tok := f.inputTok
 	return tea.Batch(cmd, tea.Tick(debounce, func(time.Time) tea.Msg { return searchTickMsg{tok: tok} }))
@@ -348,15 +533,40 @@ func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 
 func (f *Form) varsKey(k tea.KeyPressMsg) tea.Cmd {
 	if !f.vt.CapturesInput() {
-		if s := k.String(); len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
+		s := k.String()
+		if len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
 			if i := int(s[0] - '1'); i < len(f.hints) {
 				return f.addHint(f.hints[i])
+			}
+			return nil
+		}
+		if s == "s" {
+			if len(f.hints) > 0 {
+				f.hintList, f.hintIdx, f.hintOff = true, 0, 0
 			}
 			return nil
 		}
 	}
 	_, cmd := f.vt.Update(k)
 	return cmd
+}
+
+func (f *Form) hintListKey(s string) tea.Cmd {
+	switch s {
+	case "esc":
+		f.hintList = false
+	case "j", "down":
+		f.hintIdx = min(f.hintIdx+1, len(f.hints)-1)
+	case "k", "up":
+		f.hintIdx = max(f.hintIdx-1, 0)
+	case "enter":
+		f.hintList = false
+		if f.hintIdx < len(f.hints) {
+			return f.addHint(f.hints[f.hintIdx])
+		}
+	}
+	f.hintOff = window(f.hintIdx, f.hintOff, len(f.hints), f.hintShown)
+	return nil
 }
 
 func (f *Form) addHint(h gitlab.CIConfigVariable) tea.Cmd {
@@ -389,17 +599,73 @@ func (f *Form) pickKey(s string) tea.Cmd {
 	return nil
 }
 
-func (f *Form) create() tea.Cmd {
+// run handles ctrl+s. A branch is created right away; for a tag (or a ref
+// that is not a known branch) the form first checks whether the tag
+// already has a pipeline (SPEC §3.9).
+func (f *Form) run() tea.Cmd {
 	env := f.env
 	ref := f.Ref()
 	if ref == "" {
 		return app.Toast(common.ToastWarn, env.Msg.Form.RefRequired, "")
 	}
+	if f.checking || f.creating {
+		return nil
+	}
+	knownTag := slices.Contains(f.tags, ref)
+	if !knownTag && (ref == f.localRef || slices.Contains(f.branches, ref)) {
+		return f.create(ref)
+	}
+	f.checking = true
+	client, project := env.Client, f.ref
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		defer cancel()
+		if !knownTag {
+			page, err := client.Tags().List(ctx, project, "^"+ref+"$", "", searchLimit)
+			if err != nil {
+				return tagCheckMsg{ref: ref, tag: true, err: err}
+			}
+			if !slices.ContainsFunc(page.Items, func(t gitlab.Tag) bool { return t.Name == ref }) {
+				return tagCheckMsg{ref: ref}
+			}
+		}
+		page, err := client.Pipelines().List(ctx, project, gitlab.PipelineFilter{Ref: ref, Scope: "tags"}, "", 1)
+		if err != nil {
+			return tagCheckMsg{ref: ref, tag: true, err: err}
+		}
+		msg := tagCheckMsg{ref: ref, tag: true}
+		if len(page.Items) > 0 {
+			msg.last = &page.Items[0]
+		}
+		return msg
+	}
+}
+
+func (f *Form) onTagCheck(msg tagCheckMsg) tea.Cmd {
+	f.checking = false
+	m := f.env.Msg.Form
+	var body string
+	switch {
+	case !msg.tag:
+		return f.create(msg.ref)
+	case msg.err != nil:
+		body = m.TagCheckFailed(app.ErrorText(f.env, msg.err))
+	case msg.last != nil:
+		body = m.TagRerunBody(msg.last.ID, string(msg.last.Status))
+	default:
+		return f.create(msg.ref)
+	}
+	ref := msg.ref
+	f.confirm = app.NewConfirm(f.env, m.TagRerunTitle(ref), body, func() tea.Msg { return confirmedMsg{ref: ref} })
+	return nil
+}
+
+func (f *Form) create(ref string) tea.Cmd {
 	if f.creating {
 		return nil
 	}
 	f.creating = true
-	client, project, vars := env.Client, f.ref, f.vt.Vars()
+	client, project, vars := f.env.Client, f.ref, f.vt.Vars()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
@@ -410,7 +676,23 @@ func (f *Form) create() tea.Cmd {
 
 // ---- view ----
 
-func (f *Form) View(width, _ int) string {
+// View renders the form. The suggestion and hint lists show up to 6 and 8
+// rows; on a short terminal they shrink so the whole form stays on screen.
+func (f *Form) View(width, height int) string {
+	if f.confirm != nil {
+		return f.confirm.View(width, height)
+	}
+	base := lipgloss.Height(f.render(width, 1, 1))
+	extra := max(0, height-base)
+	f.candShown, f.hintShown = min(candRows, 1+extra), min(hintRows, 1+extra)
+	f.candOff = window(f.candCursor, f.candOff, len(f.cands), f.candShown)
+	f.hintOff = window(f.hintIdx, f.hintOff, len(f.hints), f.hintShown)
+	return f.render(width, f.candShown, f.hintShown)
+}
+
+// render draws the form with at most candN suggestions and hintN rows of
+// the hints list.
+func (f *Form) render(width, candN, hintN int) string {
 	s, m := f.env.Styles, f.env.Msg
 	w := min(76, width-6)
 	var b strings.Builder
@@ -426,8 +708,8 @@ func (f *Form) View(width, _ int) string {
 		refLabel = s.Accent.Render(refLabel)
 	}
 	b.WriteString(refLabel + "\n")
-	b.WriteString(common.Box(s, " "+f.input.View(), w, 3, refKind) + "\n")
-	if list := f.candidatesView(); list != "" {
+	b.WriteString(common.Box(s, " "+f.refView(), w, 3, refKind) + "\n")
+	if list := f.candidatesView(w, candN); list != "" {
 		b.WriteString(list + "\n")
 	}
 	b.WriteString(varsLabel + "\n")
@@ -437,7 +719,12 @@ func (f *Form) View(width, _ int) string {
 		rows[i] = " " + rows[i]
 	}
 	b.WriteString(common.Box(s, strings.Join(rows, "\n"), w, len(rows)+2, varsKind) + "\n")
-	b.WriteString(f.hintsView(w) + "\n")
+	if hints := f.hintsView(w); hints != "" {
+		b.WriteString(hints + "\n")
+	}
+	if f.hintList {
+		b.WriteString("\n" + f.hintListView(w, hintN) + "\n")
+	}
 	if f.picking != nil {
 		b.WriteString("\n" + s.Bold.Render(m.Form.PickValue(f.picking.Key)) + "\n")
 		for i, o := range f.picking.ValueOptions {
@@ -449,39 +736,112 @@ func (f *Form) View(width, _ int) string {
 		}
 	}
 	b.WriteString(common.Box(s, " "+s.Muted.Render(m.Form.WillCreate(f.Ref(), f.vt.Len())), w, 3, common.BoxNormal) + "\n")
-	keys := s.Muted.Render(m.Form.RunKeys)
-	button := s.ButtonActive.Render("ctrl+s " + m.Form.RunButton)
-	b.WriteString(button + "  " + keys)
+	b.WriteString(f.bottomView(w))
 	return s.Modal.Width(w + 4).Render(b.String())
 }
 
-func (f *Form) candidatesView() string {
+// refView is the ref field; the prefilled value is shown as selected text.
+func (f *Form) refView() string {
+	if f.prefilled && f.input.Focused() {
+		return f.env.Styles.RowSelected.Render(f.input.Value())
+	}
+	return f.input.View()
+}
+
+// keysLine is the key hint for the current focus.
+func (f *Form) keysLine() string {
+	m := f.env.Msg.Form
+	switch {
+	case f.picking != nil || f.hintList:
+		return m.PickKeys
+	case f.focusVars && f.vt.CapturesInput():
+		return m.EditKeys
+	case f.focusVars:
+		return m.VarsKeys
+	}
+	return m.RefKeys
+}
+
+// bottomView puts the key line (wrapped between its items) left of the
+// run button.
+func (f *Form) bottomView(w int) string {
+	s, m := f.env.Styles, f.env.Msg.Form
+	button := s.ButtonActive.Render("ctrl+s " + m.RunButton)
+	keysW := max(10, w-lipgloss.Width(button)-2)
+	var lines []string
+	line := ""
+	for _, item := range strings.Split(f.keysLine(), " · ") {
+		switch {
+		case line == "":
+			line = item
+		case ansi.StringWidth(line+" · "+item) <= keysW:
+			line += " · " + item
+		default:
+			lines = append(lines, line)
+			line = item
+		}
+	}
+	lines = append(lines, line)
+	for i := range lines {
+		lines[i] = render.Pad(s.Muted.Render(lines[i]), keysW)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, strings.Join(lines, "\n"), "  ", button)
+}
+
+func (f *Form) candidatesView(w, rows int) string {
 	s, m := f.env.Styles, f.env.Msg.Form
 	if f.focusVars {
 		return ""
 	}
 	if len(f.cands) == 0 {
-		if f.searching {
+		switch {
+		case f.searching():
 			return "  " + s.Muted.Render(m.RefSearching)
+		case f.branchErr != nil && f.tagErr != nil:
+			return "  " + s.Muted.Render(m.RefsFailed)
 		}
 		return "  " + s.Muted.Render(m.NoRefs)
 	}
 	var lines []string
-	for i, c := range f.cands[:min(len(f.cands), maxCands)] {
+	off := window(f.candCursor, f.candOff, len(f.cands), rows)
+	for i := off; i < min(len(f.cands), off+rows); i++ {
+		c := f.cands[i]
 		tag := ""
-		switch c.kind {
-		case kindCurrent:
+		switch {
+		case c.current:
 			tag = "  " + s.Success.Render("("+m.RefCurrent+")")
-		case kindTag:
+		case c.kind == kindTag:
 			tag = "  " + s.Muted.Render("("+m.RefTag+")")
 		}
 		mark := "  "
 		if i == f.candCursor {
 			mark = s.Accent.Render("› ")
 		}
-		lines = append(lines, mark+f.highlight(c.name)+tag)
+		lines = append(lines, render.Clip(mark+f.highlight(c.name)+tag, w))
 	}
+	lines = append(lines, "  "+s.Muted.Render(f.summary()))
 	return strings.Join(lines, "\n")
+}
+
+// summary is "branches 20+ · tags 7 · 3/27" (+ "searching…" while an
+// answer of the latest search is still to come).
+func (f *Form) summary() string {
+	m := f.env.Msg.Form
+	count := func(n int) string {
+		if n >= searchLimit {
+			return fmt.Sprintf("%d+", n)
+		}
+		return fmt.Sprint(n)
+	}
+	groups := []string{m.RefBranches + " " + count(len(f.branches)), m.RefTags + " " + count(len(f.tags))}
+	if f.env.Settings.RefsTagsFirst {
+		groups[0], groups[1] = groups[1], groups[0]
+	}
+	out := strings.Join(groups, " · ") + fmt.Sprintf(" · %d/%d", f.candCursor+1, len(f.cands))
+	if f.searching() {
+		out += "  " + m.RefSearching
+	}
+	return out
 }
 
 func (f *Form) hintsView(w int) string {
@@ -497,20 +857,51 @@ func (f *Form) hintsView(w int) string {
 		}
 		parts := make([]string, len(f.hints))
 		for i, h := range f.hints {
-			p := fmt.Sprintf("%d %s", i+1, h.Key)
+			p := h.Key
+			if i < numberedHints {
+				p = fmt.Sprintf("%d %s", i+1, h.Key)
+			}
 			if len(h.ValueOptions) > 0 {
 				p += " [" + strings.Join(h.ValueOptions, ", ") + "]"
 			}
 			parts[i] = p
 		}
-		return s.Muted.Render(m.HintsLabel) + " " + strings.Join(parts, ", ") + "\n" + s.Muted.Render(m.PickHint)
+		line := s.Muted.Render(m.HintsLabel) + " " + strings.Join(parts, ", ")
+		if ansi.StringWidth(line) <= w {
+			return line
+		}
+		all := "  " + m.HintsAll(len(f.hints))
+		return render.Clip(line, w-ansi.StringWidth(all)) + s.Muted.Render(all)
 	}
 	return ""
 }
 
+// hintListView lists every hint with its options and description.
+func (f *Form) hintListView(w, rows int) string {
+	s, m := f.env.Styles, f.env.Msg.Form
+	lines := []string{s.Bold.Render(m.HintsLabel)}
+	off := window(f.hintIdx, f.hintOff, len(f.hints), rows)
+	for i := off; i < min(len(f.hints), off+rows); i++ {
+		h := f.hints[i]
+		text := h.Key
+		if len(h.ValueOptions) > 0 {
+			text += " [" + strings.Join(h.ValueOptions, ", ") + "]"
+		}
+		if h.Description != "" {
+			text += "  " + s.Muted.Render(h.Description)
+		}
+		mark := "  "
+		if i == f.hintIdx {
+			mark = s.Accent.Render("› ")
+		}
+		lines = append(lines, render.Clip(mark+text, w))
+	}
+	return strings.Join(lines, "\n")
+}
+
 // highlight marks the part of a candidate that matches the typed ref.
 func (f *Form) highlight(name string) string {
-	q := f.Ref()
+	q := f.filter()
 	if q == "" {
 		return name
 	}
