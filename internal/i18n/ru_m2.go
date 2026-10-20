@@ -99,7 +99,7 @@ func fillM2RU(m *Messages) {
 	}
 	g.ReasonAuth, g.ReasonNetwork, g.ReasonDiverged = "нужна авторизация", "сеть", "разошлась"
 	g.ReasonDirty, g.ReasonTimeout = "мешают локальные изменения", "таймаут"
-	g.ReasonDetached, g.ReasonNoUpstream, g.ReasonInProgress, g.ReasonNoGit = "detached", "нет upstream", "идёт merge или rebase", "git не найден"
+	g.ReasonDetached, g.ReasonNoUpstream, g.ReasonInProgress, g.ReasonNoRemote = "detached", "нет upstream", "идёт merge или rebase", "нет remote"
 	g.AuthHint = func(dir string) string {
 		return "выполни git fetch в " + dir + " вручную (ssh-ключ, known_hosts)"
 	}

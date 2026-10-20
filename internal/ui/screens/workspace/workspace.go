@@ -13,10 +13,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/4aykovski/glview/internal/debuglog"
+	"github.com/4aykovski/glview/internal/gitexec"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
 	"github.com/4aykovski/glview/internal/workspace"
 )
@@ -195,6 +197,7 @@ type Screen struct {
 	cur    int
 	active bool
 	failed bool // the running overview already toasted an error
+	gitOn  bool // ahead/behind counted (and fetch_on_start done) once
 	w, h   int
 }
 
@@ -303,7 +306,11 @@ func (s *Screen) KeyMap() common.KeyMap {
 	k := s.sh.env.Msg.Keys
 	km := s.tabs[s.cur].KeyMap()
 	short := append([]common.Binding{}, km.Short...)
-	short = append(short,
+	g := s.sh.env.Msg.Git
+	fetch := common.NewBinding([]string{"u"}, "", g.KeyFetch, common.PriorityNormal)
+	pull := common.NewBinding([]string{"U"}, "", g.KeyPull, common.PriorityLow)
+	fetch.Hidden, pull.Hidden = !s.gitAvailable(), !s.gitAvailable()
+	short = append(short, fetch, pull,
 		common.NewBinding([]string{"1", "2", "3", "4"}, "1-4", k.Tabs, common.PriorityNormal),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"q"}, "", k.Quit, common.PriorityLow),
@@ -395,7 +402,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case app.ActivatedMsg:
 		s.active = true
-		return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate())
+		return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate(), s.gitOnStart())
 	case app.DeactivatedMsg:
 		s.active = false
 		s.tabs[s.cur].Deactivate()
@@ -413,12 +420,21 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		scope.Total = msg.total
 		s.setScope(scope)
 		if s.active {
-			return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate())
+			return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate(), s.gitOnStart())
 		}
 		return s, nil
 
 	case batchMsg[gitlab.ProjectOverview]:
 		return s, s.onOverview(msg)
+
+	case startMsg:
+		if s.active {
+			return s, msg.start()
+		}
+		return s, nil
+	case localgit.ProgressMsg, localgit.DoneMsg, localgit.AheadBehindMsg:
+		s.tabs[TabProjects].Rebuild()
+		return s, nil
 
 	case common.PollTickMsg:
 		if s.poll.Valid(msg.Token) {
@@ -526,6 +542,10 @@ func (s *Screen) key(k tea.KeyPressMsg) tea.Cmd {
 			return s.switchTo(s.cur + 1)
 		case "shift+tab":
 			return s.switchTo(s.cur - 1)
+		case "u":
+			return s.fetch()
+		case "U":
+			return s.pull()
 		case "r":
 			s.refreshRepos()
 			cmds := []tea.Cmd{cur.Refresh()}
@@ -577,3 +597,61 @@ func (s *Screen) StatusHint() string { return s.tabs[s.cur].Status() }
 
 // PollMsg returns the overview poll tick that is due next (for tests).
 func (s *Screen) PollMsg() tea.Msg { return common.PollTickMsg{Token: s.poll.Current()} }
+
+// gitAvailable reports whether u/U work here: git found and local folders
+// (a group workspace has none).
+func (s *Screen) gitAvailable() bool {
+	return s.sh.env.Git.Available() && s.sh.ready && s.sh.group == nil && len(s.sh.scope.Repos()) > 0
+}
+
+// gitOnStart counts ahead/behind of every folder once (locally) and, with
+// git.fetch_on_start, fetches them in the background.
+func (s *Screen) gitOnStart() tea.Cmd {
+	if s.gitOn || !s.gitAvailable() {
+		return nil
+	}
+	s.gitOn = true
+	env := s.sh.env
+	repos := s.sh.scope.Repos()
+	if env.Settings.FetchOnStart && !env.Git.Busy() {
+		return env.Git.Start(gitexec.OpFetch, repos)
+	}
+	return env.Git.CountAheadBehind(repos)
+}
+
+// fetch runs git fetch in every folder (u).
+func (s *Screen) fetch() tea.Cmd {
+	env := s.sh.env
+	if !s.gitAvailable() {
+		return nil
+	}
+	if env.Git.Busy() {
+		return app.Toast(common.ToastInfo, env.Msg.Git.Busy(env.Git.Op().String()), "")
+	}
+	cmd := env.Git.Start(gitexec.OpFetch, s.sh.scope.Repos())
+	s.tabs[TabProjects].Rebuild()
+	return cmd
+}
+
+// pull asks for confirmation with the repositories that will be skipped,
+// then pulls fast-forward only (U).
+func (s *Screen) pull() tea.Cmd {
+	env := s.sh.env
+	if !s.gitAvailable() {
+		return nil
+	}
+	if env.Git.Busy() {
+		return app.Toast(common.ToastInfo, env.Msg.Git.Busy(env.Git.Op().String()), "")
+	}
+	start := func() tea.Cmd {
+		cmd := env.Git.Start(gitexec.OpPullFF, s.sh.scope.Repos())
+		s.tabs[TabProjects].Rebuild()
+		return cmd
+	}
+	body := localgit.PullBody(env.Msg, s.sh.scope.Repos())
+	return app.OpenOverlay(app.NewConfirm(env, env.Msg.Git.PullTitle, body, func() tea.Msg { return startMsg{start: start} }))
+}
+
+// startMsg runs a deferred start on the screen's goroutine (the tracker is
+// not safe for concurrent use).
+type startMsg struct{ start func() tea.Cmd }

@@ -10,6 +10,7 @@ import (
 	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/config"
 	"github.com/4aykovski/glview/internal/debuglog"
+	"github.com/4aykovski/glview/internal/gitexec"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/graphql"
 	"github.com/4aykovski/glview/internal/gitlab/httpx"
@@ -21,6 +22,7 @@ import (
 	"github.com/4aykovski/glview/internal/startup"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
 	"github.com/4aykovski/glview/internal/ui/screens/search"
 	"github.com/4aykovski/glview/internal/ui/screens/setup"
@@ -46,6 +48,11 @@ func buildRoot(opts options) (*app.Model, error) {
 	env.Disk = &cache.Disk{Dir: xdg.CacheDir()}
 	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"))
 	env.Search = func(global bool) app.Overlay { return search.New(env, global) }
+	var runner gitexec.Runner
+	if g := gitexec.Detect(cfg.Git.Path, cfg.Git.Disabled(), cfg.Git.Timeout.D(), cfg.Git.Parallel); g != nil {
+		runner = g
+	}
+	env.Git = localgit.New(runner)
 	toasts := applyConfig(env, cfg, warns, cfgPath)
 
 	gl := glab.Detect(cfg.Glab.Path, cfg.Glab.Disabled())
@@ -183,6 +190,7 @@ func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPat
 	env.Settings = app.Settings{
 		PageSize: cfg.Project.PageSize, PollActive: cfg.Polling.Active.D(), PollIdle: cfg.Polling.Idle.D(),
 		PollWorkspace: cfg.Polling.Workspace.D(), PerProject: cfg.Workspace.PerProject, MaxGroupProjects: cfg.Workspace.MaxGroupProjects,
+		FetchOnStart:       cfg.Git.FetchOnStart,
 		RefsTagsFirst:      cfg.RunPipeline.RefsFirst == config.RefsTagsFirst,
 		PrefillLocalBranch: cfg.RunPipeline.PrefillLocalBranch,
 	}

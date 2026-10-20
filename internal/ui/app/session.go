@@ -164,6 +164,9 @@ func Copy(env *Env, text, what string) tea.Cmd {
 // time of the last successful load (zero hides the age).
 func (e *Env) HeaderRight(updated time.Time) string {
 	s := "@" + e.User.Username
+	if p := e.Git.Header(e.Msg); p != "" {
+		s = e.Styles.Accent.Render(p) + " · " + s
+	}
 	if !updated.IsZero() {
 		s += " · " + e.Msg.Header.Updated(i18n.RelTimeShort(e.Lang, e.Now().Sub(updated)))
 	}

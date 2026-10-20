@@ -2,6 +2,7 @@ package start
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -63,7 +64,7 @@ func (n *NotOnInstance) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 func (n *NotOnInstance) View() string {
 	s, m := n.env.Styles, n.env.Msg
 	var b strings.Builder
-	b.WriteString(common.Header(s, s.Bold.Render(n.info.Reason), "@"+n.env.User.Username, n.w) + "\n\n")
+	b.WriteString(common.Header(s, s.Bold.Render(n.info.Reason), n.env.HeaderRight(time.Time{}), n.w) + "\n\n")
 	row := func(k, v string) {
 		if v != "" {
 			b.WriteString("  " + s.Muted.Render(padRight(k, 22)) + v + "\n")

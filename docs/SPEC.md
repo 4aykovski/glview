@@ -1561,24 +1561,30 @@ type Op int // OpFetch | OpPullFF
 
 type Status int // StatusUpdated | StatusUpToDate | StatusSkipped | StatusFailed
 
+type Reason string // auth | network | diverged | dirty | timeout | detached | no-upstream | no-remote | in-progress | other
+
 type Result struct {
     Dir           string
     Op            Op
     Status        Status
-    Reason        string   // переводимая причина пропуска или ошибки (ключ i18n)
+    Reason        Reason   // причина пропуска или ошибки; UI переводит
+    Detail        string   // для other — последняя строка вывода git
     Ahead, Behind int
+    HasUpstream   bool     // ↑↓ известны
     Moved         int      // pull: на сколько коммитов сдвинулась ветка
-    Stderr        []string // последние строки
+    Output        []string // последние 20 строк stdout и stderr
 }
+
+func Precheck(repo gitremote.Repo) Reason // предпроверки pull из файлов
 
 type Runner interface {
     // Результаты приходят по мере готовности репозиториев; канал закрывается в конце.
     Run(ctx context.Context, op Op, repos []gitremote.Repo) <-chan Result
-    AheadBehind(ctx context.Context, repo gitremote.Repo) (ahead, behind int, err error)
+    AheadBehind(ctx context.Context, repo gitremote.Repo) (ahead, behind int, err error) // ErrNoUpstream — пусто
 }
 ```
 
-В UI канал превращается в `GitProgressMsg{Result}` и `GitDoneMsg{Summary}` по тому же паттерну, что батчи GraphQL (6.3).
+В UI канал превращается в `localgit.ProgressMsg{Result}` и `localgit.DoneMsg` по тому же паттерну, что батчи GraphQL (6.3). Состояние операций (идёт ли, `done/total`, последний результат и ↑↓ по папкам) хранит `localgit.Tracker` в `app.Env`; корень передаёт ему сообщения и раздаёт их всем экранам стека.
 
 ### 10.5. После MVP
 

@@ -63,7 +63,7 @@ type GitMessages struct {
 	Summary func(op string, ok, skipped, failed int, first string) string
 
 	ReasonAuth, ReasonNetwork, ReasonDiverged, ReasonDirty, ReasonTimeout string
-	ReasonDetached, ReasonNoUpstream, ReasonInProgress, ReasonNoGit       string
+	ReasonDetached, ReasonNoUpstream, ReasonInProgress, ReasonNoRemote    string
 	AuthHint                                                              func(dir string) string
 	UpToDate                                                              string
 	Moved                                                                 func(n int) string // "+3"

@@ -15,6 +15,7 @@ import (
 	"github.com/4aykovski/glview/internal/glab"
 	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 )
 
 // Settings are the config values screens need.
@@ -24,8 +25,9 @@ type Settings struct {
 	PollIdle      time.Duration // polling.idle
 	PollWorkspace time.Duration // polling.workspace
 
-	PerProject       int // workspace.per_project
-	MaxGroupProjects int // workspace.max_group_projects
+	PerProject       int  // workspace.per_project
+	MaxGroupProjects int  // workspace.max_group_projects
+	FetchOnStart     bool // git.fetch_on_start
 
 	// RefsTagsFirst puts tags before branches in Run pipeline ref
 	// suggestions (run_pipeline.refs_first: tags).
@@ -86,6 +88,8 @@ type Env struct {
 	// Search builds the project picker (p, global false) and the global
 	// search (F, global true) overlays; nil disables both keys.
 	Search func(global bool) Overlay
+	// Git is the state of local fetch/pull; unavailable without git.
+	Git *localgit.Tracker
 }
 
 // NewEnv returns an Env with messages, default (dark) styles and clock set,

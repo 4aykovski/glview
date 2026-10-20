@@ -8,6 +8,7 @@ import (
 
 	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 )
 
 const (
@@ -162,6 +163,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.env.Catalog.onStarred(msg)
 		return m, nil
 
+	case localgit.ProgressMsg, localgit.DoneMsg, localgit.AheadBehindMsg:
+		return m, m.onGit(msg)
+
 	case langSavedMsg:
 		if msg.err != nil {
 			return m, Toast(common.ToastError, m.env.Msg.Toast.ConfigSaveFailed(msg.err.Error()), "")
@@ -175,9 +179,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, m.broadcast(msg)
 }
 
+// onGit feeds the git tracker, shows the final toast of an operation and
+// tells every screen (the one under the stack is up to date on return).
+func (m *Model) onGit(msg tea.Msg) tea.Cmd {
+	_, done, next := m.env.Git.Handle(msg)
+	cmds := []tea.Cmd{next, m.broadcast(msg)}
+	if done {
+		text, failed, hint := m.env.Git.Summary(m.env.Msg)
+		level := common.ToastSuccess
+		if failed {
+			level = common.ToastError
+		}
+		cmds = append(cmds, Toast(level, text, hint))
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) quit() tea.Cmd {
+	m.env.Git.Stop()
+	return tea.Quit
+}
+
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	if k.String() == "ctrl+c" {
-		return tea.Quit
+		return m.quit()
 	}
 	if m.overlay != nil {
 		o, cmd := m.overlay.Update(k)
@@ -204,7 +229,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.toggleLanguage()
 	case "q":
 		if len(m.stack) == 1 {
-			return tea.Quit
+			return m.quit()
 		}
 	case "esc":
 		if len(m.stack) > 1 {

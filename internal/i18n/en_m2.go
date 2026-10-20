@@ -92,7 +92,7 @@ func fillM2EN(m *Messages) {
 	}
 	g.ReasonAuth, g.ReasonNetwork, g.ReasonDiverged = "needs authentication", "network", "diverged"
 	g.ReasonDirty, g.ReasonTimeout = "local changes in the way", "timeout"
-	g.ReasonDetached, g.ReasonNoUpstream, g.ReasonInProgress, g.ReasonNoGit = "detached", "no upstream", "merge or rebase in progress", "git not found"
+	g.ReasonDetached, g.ReasonNoUpstream, g.ReasonInProgress, g.ReasonNoRemote = "detached", "no upstream", "merge or rebase in progress", "no remote"
 	g.AuthHint = func(dir string) string { return "run git fetch in " + dir + " manually (ssh key, known_hosts)" }
 	g.UpToDate = "up to date"
 	g.Moved = func(n int) string { return fmt.Sprintf("+%d", n) }

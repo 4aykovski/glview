@@ -9,12 +9,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/4aykovski/glview/internal/gitexec"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/filterline"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 	"github.com/4aykovski/glview/internal/workspace"
 )
@@ -294,8 +296,52 @@ func (t *projectsTab) row(r workspace.Project) table.Row {
 	}}
 }
 
-// aheadBehind is the ↑↓ cell (filled by the git tracker, T22).
-func (t *projectsTab) aheadBehind(workspace.Project) string { return "" }
+// aheadBehind is the ↑↓ cell from the git tracker.
+func (t *projectsTab) aheadBehind(r workspace.Project) string {
+	if r.Local == nil || r.Local.Repo == nil {
+		return ""
+	}
+	return t.env().Git.Cell(t.env().Styles, r.Local.Dir)
+}
+
+// gitLines describe the last fetch/pull of a folder: the outcome with its
+// reason, and for a failure or skip the last line of git's output.
+func (t *projectsTab) gitLines(r workspace.Project) []string {
+	env := t.env()
+	if r.Local == nil {
+		return nil
+	}
+	res, ok := env.Git.Result(r.Local.Dir)
+	if !ok || env.Git.Running(r.Local.Dir) {
+		return nil
+	}
+	s, g := env.Styles, env.Msg.Git
+	op := res.Op.String()
+	var line string
+	switch res.Status {
+	case gitexec.StatusFailed:
+		line = s.Error.Render("✗ " + op + ": " + localgit.ReasonText(env.Msg, res))
+		if res.Reason == gitexec.ReasonAuth {
+			line += s.Muted.Render(" — " + g.AuthHint(r.Local.Dir))
+		}
+	case gitexec.StatusSkipped:
+		line = s.Warning.Render("○ " + op + ": " + localgit.ReasonText(env.Msg, res))
+	case gitexec.StatusUpToDate:
+		line = s.Muted.Render("✓ " + op + ": " + g.UpToDate)
+	default:
+		line = s.Success.Render("✓ " + op)
+		if res.Moved > 0 {
+			line = s.Success.Render("✓ " + op + " " + g.Moved(res.Moved))
+		}
+	}
+	out := []string{line}
+	if res.Status == gitexec.StatusFailed || res.Status == gitexec.StatusSkipped {
+		if n := len(res.Output); n > 0 {
+			out = append(out, s.Muted.Render(res.Output[n-1]))
+		}
+	}
+	return out
+}
 
 func (t *projectsTab) selected() *workspace.Project {
 	id := t.tbl.CursorID()
@@ -523,7 +569,7 @@ func (t *projectsTab) preview() string {
 		head += s.Muted.Render("  · " + r.Local.Repo.Remote + ": " + r.Local.Repo.RemoteURL)
 	}
 	if r.Foreign {
-		return frame(head)
+		return frame(append([]string{head}, t.gitLines(*r)...)...)
 	}
 	if t.sh.noAccess(path) {
 		return frame(head, s.Error.Render("✗ "+env.Msg.Errors.NotFound))
@@ -555,5 +601,5 @@ func (t *projectsTab) preview() string {
 		}
 		sum = append(sum, local)
 	}
-	return frame(head, strings.Join(sum, dot))
+	return frame(append([]string{head, strings.Join(sum, dot)}, t.gitLines(*r)...)...)
 }
