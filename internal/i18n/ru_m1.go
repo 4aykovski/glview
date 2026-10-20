@@ -141,6 +141,7 @@ func fillM1RU(m *Messages) {
 	f.ButtonKeys = "enter запустить · tab дальше · esc отмена"
 	f.EditKeys = "enter сохранить · esc отменить ввод"
 	f.PickKeys = "j/k выбор · enter взять · esc закрыть"
+	f.CheckingKeys, f.CreatingKeys = "проверяем тег… · esc отмена", "создаём…"
 	f.TagRerunTitle = func(tag string) string {
 		return "Запустить ещё один пайплайн на теге " + tag + "?"
 	}

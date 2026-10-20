@@ -133,6 +133,7 @@ func fillM1EN(m *Messages) {
 	f.ButtonKeys = "enter run · tab next · esc cancel"
 	f.EditKeys = "enter save · esc discard input"
 	f.PickKeys = "j/k choose · enter take · esc close"
+	f.CheckingKeys, f.CreatingKeys = "checking tag… · esc cancel", "creating…"
 	f.TagRerunTitle = func(tag string) string { return "Run another pipeline on tag " + tag + "?" }
 	f.TagRerunBody = func(id int64, status string) string {
 		return fmt.Sprintf("The tag already has pipeline #%d (%s). The new one runs on the same commit: the tag's jobs — build, publish, deploy — will run again.", id, status)

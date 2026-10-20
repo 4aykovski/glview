@@ -159,6 +159,8 @@ type FormMessages struct {
 	RunButton                           string
 	// Key lines at the bottom of the form, by focus.
 	RefKeys, VarsKeys, ButtonKeys, EditKeys, PickKeys string
+	// Key lines while the form is locked by a run: the tag check, the creation.
+	CheckingKeys, CreatingKeys string
 	// Running a pipeline on a tag that already has one.
 	TagRerunTitle  func(tag string) string
 	TagRerunBody   func(id int64, status string) string

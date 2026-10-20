@@ -94,7 +94,7 @@ func TestDebounceOneSearchPerPause(t *testing.T) {
 		t.Fatal("typing alone must not search")
 	}
 	// Ticks of the earlier keystrokes are stale; only the last one fires.
-	d.Send(searchTickMsg{tok: f.inputTok - 1})
+	d.Send(searchTickMsg{tok: stale(f.inputGen)})
 	if c.CallCount("Projects.Branches") != 0 {
 		t.Fatal("a stale tick must be ignored")
 	}
@@ -166,7 +166,7 @@ func TestHintsNotReadyRetriesThenGivesUp(t *testing.T) {
 	d, _, f := open(t, c, "main", "")
 	d.RequireView("loading hints")
 	for attempt := 1; attempt <= 3; attempt++ {
-		d.Send(hintsRetryMsg{tok: f.hintTok, attempt: attempt})
+		d.Send(hintsRetryMsg{tok: f.hintGen.Current(), attempt: attempt})
 	}
 	if c.CallCount("Projects.CIConfigVariables") != 4 {
 		t.Fatalf("calls = %d, want 1 + retries after 1s, 2s, 4s", c.CallCount("Projects.CIConfigVariables"))
@@ -184,7 +184,7 @@ func TestHintsRecoverAfterRetry(t *testing.T) {
 	c.SetCIVariables(path, "main", gitlab.CIConfigVariable{Key: "A"})
 	c.FailNext("Projects.CIConfigVariables", gitlab.ErrNotReady)
 	d, _, f := open(t, c, "main", "")
-	d.Send(hintsRetryMsg{tok: f.hintTok, attempt: 1})
+	d.Send(hintsRetryMsg{tok: f.hintGen.Current(), attempt: 1})
 	d.RequireView("1 A")
 }
 
@@ -222,6 +222,13 @@ func TestEscClosesWithoutRunning(t *testing.T) {
 	if c.CallCount("Pipelines.Create") != 0 || root.Depth() != 1 {
 		t.Fatal("esc must not run anything")
 	}
+}
+
+// stale returns the token of the generation before the current one.
+func stale(g common.Gen) common.Token {
+	t := g.Current()
+	t.N--
+	return t
 }
 
 func names(f *Form) []string {
@@ -392,11 +399,11 @@ func TestSearchingUntilBothAnswersArrive(t *testing.T) {
 	d, _, f := open(t, newFake(), "", "")
 	d.RequireNoView("searching…")
 	f.search() // the answers are delivered by hand below
-	d.Send(branchesMsg{tok: f.searchTok, names: []string{"main"}})
+	d.Send(branchesMsg{tok: f.searchGen.Current(), names: []string{"main"}})
 	d.RequireView("searching…")
-	d.Send(branchesMsg{tok: f.searchTok - 1, names: []string{"stale"}})
+	d.Send(branchesMsg{tok: stale(f.searchGen), names: []string{"stale"}})
 	d.RequireNoView("stale")
-	d.Send(tagsMsg{tok: f.searchTok, names: []string{"v1.14.2"}})
+	d.Send(tagsMsg{tok: f.searchGen.Current(), names: []string{"v1.14.2"}})
 	d.RequireNoView("searching…")
 	d.RequireView("branches 1 · tags 1 · 1/2")
 }
@@ -671,4 +678,168 @@ func TestRepeatedRunIgnoredWhileChecking(t *testing.T) {
 	if c.CallCount("Pipelines.Create") != 0 {
 		t.Fatal("no create while checking")
 	}
+}
+
+// ---- answers of a closed form, the run snapshot and the lock ----
+
+// closedForm returns a form whose overlay is gone: its requests may still
+// answer while another Run pipeline form is open.
+func closedForm(t *testing.T, c *fake.Client) *Form {
+	t.Helper()
+	d, _, f := open(t, c, "main", "")
+	d.Key("esc")
+	return f
+}
+
+func TestAnswersOfAClosedFormAreDropped(t *testing.T) {
+	c := newFake()
+	old := closedForm(t, c)
+	d, root, f := open(t, c, "main", "")
+	c.ResetCalls()
+	cands := names(f)
+	d.Send(branchesMsg{tok: old.searchGen.Current(), names: []string{"stale-branch"}})
+	d.Send(tagsMsg{tok: old.searchGen.Current(), names: []string{"stale-tag"}})
+	if !slices.Equal(names(f), cands) || f.searching() {
+		t.Fatalf("a closed form's search answers must be dropped: cands = %v, pending = %d", names(f), f.pending)
+	}
+	d.Send(hintsMsg{tok: old.hintGen.Current(), vars: []gitlab.CIConfigVariable{{Key: "STALE"}}})
+	d.Send(searchTickMsg{tok: old.inputGen.Current()})
+	if c.CallCount("Projects.Branches") != 0 {
+		t.Fatal("a closed form's debounce tick must not search")
+	}
+	d.RequireNoView("stale-branch", "stale-tag", "STALE")
+
+	// The new form is checking a tag when the old form's answer comes.
+	c.SetDelay("Tags.List", 200*time.Millisecond)
+	d.Key("shift+tab", "enter")
+	if !f.checking {
+		t.Fatal("the tag check must be running")
+	}
+	d.Send(tagCheckMsg{tok: old.runGen.Next(), run: launch{ref: "main"}})
+	d.Send(confirmedMsg{tok: old.runGen.Current(), run: launch{ref: "main"}})
+	if c.CallCount("Pipelines.Create") != 0 || !f.checking {
+		t.Fatalf("a closed form's tag check must be dropped, creates = %d", c.CallCount("Pipelines.Create"))
+	}
+	d.Send(createdMsg{tok: old.runGen.Current(), p: gitlab.PipelineSummary{ID: 7}})
+	if root.Depth() != 1 {
+		t.Fatal("a closed form's created pipeline must not be opened")
+	}
+	d.RequireView("Run pipeline")
+}
+
+// createCall returns the only Pipelines.Create call: its ref and variables.
+func createCall(t *testing.T, c *fake.Client) (string, []gitlab.CIVariable) {
+	t.Helper()
+	cl := calls(c, "Pipelines.Create")
+	if len(cl) != 1 {
+		t.Fatalf("creates = %+v", cl)
+	}
+	vars, _ := cl[0].Args[2].([]gitlab.CIVariable)
+	return cl[0].Args[1].(string), vars
+}
+
+func TestRunUsesWhatEnterTook(t *testing.T) {
+	// A branch: created right after the tag lookup.
+	c := newFake()
+	d, _, f := open(t, c, "main", "")
+	f.vt.Set("A", "1")
+	cmd := f.run()
+	f.input.SetValue("feat/surge") // edits that would race with the check
+	f.vt.Set("A", "2")
+	f.vt.Set("B", "3")
+	d.Run(cmd)
+	if ref, vars := createCall(t, c); ref != "main" || len(vars) != 1 || vars[0] != (gitlab.CIVariable{Key: "A", Value: "1", Type: gitlab.VarEnv}) {
+		t.Fatalf("create ref = %q, vars = %+v", ref, vars)
+	}
+
+	// A tag with a pipeline: the confirmation and the creation use it too.
+	c = tagWithPipeline()
+	d, _, f = open(t, c, "v1.14.2", "")
+	f.vt.Set("A", "1")
+	cmd = f.run()
+	f.input.SetValue("main")
+	f.vt.Set("A", "2")
+	d.Run(cmd)
+	d.RequireView("Run another pipeline on tag v1.14.2?")
+	d.Key("y")
+	if ref, vars := createCall(t, c); ref != "v1.14.2" || len(vars) != 1 || vars[0].Value != "1" {
+		t.Fatalf("create ref = %q, vars = %+v", ref, vars)
+	}
+}
+
+func TestFormIsLockedWhileChecking(t *testing.T) {
+	c := newFake()
+	d, _, f := open(t, c, "main", "")
+	c.SetDelay("Tags.List", 200*time.Millisecond) // the check outlives the driver's wait
+	d.Key("shift+tab", "enter")
+	d.RequireView("checking tag… · esc cancel")
+	d.Key("tab", "shift+tab", "x", "a", "enter")
+	if f.focus != focusButton || f.Ref() != "main" || f.vt.Len() != 0 {
+		t.Fatalf("locked form changed: focus = %d, ref = %q, rows = %d", f.focus, f.Ref(), f.vt.Len())
+	}
+	if n := c.CallCount("Tags.List"); n != 2 { // the first search and the check
+		t.Fatalf("tag lookups = %d, a repeated enter must be ignored", n)
+	}
+	cancelled := f.runGen.Current()
+	d.Key("esc")
+	if f.checking {
+		t.Fatal("esc must cancel the check")
+	}
+	d.RequireView("Run pipeline", "enter run · tab next · esc cancel")
+	d.Send(tagCheckMsg{tok: cancelled, run: launch{ref: "main"}})
+	if c.CallCount("Pipelines.Create") != 0 {
+		t.Fatal("the answer of a cancelled check must be dropped")
+	}
+	d.Key("shift+tab")
+	if f.focus != focusVars {
+		t.Fatalf("the form must be editable again, focus = %d", f.focus)
+	}
+}
+
+func TestFormIsLockedWhileCreating(t *testing.T) {
+	c := newFake()
+	d, root, f := open(t, c, "main", "")
+	c.SetDelay("Pipelines.Create", 200*time.Millisecond)
+	d.Key("shift+tab", "enter")
+	if !f.creating {
+		t.Fatal("the creation must be running")
+	}
+	d.RequireView("creating…")
+	d.Key("esc", "tab", "enter")
+	if !f.creating || f.focus != focusButton || c.CallCount("Pipelines.Create") != 1 {
+		t.Fatalf("esc and keys must do nothing while creating: creates = %d", c.CallCount("Pipelines.Create"))
+	}
+	d.RequireView("Run pipeline")
+	d.Send(createdMsg{tok: f.runGen.Current(), p: gitlab.PipelineSummary{ID: 7, Ref: "main"}})
+	if root.Depth() != 2 {
+		t.Fatalf("the answer opens the new pipeline, depth = %d", root.Depth())
+	}
+}
+
+func TestBranchThatIsAlsoATagIsChecked(t *testing.T) {
+	c := newFake()
+	c.SetBranches(path, "main", "release")
+	d, _, _ := open(t, c, "", "")
+	d.RequireView("release")
+	// The tag appears after the suggestions were loaded: they know only the branch.
+	c.SetTags(path, gitlab.Tag{Name: "v1.14.2"}, gitlab.Tag{Name: "release"})
+	c.AddPipeline(path, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 91761, Ref: "release", Status: gitlab.StatusSuccess}})
+	typeText(d, "release")
+	d.Key("tab", "tab", "enter")
+	d.RequireView("Run another pipeline on tag release?")
+	if c.CallCount("Pipelines.Create") != 0 {
+		t.Fatal("a tag must be checked before the creation")
+	}
+}
+
+func TestNewSuggestionsReplaceTheListAtOnce(t *testing.T) {
+	d, _, f := open(t, newFake(), "", "")
+	f.input.SetValue("feat")
+	f.search() // the answers are delivered by hand below
+	d.Send(branchesMsg{tok: f.searchGen.Current(), names: []string{"feat/new"}})
+	d.RequireView("searching…", "fix/race", "v1.14.2")
+	d.RequireNoView("feat/new")
+	d.Send(tagsMsg{tok: f.searchGen.Current()})
+	d.RequireView("feat/new", "branches 1 · tags 0 · 1/1")
+	d.RequireNoView("v1.14.2", "fix/race", "searching…")
 }

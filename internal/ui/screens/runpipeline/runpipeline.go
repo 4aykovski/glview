@@ -70,39 +70,65 @@ const (
 	hintsUnavailable
 )
 
+// Every request of the form carries a token of one of its generation
+// counters (common.Gen): answers to a closed form, or to an earlier request
+// of this one, are dropped.
 type (
-	searchTickMsg struct{ tok int }
+	searchTickMsg struct{ tok common.Token }
 	branchesMsg   struct {
-		tok   int
+		tok   common.Token
 		names []string
 		err   error
 	}
 	tagsMsg struct {
-		tok   int
+		tok   common.Token
 		names []string
 		err   error
 	}
 	hintsMsg struct {
-		tok     int
+		tok     common.Token
 		attempt int
 		vars    []gitlab.CIConfigVariable
 		err     error
 	}
-	hintsRetryMsg struct{ tok, attempt int }
-	createdMsg    struct {
+	hintsRetryMsg struct {
+		tok     common.Token
+		attempt int
+	}
+	createdMsg struct {
+		tok common.Token
 		p   gitlab.PipelineSummary
 		err error
 	}
 	// tagCheckMsg answers "is ref a tag, and does it already have a pipeline?".
 	tagCheckMsg struct {
-		ref  string
+		tok  common.Token
+		run  launch
 		tag  bool
 		last *gitlab.PipelineSummary
 		err  error
 	}
 	// confirmedMsg is sent by the confirm modal for a tag with a pipeline.
-	confirmedMsg struct{ ref string }
+	confirmedMsg struct {
+		tok common.Token
+		run launch
+	}
 )
+
+// launch is what enter on the Run button took from the form: the tag check,
+// the confirmation and the creation work with it, not with the fields.
+type launch struct {
+	ref  string
+	vars []gitlab.CIVariable
+}
+
+// refAnswers are the answers of one search; the suggestions are replaced
+// by them only when both have come.
+type refAnswers struct {
+	query             string
+	branches, tags    []string
+	branchErr, tagErr error
+}
 
 // Form is the overlay.
 type Form struct {
@@ -118,10 +144,11 @@ type Form struct {
 	// replaces it.
 	prefilled bool
 
-	inputTok  int // bumped on every edit of the ref (debounce)
-	searchTok int
-	query     string // query of the latest search
-	pending   int    // answers of the latest search still to come
+	inputGen  common.Gen // bumped on every edit of the ref (debounce)
+	searchGen common.Gen
+	next      refAnswers // answers of the latest search so far
+	pending   int        // answers of the latest search still to come
+	query     string     // query of the shown suggestions
 	branches  []string
 	tags      []string
 	branchErr error
@@ -133,7 +160,7 @@ type Form struct {
 	candShown  int    // suggestion rows that fit the last render
 	want       string // put the cursor on this ref once it is listed
 
-	hintTok   int
+	hintGen   common.Gen
 	hintFor   string
 	hints     []gitlab.CIConfigVariable
 	hintState hintState
@@ -144,6 +171,8 @@ type Form struct {
 	hintOff   int
 	hintShown int // hints list rows that fit the last render
 
+	// While the tag check or the creation runs the form is locked.
+	runGen   common.Gen
 	confirm  *app.Confirm // run on a tag that already has a pipeline
 	checking bool         // the tag check is running
 	creating bool
@@ -161,6 +190,7 @@ func New(env *app.Env, ref gitlab.ProjectRef, initial, local string) *Form {
 		env: env, ref: ref, localRef: local, input: in,
 		prefilled: initial != "", want: initial,
 		candShown: candRows, hintShown: hintRows,
+		inputGen: common.NewGen(), searchGen: common.NewGen(), hintGen: common.NewGen(), runGen: common.NewGen(),
 		vt: vartable.New(env.Styles, vartable.Labels{
 			Key: f.ColKey, Value: f.ColValue, Type: f.ColType, Empty: f.RunNoVars, TypeEnv: f.TypeEnv, TypeFile: f.TypeFile,
 			KeyPlaceholder: f.KeyPlaceholder, ValuePlaceholder: f.ValuePlaceholder,
@@ -186,7 +216,7 @@ func (f *Form) Vars() []gitlab.CIVariable { return f.vt.Vars() }
 
 // DebounceMsg returns the pending debounce tick, so tests can deliver
 // timers explicitly.
-func (f *Form) DebounceMsg() tea.Msg { return searchTickMsg{tok: f.inputTok} }
+func (f *Form) DebounceMsg() tea.Msg { return searchTickMsg{tok: f.inputGen.Current()} }
 
 // filter is what the suggestions are searched by: nothing while the
 // prefilled value is untouched.
@@ -202,12 +232,8 @@ func (f *Form) searching() bool { return f.pending > 0 }
 // ---- loading ----
 
 func (f *Form) search() tea.Cmd {
-	f.searchTok++
-	tok, q := f.searchTok, f.filter()
-	if q != f.query {
-		f.candCursor, f.candOff = 0, 0
-	}
-	f.query, f.pending = q, 2
+	tok, q := f.searchGen.Next(), f.filter()
+	f.next, f.pending = refAnswers{query: q}, 2
 	client, ref := f.env.Client, f.ref
 	branches := func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -234,11 +260,11 @@ func (f *Form) loadHints(attempt int) tea.Cmd {
 		return nil
 	}
 	if attempt == 0 {
-		f.hintTok++
+		f.hintGen.Next()
 		f.hintFor, f.hints, f.hintState = ref, nil, hintsLoading
 		f.hintList = false
 	}
-	tok := f.hintTok
+	tok := f.hintGen.Current()
 	client, project := f.env.Client, f.ref
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -346,34 +372,40 @@ func (f *Form) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 	env := f.env
 	switch msg := msg.(type) {
 	case searchTickMsg:
-		if msg.tok != f.inputTok {
+		if !f.inputGen.Valid(msg.tok) {
 			return f, nil // a newer keystroke is pending
 		}
 		return f, f.search()
 	case branchesMsg:
-		if msg.tok != f.searchTok {
+		if !f.searchGen.Valid(msg.tok) {
 			return f, nil
 		}
-		f.branches, f.branchErr = msg.names, msg.err
+		f.next.branches, f.next.branchErr = msg.names, msg.err
 		return f, f.answered()
 	case tagsMsg:
-		if msg.tok != f.searchTok {
+		if !f.searchGen.Valid(msg.tok) {
 			return f, nil
 		}
-		f.tags, f.tagErr = msg.names, msg.err
+		f.next.tags, f.next.tagErr = msg.names, msg.err
 		return f, f.answered()
 	case hintsMsg:
 		return f, f.onHints(msg)
 	case hintsRetryMsg:
-		if msg.tok != f.hintTok {
+		if !f.hintGen.Valid(msg.tok) {
 			return f, nil
 		}
 		return f, f.loadHints(msg.attempt)
 	case tagCheckMsg:
 		return f, f.onTagCheck(msg)
 	case confirmedMsg:
-		return f, f.create(msg.ref)
+		if !f.runGen.Valid(msg.tok) {
+			return f, nil
+		}
+		return f, f.create(msg.run)
 	case createdMsg:
+		if !f.runGen.Valid(msg.tok) || !f.creating {
+			return f, nil
+		}
 		f.creating = false
 		if msg.err != nil {
 			return f, env.Fail(msg.err)
@@ -392,21 +424,27 @@ func (f *Form) Update(msg tea.Msg) (app.Overlay, tea.Cmd) {
 	return f, nil
 }
 
-// answered handles one answer (branches or tags) of the latest search. A
-// failed request empties its group; the toast comes once both answers are
-// in, one toast even when both failed.
+// answered handles one answer (branches or tags) of the latest search.
+// Until both are in, the suggestions of the previous search stay; then
+// both replace them at once. A failed request empties its group, one toast
+// even when both failed.
 func (f *Form) answered() tea.Cmd {
-	if f.branchErr != nil {
-		f.branches = nil
-	}
-	if f.tagErr != nil {
-		f.tags = nil
-	}
 	f.pending--
-	f.rebuildCands()
 	if f.searching() {
 		return nil
 	}
+	a := f.next
+	if a.branchErr != nil {
+		a.branches = nil
+	}
+	if a.tagErr != nil {
+		a.tags = nil
+	}
+	if a.query != f.query {
+		f.candCursor, f.candOff = 0, 0
+	}
+	f.query, f.branches, f.tags, f.branchErr, f.tagErr = a.query, a.branches, a.tags, a.branchErr, a.tagErr
+	f.rebuildCands()
 	var cmds []tea.Cmd
 	switch {
 	case f.branchErr != nil:
@@ -424,14 +462,14 @@ func (f *Form) answered() tea.Cmd {
 }
 
 func (f *Form) onHints(msg hintsMsg) tea.Cmd {
-	if msg.tok != f.hintTok {
+	if !f.hintGen.Valid(msg.tok) {
 		return nil
 	}
 	switch {
 	case msg.err == nil:
 		f.hints, f.hintState = msg.vars, hintsReady
 	case errors.Is(msg.err, gitlab.ErrNotReady) && msg.attempt < len(hintRetries):
-		tok, next := f.hintTok, msg.attempt+1
+		tok, next := msg.tok, msg.attempt+1
 		return tea.Tick(hintRetries[msg.attempt], func(time.Time) tea.Msg { return hintsRetryMsg{tok: tok, attempt: next} })
 	default:
 		f.hintState = hintsUnavailable
@@ -448,6 +486,15 @@ func (f *Form) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
 		return f, cmd
 	}
 	s := k.String()
+	if f.checking || f.creating {
+		// Locked: the run works with what enter took. Esc drops the tag
+		// check; the creation is already sent and cannot be cancelled.
+		if s == "esc" && f.checking {
+			f.runGen.Next()
+			f.checking = false
+		}
+		return f, nil
+	}
 	if f.picking != nil {
 		return f, f.pickKey(s)
 	}
@@ -517,7 +564,7 @@ func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 			f.input.SetValue(f.cands[f.candCursor].name)
 			f.input.CursorEnd()
 			f.prefilled = false
-			f.inputTok++ // drop a pending debounce
+			f.inputGen.Next() // drop a pending debounce
 			return f.loadHints(0)
 		}
 		return nil
@@ -551,8 +598,7 @@ func (f *Form) refKey(k tea.KeyPressMsg) tea.Cmd {
 // the last keystroke starts a search.
 func (f *Form) edited(cmd tea.Cmd) tea.Cmd {
 	f.want = ""
-	f.inputTok++
-	tok := f.inputTok
+	tok := f.inputGen.Next()
 	return tea.Batch(cmd, tea.Tick(debounce, func(time.Time) tea.Msg { return searchTickMsg{tok: tok} }))
 }
 
@@ -624,78 +670,79 @@ func (f *Form) pickKey(s string) tea.Cmd {
 	return nil
 }
 
-// run handles enter on the Run button. A branch is created right away; for a tag (or a ref
-// that is not a known branch) the form first checks whether the tag
-// already has a pipeline (SPEC §3.9).
+// run handles enter on the Run button: it takes the ref and the variables
+// and locks the form. Whether the ref is a tag is decided only by an exact
+// tag search; a tag is first checked for an existing pipeline, anything
+// else is created right away (SPEC §3.9).
 func (f *Form) run() tea.Cmd {
 	env := f.env
+	if f.checking || f.creating {
+		return nil
+	}
 	ref := f.Ref()
 	if ref == "" {
 		return app.Toast(common.ToastWarn, env.Msg.Form.RefRequired, "")
 	}
-	if f.checking || f.creating {
-		return nil
-	}
-	knownTag := slices.Contains(f.tags, ref)
-	if !knownTag && (ref == f.localRef || slices.Contains(f.branches, ref)) {
-		return f.create(ref)
-	}
+	run := launch{ref: ref, vars: f.vt.Vars()}
 	f.checking = true
+	tok := f.runGen.Next()
 	client, project := env.Client, f.ref
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
-		if !knownTag {
-			page, err := client.Tags().List(ctx, project, "^"+ref+"$", "", searchLimit)
-			if err != nil {
-				return tagCheckMsg{ref: ref, tag: true, err: err}
-			}
-			if !slices.ContainsFunc(page.Items, func(t gitlab.Tag) bool { return t.Name == ref }) {
-				return tagCheckMsg{ref: ref}
-			}
-		}
-		page, err := client.Pipelines().List(ctx, project, gitlab.PipelineFilter{Ref: ref, Scope: "tags"}, "", 1)
+		page, err := client.Tags().List(ctx, project, "^"+ref+"$", "", searchLimit)
 		if err != nil {
-			return tagCheckMsg{ref: ref, tag: true, err: err}
+			return tagCheckMsg{tok: tok, run: run, tag: true, err: err}
 		}
-		msg := tagCheckMsg{ref: ref, tag: true}
-		if len(page.Items) > 0 {
-			msg.last = &page.Items[0]
+		if !slices.ContainsFunc(page.Items, func(t gitlab.Tag) bool { return t.Name == ref }) {
+			return tagCheckMsg{tok: tok, run: run}
+		}
+		pipes, err := client.Pipelines().List(ctx, project, gitlab.PipelineFilter{Ref: ref, Scope: "tags"}, "", 1)
+		if err != nil {
+			return tagCheckMsg{tok: tok, run: run, tag: true, err: err}
+		}
+		msg := tagCheckMsg{tok: tok, run: run, tag: true}
+		if len(pipes.Items) > 0 {
+			msg.last = &pipes.Items[0]
 		}
 		return msg
 	}
 }
 
 func (f *Form) onTagCheck(msg tagCheckMsg) tea.Cmd {
+	if !f.runGen.Valid(msg.tok) || !f.checking {
+		return nil // cancelled with esc, or another form's answer
+	}
 	f.checking = false
 	m := f.env.Msg.Form
 	var body string
 	switch {
 	case !msg.tag:
-		return f.create(msg.ref)
+		return f.create(msg.run)
 	case msg.err != nil:
 		body = m.TagCheckFailed(app.ErrorText(f.env, msg.err))
 	case msg.last != nil:
 		body = m.TagRerunBody(msg.last.ID, string(msg.last.Status))
 	default:
-		return f.create(msg.ref)
+		return f.create(msg.run)
 	}
-	ref := msg.ref
-	f.confirm = app.NewConfirm(f.env, m.TagRerunTitle(ref), body, func() tea.Msg { return confirmedMsg{ref: ref} })
+	tok, run := msg.tok, msg.run
+	f.confirm = app.NewConfirm(f.env, m.TagRerunTitle(run.ref), body, func() tea.Msg { return confirmedMsg{tok: tok, run: run} })
 	return nil
 }
 
-func (f *Form) create(ref string) tea.Cmd {
+func (f *Form) create(run launch) tea.Cmd {
 	if f.creating {
 		return nil
 	}
 	f.creating = true
-	client, project, vars := f.env.Client, f.ref, f.vt.Vars()
+	tok := f.runGen.Next()
+	client, project := f.env.Client, f.ref
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
-		p, err := client.Pipelines().Create(ctx, project, ref, vars)
-		return createdMsg{p: p, err: err}
+		p, err := client.Pipelines().Create(ctx, project, run.ref, run.vars)
+		return createdMsg{tok: tok, p: p, err: err}
 	}
 }
 
@@ -779,6 +826,10 @@ func (f *Form) refView() string {
 func (f *Form) keysLine() string {
 	m := f.env.Msg.Form
 	switch {
+	case f.checking:
+		return m.CheckingKeys
+	case f.creating:
+		return m.CreatingKeys
 	case f.picking != nil || f.hintList:
 		return m.PickKeys
 	case f.focus == focusVars && f.vt.CapturesInput():
