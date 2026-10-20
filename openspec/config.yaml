@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Language: ru
+  All artifacts must be written in ru.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  The repository is public: artifacts MUST NOT contain anything confidential
+  (work hosts, groups, projects, MR/issue/pipeline numbers, task keys,
+  colleagues' names or logins, tokens, logs, bot reports). Use invented data
+  only (gitlab.example.com, anna.k, !479); write "checked on the work
+  instance" without any details. See CLAUDE.md, "Конфиденциальность".
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

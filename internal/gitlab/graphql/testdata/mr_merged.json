@@ -1,0 +1,7 @@
+{"data":{"project":{"mergeRequest":
+{"iid":"606","title":"Ship it","description":"","draft":false,"state":"merged",
+ "createdAt":"2026-10-19T09:00:00Z","updatedAt":"2026-10-19T22:00:00Z","webUrl":"https://gitlab.example.com/platform/route-service/-/merge_requests/606",
+ "sourceBranch":"feat/x","targetBranch":"main","diffHeadSha":"a91f2c0d","detailedMergeStatus":"NOT_OPEN","conflicts":false,
+ "author":{"username":"anna.k","name":"Anna K","webUrl":""},
+ "mergedAt":"2026-10-19T21:34:36Z","closedAt":null,"mergeUser":{"username":"d.orlov","name":"D Orlov"}
+}}}}

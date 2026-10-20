@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Pipelines</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px 0">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span>platform/route-service</span> <span class="m">· gitlab.example.com</span></div>
+    <div class="m">@egor · <span class="run">⟳</span> 2s <span class="run">(live: 1 running)</span></div>
+  </div>
+
+  <div style="display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #262A31">
+    <span class="m" style="padding: 0 10px">1 MRs 6</span>
+    <span style="padding: 0 10px; background: #E9A23B; color: #0E1013; font-weight: 600">2 Pipelines</span>
+    <span class="m" style="padding: 0 10px">3 Issues 12</span>
+    <span class="m" style="padding: 0 10px">4 Tags</span>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px">
+    <div><span class="k">/</span> <span class="m">ref:</span>any  <span class="m">status:</span>any  <span class="m">source:</span>any  <span class="m">user:</span>any</div>
+    <div class="m">20 из 1 482</div>
+  </div>
+
+  <div class="m" style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 0 16px 4px; border-bottom: 1px solid #262A31">
+    <span></span><span>Status</span><span>ID</span><span>Ref</span><span>Source</span><span>Commit</span><span>User</span><span>Dur</span><span>Ago</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; padding-top: 4px">
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px; background: #1B2028">
+      <span class="k">›</span><span class="run">◐ running</span><span class="k">#91840</span><span class="c" style="font-weight: 600">feat/surge</span><span class="m">merge_request</span><span class="c"><span class="m">a91f2c0</span> estimator: apply surge coefficient</span><span class="c m">anna.k</span><span class="run">3m40s</span><span class="m">4m</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="ok">✓ passed</span><span class="m">#91822</span><span class="c">fix/slot-race</span><span class="m">merge_request</span><span class="c"><span class="m">5c0e7d1</span> slots: retry on serialization failure</span><span class="c m">egor</span><span class="m">6m12s</span><span class="m">1h</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="fail">✗ failed</span><span class="m">#91807</span><span class="c">feat/batch-commit</span><span class="m">push</span><span class="c"><span class="m">e44b9a2</span> consumer: commit offsets in batches</span><span class="c m">d.orlov</span><span class="m">4m03s</span><span class="m">3h</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="man">► manual</span><span class="m">#91790</span><span class="c">main</span><span class="m">push</span><span class="c"><span class="m">0b7d3e9</span> Merge branch 'feat/pprof' into 'main'</span><span class="c m">egor</span><span class="m">5m51s</span><span class="m">5h</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="ok">✓ passed</span><span class="m">#91761</span><span class="c">v1.14.2</span><span class="m">push · tag</span><span class="c"><span class="m">9fa2c51</span> release: v1.14.2</span><span class="c m">egor</span><span class="m">8m20s</span><span class="m">1d</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="m">⊘ canceled</span><span class="m">#91744</span><span class="c">refactor/geo-pkg</span><span class="m">push</span><span class="c"><span class="m">71de0a4</span> geo: move client to pkg</span><span class="c m">m.ivanova</span><span class="m">1m10s</span><span class="m">1d</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="ok">✓ passed</span><span class="m">#91702</span><span class="c">main</span><span class="m">schedule</span><span class="c"><span class="m">0b7d3e9</span> nightly: e2e + vuln scan</span><span class="c m">scheduler</span><span class="m">22m05s</span><span class="m">1d</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 76px 200px 120px minmax(0, 1fr) 96px 64px 40px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="fail">✗ failed</span><span class="m">#91688</span><span class="c">main</span><span class="m">web</span><span class="c"><span class="m">0b7d3e9</span> DEPLOY_ENV=prod-canary</span><span class="c m">egor</span><span class="m">2m14s</span><span class="m">2d</span>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="margin: 0 16px 12px; border: 1px solid #262A31; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px">
+    <div><span class="k">#91840</span>  feat/surge  <span class="m">·</span> <span class="run">◐ running 3m40s</span></div>
+    <div style="display: flex; gap: 18px">
+      <span><span class="ok">✓</span> build</span>
+      <span class="m">→</span>
+      <span><span class="run">◐</span> test <span class="m">2/3</span></span>
+      <span class="m">→</span>
+      <span class="m">○ deploy</span>
+      <span class="m">→</span>
+      <span class="m">⇢ e2e (downstream)</span>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">enter</span> <span class="m">открыть</span>  <span class="k">n</span> <span class="m">новый</span>  <span class="k">R</span> <span class="m">retry failed</span>  <span class="k">c</span> <span class="m">cancel</span>  <span class="k">f</span> <span class="m">мои/все</span>  <span class="k">o</span> <span class="m">браузер</span>  <span class="k">?</span> <span class="m">хелп</span></div>
+    <div class="m">поллинг 3s, пока есть running</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

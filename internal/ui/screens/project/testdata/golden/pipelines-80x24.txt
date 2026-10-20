@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/s… @egor · ⟳ <1m
+ 1 MRs 6   2 Pipelines 4   3 Issues   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  ref:any  status:any  source:any  user:any                              4 of 4
+  Status      ID       Ref           Source       Commit            User     Ago
+────────────────────────────────────────────────────────────────────────────────
+› ◐ running   #91840   !482          merge_requ…  a91f2c0 surge: …  anna.k    4m
+  ✗ failed    #91839   main          push         0b7d3e9 Merge b…  anna.k   40m
+  ✓ success   #91838   main          push         ffee001 Bump gr…  anna.k    3h
+  ✓ success   #91837   release/1.14  schedule     12ab34c Nightly…  anna.k   20h
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  l log  m me  ? help    live: 1 running · poll 3s

@@ -1,0 +1,24 @@
+gitlab-tui  #91840 › test:integration ✗ failed… ○ paused · 8 lines · updated <1m
+────────────────────────────────────────────────────────────────────────────────
+›1 Running with gitlab-runner
+ 2 ▾ Preparing executor                                                      3s
+ 3 Using docker image
+ 4 ▸ Installing deps                                                         6s
+ 7 FAIL: TestSurge
+ 8 100%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  f follow  space fold  / find in log  R retry  c cancel  ? help

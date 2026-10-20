@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Pipeline detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px 0">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span>platform/route-service</span> <span class="m">› Pipelines › </span><span class="k">#91840</span></div>
+    <div class="m">@egor · <span class="run">⟳</span> 1s <span class="run">(live)</span></div>
+  </div>
+
+  <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #262A31">
+    <div><span class="run" style="font-weight: 700">◐ running</span>  <span style="font-weight: 700">#91840</span>  <span class="m">on</span> feat/surge  <span class="m">·</span> <span class="m">a91f2c0</span> estimator: apply surge coefficient</div>
+    <div class="m">anna.k · merge_request !482 · 3m40s · 9 джоб: 4 ✓  2 ◐  1 ►  2 ○</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 14px 16px; flex-grow: 1; min-height: 0">
+    <div style="border: 1px solid #262A31; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #262A31"><span style="font-weight: 700">build</span><span class="ok">✓</span></div>
+      <div style="display: flex; flex-direction: column; padding: 6px 0">
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="ok">✓</span> compile</span><span class="m">0m48s</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="ok">✓</span> docker-image</span><span class="m">1m02s</span></div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #3A4A63; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #262A31"><span style="font-weight: 700">test</span><span class="run">◐ 2/4</span></div>
+      <div style="display: flex; flex-direction: column; padding: 6px 0">
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="ok">✓</span> unit</span><span class="m">1m31s</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px; background: #1B2028"><span><span class="k">›</span><span class="run">◐</span> integration</span><span class="run">1m12s</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="run">◐</span> lint</span><span class="run">0m40s</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="ok">✓</span> vuln-check</span><span class="m">0m22s</span></div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #262A31; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #262A31"><span style="font-weight: 700">deploy</span><span class="m">○</span></div>
+      <div style="display: flex; flex-direction: column; padding: 6px 0">
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span><span class="man">►</span> deploy-staging</span><span class="man">manual</span></div>
+        <div style="display: flex; justify-content: space-between; padding: 2px 12px"><span class="m">○ smoke-staging</span><span class="m">created</span></div>
+      </div>
+    </div>
+
+    <div style="border: 1px dashed #3A3F48; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #262A31"><span style="font-weight: 700">downstream</span><span class="m">○</span></div>
+      <div style="display: flex; flex-direction: column; padding: 6px 0">
+        <div style="padding: 2px 12px"><span class="m">⇢</span> qa/e2e-routes</div>
+        <div class="m" style="padding: 0 12px 0 28px">trigger: e2e · ждёт deploy</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin: 0 16px 12px; border: 1px solid #262A31; padding: 10px 14px; display: flex; justify-content: space-between; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <div><span class="run">◐</span> <span style="font-weight: 700">test:integration</span>  <span class="m">job #3341207 · stage test</span></div>
+      <div class="m">runner k8s-runner-3 · 1m12s · allow_failure: false · retry 0</div>
+      <div class="c"><span class="m">хвост лога:</span> --- PASS: TestSlotAllocator_Concurrent (2.41s)</div>
+    </div>
+    <div style="display: flex; flex-direction: column; justify-content: center; flex-shrink: 0">
+      <div><span class="k">l</span> <span class="m">лог</span>  <span class="k">c</span> <span class="m">cancel</span>  <span class="k">R</span> <span class="m">retry</span></div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">h/l</span> <span class="m">стейдж</span>  <span class="k">j/k</span> <span class="m">джоба</span>  <span class="k">enter</span> <span class="m">лог</span>  <span class="k">P</span> <span class="m">play manual</span>  <span class="k">R</span> <span class="m">retry</span>  <span class="k">c</span> <span class="m">cancel</span>  <span class="k">a</span> <span class="m">артефакты</span>  <span class="k">esc</span> <span class="m">назад</span></div>
+    <div class="m">jobs + bridges</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

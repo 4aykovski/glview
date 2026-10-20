@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race                                  @egor · ⟳ <1m
+ 1 MRs 6   2 Pipelines   3 Issues   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  state:opened  scope:all  reviewer:any  draft:any  labels:any                                                   6 of 6
+  IID    Title                                                  Author    Branch               Pipeline  Appr  Thr   Upd
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› !471   Draft: Fix race in courier slot allocator              anna.k    feat/topic-1 → main  ◐          1/2    1    7m
+  !472   Add surge pricing to estimator ⚠ conflicts             bob       feat/topic-2 → main  ✗          1/2    2   14m
+  !473   Bump grpc to 1.64                                      maria.s   feat/topic-3 → main  ✓            2    0   21m
+  !474   Refactor dispatch queue                                anna.k    feat/topic-4 → main  —          0/2    1   28m
+  !475   Fix flaky TestSlotRelease                              bob       feat/topic-5 → main  —          1/2    2   35m
+  !476   Document the route-service API                         maria.s   feat/topic-6 → main  —          1/2    0   42m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ !471  Fix race in courier slot allocator                                                                             │
+│ ● mergeable ready to merge · 1/2 (bob) · pipeline #91840 ◐ 3m40s · +48 −12 3 files                                   │
+│ Fixes the allocation race.                                                                                           │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  a approve  M merge  b rebase  s state  m me  1-4 tabs  r refresh  ? help         poll 3s

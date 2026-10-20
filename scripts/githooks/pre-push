@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Re-checks every commit being pushed: messages, diffs and authors
+# (see confidential.sh). Catches anything committed without the hooks.
+set -euo pipefail
+check="$(git rev-parse --show-toplevel)/scripts/githooks/confidential.sh"
+zero=0000000000000000000000000000000000000000
+while read -r _ local_sha _ remote_sha; do
+	[[ "$local_sha" == "$zero" ]] && continue # branch deletion
+	if [[ "$remote_sha" == "$zero" ]]; then
+		"$check" range "$local_sha" --not --remotes
+	else
+		"$check" range "$remote_sha..$local_sha"
+	fi
+done

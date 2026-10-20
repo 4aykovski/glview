@@ -1,0 +1,15 @@
+{"data":{"project":{"mergeRequest":
+{"iid":"479","title":"Fix race in courier slot allocator","description":"## Why\n\n- slot map raced\n","draft":false,"state":"opened",
+ "createdAt":"2026-10-19T09:00:00Z","updatedAt":"2026-10-19T11:00:00Z","webUrl":"https://gitlab.example.com/platform/route-service/-/merge_requests/479",
+ "sourceBranch":"fix/slot-race","targetBranch":"main","diffHeadSha":"a91f2c0d","detailedMergeStatus":"NOT_APPROVED","conflicts":false,
+ "squash":false,"forceRemoveSourceBranch":true,
+ "author":{"username":"anna.k","name":"Anna K","webUrl":""},
+ "reviewers":{"nodes":[{"username":"egor","name":"Egor"}]},"assignees":{"nodes":[]},
+ "labels":{"nodes":[{"title":"bug"}]},
+ "approvedBy":{"nodes":[]},"approvalsRequired":2,"approvalsLeft":2,
+ "resolvableDiscussionsCount":4,"resolvedDiscussionsCount":4,
+ "diffStatsSummary":{"additions":48,"deletions":12,"fileCount":3},
+ "rebaseInProgress":true,"mergeError":"Rebase failed: conflict in slot.go",
+ "headPipeline":{"id":"gid://gitlab/Ci::Pipeline/91840","iid":"512","status":"FAILED","ref":"fix/slot-race","sha":"a91f2c0d","source":"merge_request_event","duration":220,"createdAt":"2026-10-19T10:50:00Z","finishedAt":"2026-10-19T10:54:00Z","path":"/platform/route-service/-/pipelines/91840","user":{"username":"anna.k","name":"Anna K"},"commit":{"title":"fix"},
+  "stages":{"nodes":[{"name":"build","detailedStatus":{"group":"success"},"jobs":{"nodes":[{"status":"SUCCESS"}]}},{"name":"test","detailedStatus":{"group":"failed"},"jobs":{"nodes":[{"status":"FAILED"},{"status":"SUCCESS"}]}}]}}}
+}}}

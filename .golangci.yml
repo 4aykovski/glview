@@ -1,0 +1,44 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - misspell
+    - unconvert
+    - revive
+  settings:
+    depguard:
+      rules:
+        ui-no-transport:
+          files:
+            - "**/internal/ui/**/*.go"
+          deny:
+            - pkg: gitlab.com/gitlab-org/api/client-go
+              desc: UI must use internal/gitlab types and interfaces only (SPEC §6.1)
+            - pkg: github.com/4aykovski/glview/internal/gitlab/rest
+              desc: UI must use internal/gitlab interfaces only
+            - pkg: github.com/4aykovski/glview/internal/gitlab/graphql
+              desc: UI must use internal/gitlab interfaces only
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/4aykovski/glview

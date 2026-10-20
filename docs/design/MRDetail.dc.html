@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>MR detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px 0">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span>platform/route-service</span> <span class="m">› MRs › </span><span class="k">!479</span></div>
+    <div class="m">@egor · <span class="run">⟳</span> 3s</div>
+  </div>
+
+  <div style="padding: 12px 16px 0; display: flex; flex-direction: column; gap: 4px">
+    <div style="font-size: 16px; line-height: 24px; font-weight: 700">Fix race in courier slot allocator</div>
+    <div class="m">egor  ·  <span style="color: #D8DCE3">fix/slot-race</span> → <span style="color: #D8DCE3">main</span>  ·  открыт 1h назад  ·  +48 −12 в 3 файлах</div>
+    <div style="display: flex; gap: 8px; margin-top: 4px">
+      <span class="ok" style="border: 1px solid #2F4A35; padding: 0 8px">● mergeable</span>
+      <span class="ok" style="border: 1px solid #2F4A35; padding: 0 8px">✓ 2/2 approved</span>
+      <span class="ok" style="border: 1px solid #2F4A35; padding: 0 8px">✓ pipeline #91822 · 6m12s</span>
+      <span class="m" style="border: 1px solid #262A31; padding: 0 8px">0 unresolved</span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 6px; padding: 12px 16px 8px; border-bottom: 1px solid #262A31">
+    <span style="padding: 0 10px; background: #E9A23B; color: #0E1013; font-weight: 600">Overview</span>
+    <span class="m" style="padding: 0 10px">Diff 3</span>
+    <span class="m" style="padding: 0 10px">Discussions 2</span>
+    <span class="m" style="padding: 0 10px">Pipelines 3</span>
+    <span class="m" style="padding: 0 10px">Commits 4</span>
+  </div>
+
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <div style="flex-grow: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #262A31; min-width: 0">
+      <div class="k" style="font-weight: 700">## Что случилось</div>
+      <div>Под нагрузкой два воркера аллокатора могли забрать один и тот же слот курьера: проверка и запись шли в разных транзакциях.</div>
+      <div class="k" style="font-weight: 700">## Что сделано</div>
+      <div style="display: flex; flex-direction: column">
+        <div><span class="m">•</span> выбор слота через <span style="background: #1B2028; padding: 0 4px">SELECT … FOR UPDATE SKIP LOCKED</span></div>
+        <div><span class="m">•</span> ретрай при сериализационной ошибке, максимум 3 попытки</div>
+        <div><span class="m">•</span> метрика <span style="background: #1B2028; padding: 0 4px">slot_alloc_conflicts_total</span></div>
+      </div>
+      <div class="k" style="font-weight: 700">## Как проверить</div>
+      <div style="background: #15181D; border: 1px solid #262A31; padding: 8px 12px">
+        <div><span class="m">$</span> go test ./internal/slots/... -race -count=50</div>
+      </div>
+      <div class="m">Closes <span class="run">#1312</span></div>
+    </div>
+
+    <div style="width: 360px; flex-shrink: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column">
+        <div class="m">APPROVALS</div>
+        <div><span class="ok">✓</span> anna.k</div>
+        <div><span class="ok">✓</span> d.orlov</div>
+      </div>
+      <div style="display: flex; flex-direction: column">
+        <div class="m">LABELS</div>
+        <div><span class="fail">bug</span>  <span class="run">backend</span>  <span class="man">slots</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column">
+        <div class="m">PIPELINE #91822</div>
+        <div><span class="ok">✓</span> build    <span class="m">1m02s</span></div>
+        <div><span class="ok">✓</span> test     <span class="m">4m40s</span></div>
+        <div><span class="ok">✓</span> lint     <span class="m">0m30s</span></div>
+        <div><span class="man">►</span> deploy-staging <span class="m">manual</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column">
+        <div class="m">ПОСЛЕДНИЙ ТРЕД</div>
+        <div><span style="font-weight: 600">d.orlov</span> <span class="m">· 40m · resolved</span></div>
+        <div class="m">Давай метрику с лейблом зоны, пригодится для дашборда</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">tab</span> <span class="m">вкладки</span>  <span class="k">a</span> <span class="m">approve</span>  <span class="k">m</span> <span class="m">merge</span>  <span class="k">M</span> <span class="m">merge when green</span>  <span class="k">b</span> <span class="m">rebase</span>  <span class="k">c</span> <span class="m">коммент</span>  <span class="k">o</span> <span class="m">браузер</span>  <span class="k">esc</span> <span class="m">назад</span></div>
+    <div class="m">!479</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

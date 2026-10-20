@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Workspace pipelines</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px 0">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span>~/src</span> <span class="m">· workspace · 5 GitLab-проектов</span></div>
+    <div class="m">@egor · <span class="run">⟳</span> 4s <span class="run">(2 running)</span></div>
+  </div>
+
+  <div style="display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #262A31">
+    <span class="m" style="padding: 0 10px">1 Проекты 5</span>
+    <span class="m" style="padding: 0 10px">2 MRs 24</span>
+    <span style="padding: 0 10px; background: #E9A23B; color: #0E1013; font-weight: 600">3 Pipelines</span>
+    <span class="m" style="padding: 0 10px">4 Tags</span>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px">
+    <div><span class="m">проект:</span> все <span class="k">p</span>   <span class="m">я:</span> <span class="k">мои</span> <span class="m">(user=@egor)</span> <span class="k">m</span>   <span class="m">status:</span> any</div>
+    <div class="m">на проект: 3</div>
+  </div>
+
+  <div class="m" style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 0 16px 4px; border-bottom: 1px solid #262A31">
+    <span></span><span>Status</span><span>ID</span><span>Ref</span><span>Source</span><span>Commit</span><span>Dur</span><span>Ago</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; padding-top: 6px">
+    <div style="display: flex; justify-content: space-between; padding: 2px 16px; background: #15181D"><span><span class="k">▾</span> <span style="font-weight: 700">platform/route-service</span></span><span class="m">показано 3</span></div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px; background: #1B2028">
+      <span class="k">›</span><span class="ok">✓ passed</span><span class="k">#91822</span><span class="c" style="font-weight: 600">fix/slot-race</span><span class="m">merge_req</span><span class="c"><span class="m">5c0e7d1</span> slots: retry on serialization failure</span><span class="m">6m12s</span><span class="m">1h</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="man">► manual</span><span class="m">#91790</span><span class="c">main</span><span class="m">push</span><span class="c"><span class="m">0b7d3e9</span> Merge branch 'feat/pprof' into 'main'</span><span class="m">5m51s</span><span class="m">5h</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px 6px">
+      <span></span><span class="fail">✗ failed</span><span class="m">#91688</span><span class="c">main</span><span class="m">web</span><span class="c"><span class="m">0b7d3e9</span> DEPLOY_ENV=prod-canary</span><span class="m">2m14s</span><span class="m">2d</span>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; padding: 2px 16px; background: #15181D"><span><span class="k">▾</span> <span style="font-weight: 700">platform/routing-engine</span></span><span class="m">показано 2</span></div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px">
+      <span></span><span class="run">◐ running</span><span class="m">#40112</span><span class="c">feat/ch-rebuild-review</span><span class="m">push</span><span class="c"><span class="m">d10a7b3</span> review fixes for !88</span><span class="run">2m05s</span><span class="m">3m</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px 6px">
+      <span></span><span class="fail">✗ failed</span><span class="m">#40098</span><span class="c">main</span><span class="m">schedule</span><span class="c"><span class="m">8b2e611</span> nightly: osm import</span><span class="m">14m40s</span><span class="m">9h</span>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; padding: 2px 16px; background: #15181D"><span><span class="k">▾</span> <span style="font-weight: 700">infra/router-configs</span></span><span class="m">показано 1</span></div>
+    <div style="display: grid; grid-template-columns: 16px 104px 70px 170px 104px minmax(0, 1fr) 64px 36px; gap: 12px; padding: 2px 16px 6px">
+      <span></span><span class="ok">✓ passed</span><span class="m">#7741</span><span class="c">main</span><span class="m">push</span><span class="c"><span class="m">a3f0c2e</span> bump nsk zone limits</span><span class="m">0m58s</span><span class="m">1w</span>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; padding: 2px 16px; background: #15181D; opacity: 0.6"><span><span class="m">▸</span> frontend/route-planner-ui</span><span class="m">нет твоих пайплайнов</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 2px 16px; background: #15181D; margin-top: 2px; opacity: 0.6"><span><span class="m">▸</span> qa/e2e-routes</span><span class="m">нет твоих пайплайнов</span></div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+
+  <div style="margin: 0 16px 12px; border: 1px solid #262A31; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px">
+    <div><span class="k">#91822</span>  platform/route-service · fix/slot-race  <span class="m">·</span> <span class="ok">✓ passed 6m12s</span></div>
+    <div style="display: flex; gap: 18px">
+      <span><span class="ok">✓</span> build</span><span class="m">→</span><span><span class="ok">✓</span> test</span><span class="m">→</span><span><span class="man">►</span> deploy-staging <span class="m">manual</span></span>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">enter</span> <span class="m">пайплайн</span>  <span class="k">J/K</span> <span class="m">между проектами</span>  <span class="k">P</span> <span class="m">play manual</span>  <span class="k">R</span> <span class="m">retry</span>  <span class="k">c</span> <span class="m">cancel</span>  <span class="k">n</span> <span class="m">новый (выбор проекта)</span>  <span class="k">f</span> <span class="m">фильтр</span></div>
+    <div class="m">3s пока есть running, иначе 60s</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{"data":{"project":{"pipelines":{"count":812,"pageInfo":{"hasNextPage":true,"endCursor":"PC1"},"nodes":[
+{"id":"gid://gitlab/Ci::Pipeline/91840","iid":"512","status":"RUNNING","ref":"feat/surge","sha":"a91f2c0d4e","source":"merge_request_event","duration":null,"createdAt":"2026-10-19T11:00:00Z","finishedAt":null,"path":"/platform/route-service/-/pipelines/91840","user":{"username":"anna.k","name":"Anna K"},"commit":{"title":"surge: add pricing"}},
+{"id":"gid://gitlab/Ci::Pipeline/91839","iid":"511","status":"FAILED","ref":"main","sha":"0b7d3e9aaa","source":"push","duration":340,"createdAt":"2026-10-19T10:00:00Z","finishedAt":"2026-10-19T10:05:40Z","path":"/platform/route-service/-/pipelines/91839","user":null,"commit":{"title":"Merge branch fix"}}
+]}}}}

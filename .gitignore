@@ -1,0 +1,10 @@
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+.DS_Store
+
+# Local denylist for scripts/githooks/confidential.sh: it names what must not
+# leak, so it never leaves the machine.
+/.confidential-patterns

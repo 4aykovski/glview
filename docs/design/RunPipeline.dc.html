@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Run pipeline</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden; position: relative">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div aria-hidden="true" style="opacity: 0.18; display: flex; flex-direction: column; padding: 8px 16px; gap: 6px">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  platform/route-service · gitlab.example.com</div>
+    <div style="display: flex; gap: 6px"><span>1 MRs 6</span><span style="padding: 0 10px; background: #E9A23B; color: #0E1013">2 Pipelines</span><span>3 Issues 12</span><span>4 Tags</span></div>
+    <div>◐ running  #91840  feat/surge         merge_request</div>
+    <div>✓ passed   #91822  fix/slot-race      merge_request</div>
+    <div>✗ failed   #91807  feat/batch-commit  push</div>
+    <div>► manual   #91790  main               push</div>
+    <div>✓ passed   #91761  v1.14.2            push · tag</div>
+    <div>⊘ canceled #91744  refactor/geo-pkg   push</div>
+  </div>
+
+  <div style="position: absolute; left: 250px; top: 96px; width: 700px; background: #13161B; border: 1px solid #3A3F48; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5)">
+    <div style="display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #262A31">
+      <span style="font-weight: 700">Запустить пайплайн</span>
+      <span class="m">platform/route-service</span>
+    </div>
+
+    <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <label class="m" for="ref">Ref (ветка или тег)</label>
+        <div style="border: 1px solid #E9A23B; padding: 4px 10px"><span id="ref">feat/su</span><span style="background: #D8DCE3; color: #0E1013"> </span></div>
+        <div style="border: 1px solid #262A31; border-top: none; display: flex; flex-direction: column">
+          <div style="padding: 2px 10px; background: #1B2028"><span class="k">›</span> feat/<span class="k" style="font-weight: 700">su</span>rge <span class="m">· branch · текущая в git</span></div>
+          <div style="padding: 2px 10px">  feat/<span class="k" style="font-weight: 700">su</span>rge-ui-flags <span class="m">· branch</span></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div class="m">Переменные</div>
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px; gap: 8px">
+          <div style="border: 1px solid #262A31; padding: 4px 10px">DEPLOY_ENV</div>
+          <div style="border: 1px solid #262A31; padding: 4px 10px">staging</div>
+          <div class="m" style="padding: 4px 0">var</div>
+          <div style="border: 1px solid #262A31; padding: 4px 10px">SKIP_E2E</div>
+          <div style="border: 1px solid #262A31; padding: 4px 10px">false</div>
+          <div class="m" style="padding: 4px 0">var</div>
+          <div class="m" style="border: 1px dashed #3A3F48; padding: 4px 10px">KEY</div>
+          <div class="m" style="border: 1px dashed #3A3F48; padding: 4px 10px">value</div>
+          <div class="m" style="padding: 4px 0">var ▾</div>
+        </div>
+        <div class="m">Подсказки из .gitlab-ci.yml: <span class="run">DEPLOY_ENV</span> [staging, prod-canary], <span class="run">SKIP_E2E</span></div>
+      </div>
+
+      <div style="border: 1px solid #262A31; background: #0E1013; padding: 8px 12px; display: flex; flex-direction: column">
+        <div class="m">будет создан</div>
+        <div>POST /projects/:id/pipeline <span class="m">ref=</span>feat/surge <span class="m">variables=</span>2</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #262A31">
+      <div><span class="k">tab</span> <span class="m">поле</span>  <span class="k">ctrl+a</span> <span class="m">+ переменная</span>  <span class="k">ctrl+d</span> <span class="m">удалить</span>  <span class="k">esc</span> <span class="m">отмена</span></div>
+      <div style="background: #E9A23B; color: #0E1013; padding: 0 10px; font-weight: 600">enter  Запустить</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1"></div>
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div class="m">после запуска сразу открывается экран нового пайплайна</div>
+    <div class="m">huh form</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

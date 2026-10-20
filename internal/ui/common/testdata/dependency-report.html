@@ -1,0 +1,27 @@
+<h2>Уязвимые зависимости (go)</h2>
+<table>
+<tr><th>Компонент</th><th>Версия</th><th>Безопасные версии</th><th>Уязвимость</th><th>Критичность</th><th>Статус</th></tr>
+<caption>Уязвимости в таблице относятся к зависимостям, которые были добавлены или изменены в этом MR. Обновите их до безопасных версий или откажитесь от них.</caption>
+<tr><td rowspan="1">example.com/acme/archive</td><td rowspan="1">0.2.0</td><td rowspan="1">0.3.3<br/>0.3.2<br/>0.3.1<details><summary>весь список</summary>0.3.0</details></td><td><details><summary><span style='font-weight: normal;'>CVE-0000-00001</span></summary><h1>acme/archive: crafted archive can write outside the target directory</h1>
+<h3>Summary</h3>
+<p>The extraction routines in <code>acme/archive</code> (<code>Unpack</code>, <code>UnpackLayer</code>) do not confine filesystem operations to the destination directory. A crafted archive can create or overwrite files <strong>outside</strong> the intended destination.</p>
+<h3>Details</h3>
+<p>Paths are checked lexically, while the filesystem operation follows links created by the archive itself.</p>
+<h3>Impact</h3>
+<p>Anyone who controls the archive can write files the extracting process can write.</p>
+<h3>Workarounds</h3>
+<p>Only extract trusted archives.</p>
+<h2>Related CVE(s)</h2>
+<p>EXAMPLE-0000-00001, CVE-0000-00001</p>
+<p><strong>Properties:</strong> Indirect dependency</p>
+</details></td><td>🟠 High</td><td>Обнаружено</td></tr>
+</table>
+<details>
+<summary>Уязвимости в неизменённых зависимостях</summary>
+Эти уязвимости найдены в зависимостях, которые уже были в проекте.<table>
+<tr><th>Компонент</th><th>Версия</th><th>Критичность</th></tr>
+<tr><td>example.com/acme/image</td><td>0.40.0</td><td>⚪ Low</td></tr>
+<tr><td>example.com/acme/mod</td><td>0.38.0</td><td>⚪ Low</td></tr>
+</table>
+</details>
+<hr>💬 Вопросы и идеи — в <a href="https://example.com/support">чат поддержки</a>.

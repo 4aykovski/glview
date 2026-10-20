@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Blocks commits that would publish confidential data (see confidential.sh).
+exec "$(git rev-parse --show-toplevel)/scripts/githooks/confidential.sh" staged

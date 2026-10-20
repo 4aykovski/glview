@@ -1,0 +1,5 @@
+{"data":{"project":{"pipeline":{"stages":{"nodes":[
+{"name":"build","detailedStatus":{"group":"success"},"jobs":{"nodes":[{"status":"SUCCESS","duration":48},{"status":"SUCCESS","duration":62}]}},
+{"name":"test","detailedStatus":{"group":"running"},"jobs":{"nodes":[{"status":"SUCCESS"},{"status":"RUNNING"},{"status":"SUCCESS"}]}},
+{"name":"deploy","detailedStatus":{"group":"created"},"jobs":{"nodes":[{"status":"CREATED"}]}}
+]}}}}}

@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race                                  @egor · ⟳ <1m
+ 1 MRs 6   2 Pipelines 4   3 Issues   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  ref:any  status:any  source:any  user:any                                                                      4 of 4
+  Status      ID       Ref           Source               Commit                                    User       Dur   Ago
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› ◐ running   #91840   !482          merge_request_event  a91f2c0 surge: add pricing                anna.k   3m40s    4m
+  ✗ failed    #91839   main          push                 0b7d3e9 Merge branch fix/slots            anna.k   5m40s   40m
+  ✓ success   #91838   main          push                 ffee001 Bump grpc to 1.64                 anna.k   6m50s    3h
+  ✓ success   #91837   release/1.14  schedule             12ab34c Nightly build                     anna.k  10m00s   20h
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ #91840 !482 · ◐ running 3m40s                                                                                        │
+│ ✓ build → ◐ test 2/3 → ○ deploy 0/1                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  l log  n new pipeline  R retry  c cancel  s status  ? help     live: 1 running · poll 3s

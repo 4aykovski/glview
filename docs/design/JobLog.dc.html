@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Job log</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+.n{color:#5F6672;text-align:right;user-select:none}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid #262A31">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span class="m">#91840 › </span><span style="font-weight: 700">test:integration</span>  <span class="run">◐ running 1m12s</span></div>
+    <div><span class="ok">● follow</span>  <span class="m">· 1 284 строк · обновл. 2s</span></div>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 0; padding: 8px 0; display: flex; flex-direction: column; overflow: hidden">
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr) 80px; gap: 14px; padding: 0 16px"><span class="n">1</span><span class="m">▸ <span style="color: #D8DCE3">prepare_executor</span></span><span class="m" style="text-align: right">4s</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr) 80px; gap: 14px; padding: 0 16px"><span class="n">18</span><span class="m">▸ <span style="color: #D8DCE3">get_sources</span></span><span class="m" style="text-align: right">2s</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr) 80px; gap: 14px; padding: 0 16px"><span class="n">31</span><span class="m">▸ <span style="color: #D8DCE3">restore_cache</span></span><span class="m" style="text-align: right">6s</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr) 80px; gap: 14px; padding: 0 16px; background: #161A20"><span class="n">44</span><span><span class="k">▾</span> <span style="font-weight: 700">step_script</span></span><span class="run" style="text-align: right">1m00s</span></div>
+
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">45</span><span class="c"><span class="ok">$</span> go test ./... -tags=integration -race -count=1 -v</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">46</span><span class="c">=== RUN   TestSlotAllocator_Concurrent</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">47</span><span class="c ok">--- PASS: TestSlotAllocator_Concurrent (2.41s)</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">48</span><span class="c">=== RUN   TestSurgeEstimator_Zones</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">49</span><span class="c">=== RUN   TestSurgeEstimator_Zones/peak_hours</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">50</span><span class="c m">    estimator_test.go:88: zone=nsk-center base=420 coef=1.35</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px; background: #2A1B1E"><span class="n">51</span><span class="c"><span class="fail">--- </span><span style="background: #E9A23B; color: #0E1013">FAIL</span><span class="fail">: TestSurgeEstimator_Zones/peak_hours (0.03s)</span></span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">52</span><span class="c fail">    estimator_test.go:94: expected 567, got 546</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">53</span><span class="c">=== RUN   TestSurgeEstimator_Zones/night</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">54</span><span class="c ok">--- PASS: TestSurgeEstimator_Zones/night (0.01s)</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">55</span><span class="c">=== RUN   TestKafkaConsumer_BatchCommit</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">56</span><span class="c m">    consumer_test.go:41: testcontainers: kafka ready in 9.8s</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">57</span><span class="c ok">--- PASS: TestKafkaConsumer_BatchCommit (11.02s)</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">58</span><span class="c">=== RUN   TestRouteCache_Eviction</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 0 16px"><span class="n">59</span><span class="c run">▌</span></div>
+    <div style="display: grid; grid-template-columns: 48px minmax(0, 1fr) 80px; gap: 14px; padding: 0 16px"><span class="n"></span><span class="m">▸ <span>after_script</span>  <span class="m">— ещё не начался</span></span><span></span></div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #161A20">
+    <div><span class="k">/</span>FAIL<span style="background: #D8DCE3; color: #0E1013"> </span></div>
+    <div class="m">совпадение 1 из 1 · n / N</div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">f</span> <span class="m">follow</span>  <span class="k">space</span> <span class="m">свернуть секцию</span>  <span class="k">z</span> <span class="m">свернуть всё</span>  <span class="k">/</span> <span class="m">поиск</span>  <span class="k">g/G</span> <span class="m">начало/конец</span>  <span class="k">R</span> <span class="m">retry</span>  <span class="k">c</span> <span class="m">cancel</span>  <span class="k">esc</span> <span class="m">назад</span></div>
+    <div class="m">sections из section_start</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

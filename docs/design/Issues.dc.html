@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Issues</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.t{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;font-variant-emoji:text}
+.c{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k{color:#E9A23B}.m{color:#8A919C}.ok{color:#7CC98A}.fail{color:#EE7B7B}.run{color:#6EA8E8}.man{color:#C3A2F2}
+a{color:#6EA8E8}a:hover{color:#9CC3F0}
+</style>
+</helmet>
+<div class="t" style="width: 1200px; height: 760px; box-sizing: border-box; background: #0E1013; color: #D8DCE3; display: flex; flex-direction: column; border: 1px solid #262A31; border-radius: 10px; overflow: hidden">
+  <div class="m" style="height: 28px; display: flex; align-items: center; justify-content: center; background: #15181D; border-bottom: 1px solid #262A31; font-size: 12px">gitlab-tui — ~/src/route-service</div>
+
+  <div style="display: flex; justify-content: space-between; padding: 8px 16px 0">
+    <div><span class="k" style="font-weight: 700">gitlab-tui</span>  <span>platform/route-service</span> <span class="m">· gitlab.example.com</span></div>
+    <div class="m">@egor · <span class="run">⟳</span> 52s</div>
+  </div>
+
+  <div style="display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #262A31">
+    <span class="m" style="padding: 0 10px">1 MRs 6</span>
+    <span class="m" style="padding: 0 10px">2 Pipelines</span>
+    <span style="padding: 0 10px; background: #E9A23B; color: #0E1013; font-weight: 600">3 Issues 12</span>
+    <span class="m" style="padding: 0 10px">4 Tags</span>
+  </div>
+
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid #262A31">
+      <div style="padding: 8px 16px"><span class="k">/</span> <span class="m">state:</span>opened  <span class="m">assignee:</span>@me  <span class="m">label:</span>any  <span class="m">milestone:</span>any</div>
+      <div class="m" style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 0 16px 4px; border-bottom: 1px solid #262A31">
+        <span></span><span>IID</span><span>Title</span><span>Labels</span><span>Upd</span>
+      </div>
+      <div style="display: flex; flex-direction: column; padding-top: 4px">
+        <div style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 2px 16px; background: #1B2028">
+          <span class="k">›</span><span class="k">#1318</span><span class="c" style="font-weight: 600">Surge coefficient ignores zone overrides</span><span class="c"><span class="fail">bug</span> <span class="man">pricing</span></span><span class="m">2h</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 2px 16px">
+          <span></span><span class="m">#1312</span><span class="c">Duplicate slot assignment under load <span class="ok">→ !479</span></span><span class="c"><span class="fail">bug</span> <span class="man">slots</span></span><span class="m">1h</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 2px 16px">
+          <span></span><span class="m">#1297</span><span class="c">Expose route cache hit ratio metric</span><span class="c"><span class="run">observ.</span></span><span class="m">3d</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 2px 16px">
+          <span></span><span class="m">#1281</span><span class="c">Migrate geo client to gRPC v2 API</span><span class="c"><span class="run">tech-debt</span></span><span class="m">1w</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 16px 56px minmax(0, 1fr) 140px 36px; gap: 12px; padding: 2px 16px">
+          <span></span><span class="m">#1260</span><span class="c">Courier ETA drifts after midnight UTC+7</span><span class="c"><span class="fail">bug</span></span><span class="m">2w</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1 1 0; min-width: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 15px; font-weight: 700">Surge coefficient ignores zone overrides</div>
+        <div class="m"><span class="ok">● open</span> · #1318 · anna.k · assignee: egor · milestone: 2026-Q4</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div>Для зон с ручным override коэффициента эстиматор берёт глобальное значение.</div>
+        <div class="k" style="font-weight: 700">### Шаги</div>
+        <div><span class="m">1.</span> выставить override 1.5 для nsk-center</div>
+        <div><span class="m">2.</span> запросить оценку в пиковые часы</div>
+        <div><span class="m">3.</span> получаем коэффициент 1.35 вместо 1.5</div>
+      </div>
+      <div style="border-top: 1px solid #262A31; padding-top: 8px; display: flex; flex-direction: column; gap: 6px">
+        <div class="m">КОММЕНТАРИИ 2</div>
+        <div><span style="font-weight: 600">d.orlov</span> <span class="m">· 1h</span></div>
+        <div class="m">Похоже, override читается до инвалидации кэша зон.</div>
+        <div><span style="font-weight: 600">egor</span> <span class="m">· 20m</span></div>
+        <div class="m">Беру, связано с !482 — поправлю там.</div>
+      </div>
+      <div style="flex-grow: 1"></div>
+      <div style="border: 1px dashed #3A3F48; padding: 4px 10px" class="m">c — написать комментарий…</div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; padding: 6px 16px; border-top: 1px solid #262A31; background: #121418">
+    <div><span class="k">enter</span> <span class="m">открыть</span>  <span class="k">n</span> <span class="m">новая</span>  <span class="k">c</span> <span class="m">коммент</span>  <span class="k">x</span> <span class="m">close/reopen</span>  <span class="k">L</span> <span class="m">labels</span>  <span class="k">A</span> <span class="m">assign</span>  <span class="k">b</span> <span class="m">ветка + MR</span>  <span class="k">o</span> <span class="m">браузер</span></div>
+    <div class="m">5 / 12</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

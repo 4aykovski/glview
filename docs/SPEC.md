@@ -1,0 +1,1632 @@
+# gitlab-tui — спецификация
+
+Версия: 0.1 (черновик) · 2026-10-19 · дизайн экранов: [gitlab-tui screens](https://claude.ai/artifact/XeDkUTkXVZ2Dg6sFAnmai2)
+
+gitlab-tui — терминальный клиент GitLab на Go + Bubble Tea для личного использования. Он открывает MR, пайплайны, логи джоб, теги и issues текущего проекта или целой папки с проектами и делает частые действия без браузера.
+
+Дизайн-макеты (локальная копия — [docs/design/](design/README.md)) задают раскладку, разделители и рамки, колонки, тексты и хоткеи; при расхождении хоткеев приоритет у раздела 3.1. Hex-цвета и размеры шрифта в макетах иллюстративные: в реализации все цвета берутся из 16 ANSI-цветов терминала (раздел 9).
+
+---
+
+## 1. Цели и не-цели
+
+### Цели
+
+1. Открыть gitlab-tui в папке проекта и сразу увидеть его MR, пайплайны, issues и теги.
+2. Открыть gitlab-tui в папке с проектами (workspace) и одним экраном увидеть MR, пайплайны и теги по всем проектам. Нагрузка на GitLab — один GraphQL-запрос на пачку проектов.
+3. Делать частые действия без браузера: approve, merge, rebase, retry/cancel/play джобы, запуск пайплайна с переменными, создание и удаление тега, комментарий и close/reopen для issue.
+4. Читать лог джобы в реальном времени: ANSI-цвета, сворачиваемые секции, поиск.
+5. Работать с self-hosted GitLab: свой URL, relative URL root, нестандартный SSH-порт, свой CA.
+6. Русский и английский интерфейс с переключением на лету.
+7. Выглядеть как терминал пользователя: только ANSI-цвета, без своей палитры. Архитектура сразу готова к кастомным темам.
+8. Обновлять локальные клоны одной кнопкой: fetch всех проектов workspace, pull только fast-forward.
+
+### Не-цели (MVP)
+
+- Диффы и комментарии к строкам кода.
+- To-Do list GitLab, уведомления.
+- Несколько инстансов GitLab одновременно (один хост на запуск).
+- Редактирование меток, assignee, milestone; создание issue и MR.
+- Встроенные палитры и пользовательские темы.
+- Хоткеи на русской раскладке.
+- Замена `git`: TUI не делает push, commit, локальный merge/rebase и не разрешает конфликты. Из локальных git-операций есть только fetch, pull fast-forward (раздел 10.4) и checkout МРа через `glab`.
+
+---
+
+## 2. Режимы запуска и навигация
+
+### 2.1. Порядок старта
+
+```
+старт
+ ├─ загрузить конфиг (~/.config/gitlab-tui/config.yaml, может отсутствовать)
+ ├─ определить контекст:
+ │    -p group/project            → режим проекта (по флагу)
+ │    есть .git в cwd или выше     → режим проекта (по remote origin)
+ │    иначе                        → режим workspace (скан подпапок на 1 уровень)
+ ├─ определить хост:   config.host → env GITLAB_HOST → хост remote (режим проекта) → экран настройки
+ ├─ найти токен:       config.token → env GITLAB_TOKEN → glab → экран настройки
+ ├─ GET /user (проверка токена, имя для шапки; кэш на сессию)
+ └─ открыть корневой экран режима
+```
+
+**Флаги CLI:**
+
+| Флаг | Значение |
+|---|---|
+| `-p, --project <path\|url>` | открыть проект напрямую: `group/sub/project` или полный URL проекта |
+| `--config <file>` | другой конфиг |
+| `--debug` | писать лог в `$XDG_CACHE_HOME/gitlab-tui/debug.log`; токены в логе маскируются |
+| `--version` | версия и выход |
+
+### 2.2. Режим проекта
+
+- Ищем `.git`, поднимаясь от cwd к корню, как git. Останавливаемся на первом найденном.
+- `.git` — каталог: читаем `.git/config` и `.git/HEAD`.
+- `.git` — файл со строкой `gitdir: <path>` (worktree или сабмодуль): путь относительный от файла.
+  - Worktree: в gitdir есть файл `commondir`. `config` читаем из commondir, `HEAD` — из самого gitdir.
+  - Сабмодуль: gitdir указывает на `.git/modules/<name>`, там свой `config` и `HEAD`.
+- Remote: `[remote "origin"] url`. Если `origin` нет и remote ровно один, берём его. Иначе проект не определён.
+- Ветка: `HEAD` = `ref: refs/heads/<branch>` → имя ветки; detached HEAD → короткий SHA.
+- Для определения проекта `git` как процесс не вызываем: чтение файлов мгновенное и работает без git. `git` запускается только для fetch, pull и подсчёта ↑↓ (раздел 10.4).
+- Открывается корневой экран проекта на табе MRs.
+
+### 2.3. Режим workspace
+
+- В cwd нет `.git` ни в нём, ни выше. Сканируем непосредственные подпапки (1 уровень), скрытые пропускаем, по симлинкам на каталоги переходим.
+- Для каждой подпапки с `.git` разбираем remote так же, как в 2.2:
+  - хост remote = хост инстанса (или его алиас) → GitLab-проект;
+  - иначе → строка серым «не GitLab / другой инстанс»;
+  - подпапки без `.git` не показываем, в футере таба «Проекты» — сводка «пропущено без .git: notes, tmp».
+- Открывается корневой экран workspace на табе «Проекты».
+
+### 2.4. Пограничные случаи старта
+
+| Ситуация | Поведение |
+|---|---|
+| В workspace ни одного GitLab-проекта | Экран workspace с пустым состоянием: «В ~/src нет GitLab-проектов: просмотрено N папок, из них k с чужим remote, m без .git». Подсказки: `p` выбрать проект, `F` поиск по GitLab, `q` выход. Серые не-GitLab папки всё равно показываются. |
+| Режим проекта, remote на другой хост (github.com, другой GitLab) | Экран «Проект не на gitlab.example.com»: remote, его хост, настроенный хост. Действия: `p`, `F`, `w` открыть workspace родительской папки, `q`. |
+| Remote на хост инстанса, но проект не найден (404) | Тот же экран с текстом «проект не найден или нет доступа», 404 и 403 не различаем. |
+| Хоста нет нигде (нет конфига, env и remote) | Экран первичной настройки. |
+| Хост из remote, токена нет ни в env, ни в glab | Экран настройки с подставленным URL. |
+| SSH-алиас (`git@gitlab-work:group/proj.git`) | Совпадает, если алиас перечислен в `host_aliases` конфига. `~/.ssh/config` не разбираем. |
+| `insteadOf` в gitconfig | Не поддерживается, см. допущения. |
+| Detached HEAD, пустой репозиторий без коммитов | Ветка показывается как короткий SHA или `—`, работа не блокируется. |
+
+### 2.5. Разбор URL remote
+
+Поддерживаемые формы:
+
+- `git@host:group/sub/proj.git`
+- `ssh://git@host[:port]/group/sub/proj.git`
+- `https://host[:port][/prefix]/group/sub/proj[.git]`
+- `http://…`
+
+Путь проекта = путь URL без `.git`. Если в `host` конфига есть path-prefix (relative URL root, например `https://example.com/gitlab`), префикс отрезается. Хосты сравниваются без регистра и без порта: SSH-порт и HTTP-порт у self-hosted обычно разные.
+
+### 2.6. Карта экранов
+
+```
+                    ┌────────────── Setup (первый запуск) ──────────────┐
+                    ▼                                                   │
+   ┌─────────── Workspace ───────────┐   f / enter на проекте   ┌──── Project ────┐
+   │ 1 Проекты 2 MRs 3 Pipelines     │ ───────────────────────▶ │ 1 MRs 2 Pipelines│
+   │ 4 Tags  (группы по проектам)    │ ◀─────── esc ─────────── │ 3 Issues 4 Tags  │
+   └──────┬──────────────────────────┘                          └──┬───────────────┘
+          │ enter на MR / пайплайне / теге                          │ enter
+          ▼                                                         ▼
+     MR detail ── enter на пайплайне ──▶ Pipeline ── enter на джобе ──▶ Job log
+                                          │  enter на bridge
+                                          └──▶ Pipeline (downstream, другой проект)
+
+Оверлеи поверх любого экрана: ? Help · p Project picker · F Global search ·
+Confirm · Merge · Run pipeline · Play job · New tag · Comment
+```
+
+- **Стек экранов.** `enter` кладёт экран на стек (`PushMsg`), `esc` снимает (`PopMsg`). На корневом экране `esc` ничего не делает, `q` — выход. `ctrl+c` — выход откуда угодно.
+- **`enter` на проекте в `p`/`F`** заменяет корень стека на Project; workspace остаётся под ним, если он был корнем.
+- **`enter` на группе в `F`** — новый корень: Workspace из проектов группы.
+
+### 2.7. Решение: фильтр по проекту в workspace = режим проекта
+
+Сливаем. В workspace `f` на строке любого таба (или `enter` на табе «Проекты») кладёт на стек экран Project для этого проекта. Открывается тот же таб: MRs → MRs, Pipelines → Pipelines, Tags → Tags. В шапке крошки `~/src › frontend/route-planner-ui`, `esc` возвращает в workspace, его состояние (таб, курсор, свёрнутые группы) не теряется: он лежит ниже по стеку.
+
+Почему:
+
+1. **Один код списков.** Списки MR, пайплайнов и тегов одного проекта реализуются один раз: `Scope` с одним проектом, страницы по 20 и подгрузка при скролле.
+2. **Больше возможностей при фильтре.** В отфильтрованном виде сразу доступны полные фильтры (state, reviewer, labels, source…), таб Issues и все действия режима проекта. В «урезанном фильтре» workspace их бы не было.
+3. **Навигация не меняется.** Стек уже есть: «назад в workspace» — это обычный `esc`.
+
+Цена: в отфильтрованном виде нет таба «Проекты», а таб 1 означает MRs, а не «Проекты». Это приемлемо: шапка явно показывает режим.
+
+Отличие от макета `WSMRsProject`: там фильтр — чип `проект: … ✕` внутри workspace. Вместо чипа будут крошки, по смыслу и раскладке то же самое.
+
+---
+
+## 3. Экраны
+
+### 3.0. Общий каркас
+
+Каркас экрана сверху вниз:
+
+1. Шапка: `gitlab-tui  <проект | ~/путь · workspace · N GitLab-проектов>  · хост` слева, `@user · ⟳ <сколько назад обновлено> [(live: N running)]` справа.
+2. Табы: `1 MRs 6  2 Pipelines  3 Issues 12  4 Tags` (число — счётчик, если известен).
+3. Строка фильтров: `state:opened  scope:all  reviewer:@me  draft:any`, справа сортировка или `20 из 1 482`.
+4. Контент: таблица с заголовком колонок.
+5. Превью выбранной записи в рамке.
+6. Футер: хоткеи слева (ужимаются по приоритету), справа последний тост или статус.
+
+**Колонки таблиц** имеют приоритет. При узкой ширине сначала исчезают колонки с низким приоритетом, потом обрезаются (`…`) текстовые. Минимальный поддерживаемый размер терминала — 80×24. При ширине меньше 100 колонок превью скрывается и открывается по `enter`.
+
+**Хоткеи и поля ввода.** Пока фокус в текстовом поле (фильтр `/`, формы), однобуквенные хоткеи отключены. `esc` выходит из поля.
+
+### 3.1. Сводная таблица хоткеев
+
+Хоткеи регистрозависимы.
+
+| Контекст | Клавиши |
+|---|---|
+| Общие | `j/k` `↓/↑` ход, `g/G` начало/конец, `enter` открыть, `esc` назад, `/` фильтр/поиск, `r` обновить, `o` открыть в браузере, `y` копировать ссылку/ID, `?` хелп, `p` выбор проекта, `F` глобальный поиск, `m` фильтр «я», `1–4` табы, `tab`/`shift+tab` следующий/предыдущий таб, `ctrl+l` язык RU/EN, `q` выход (на корне), `ctrl+c` выход |
+| Workspace | `J/K` между группами, `space` свернуть/развернуть группу, `f` открыть проект выбранной строки (фильтр по проекту), `u` fetch всех проектов, `U` pull (ff-only) всех проектов |
+| Таб MRs и Pipelines | `s` главный фильтр по кругу (MRs: `state` opened → merged → closed → all; Pipelines: `status` any → running → failed → success → manual), `backspace` сбросить все фильтры таба (включая «я»/«мои» и текст) |
+| Project с локальной папкой | `u` fetch, `U` pull (ff-only) |
+| MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `c` комментарий (M3) |
+| MR detail, вкладка Discussions | `J/K` следующий/предыдущий тред (текущий — толстая рамка Accent), `j/k` построчно, `space` свернуть/развернуть текущий тред (на других вкладках `space` листает, `pgdown`/`ctrl+d` листают везде), `o` открыть текущий тред в браузере (`<ссылка MR>#note_<id>` первой заметки), `y` копировать эту ссылку |
+| Pipelines (список) | `enter` пайплайн, `l` лог первой упавшей (иначе running) джобы, `n` новый пайплайн, `R` retry, `c` cancel, `o` список пайплайнов проекта в браузере с текущими фильтрами, `O` выделенный пайплайн в браузере |
+| Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
+| Job log | `f` follow, `space` свернуть секцию, `z` свернуть/развернуть все, `/` поиск, `n/N` следующее/предыдущее совпадение, `g/G`, `R` retry, `c` cancel |
+| Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега |
+| Issues | `enter` открыть, `c` комментарий, `x` close/reopen |
+
+**Разрешённые конфликты:**
+
+- **`m`: merge vs фильтр «я».** `m` везде остаётся фильтром «я»: он глобальный и нужен в каждом табе. Merge — `M`, открывает диалог merge. В диалоге выбор «сейчас / когда пайплайн пройдёт» (auto-merge), чекбоксы squash и «удалить ветку». Отдельный хоткей для «merge when pipeline succeeds» не нужен: это вариант в том же диалоге, и в нём по умолчанию выбран auto-merge, если пайплайн ещё идёт.
+- **`l`: лог vs `h/l` в пайплайне.** Внутри Pipeline `h/l` — навигация по стейджам-колонкам (как в макете), лог открывается `enter`. В списке пайплайнов `l` — короткий путь к логу первой упавшей или running джобы.
+- **Checkout — `C`.** Не занят ни в одном контексте MR и совпадает с примером custom command из брифа. `c` в MR — комментарий, `C` — checkout.
+- **Язык — `ctrl+l`.** `L` зарезервирован под метки issue после MVP. `ctrl+l` не используется в полях ввода bubbles. Тему после MVP повесим на `ctrl+t`.
+- **Пайплайны «мои/все».** В макете Pipelines это `f`. Заменяем на общий `m` (`user=@me`).
+
+**Отличия от макетов (MVP):**
+
+| Где | В макете | В MVP |
+|---|---|---|
+| Список MR | `d` diff | убран (диффы после MVP) |
+| Детали MR | вкладки Diff, Commits | только Overview, Discussions, Pipelines |
+| Pipeline | `a` артефакты | убран |
+| Issues | `n` новая, `L` labels, `A` assign, `b` ветка+MR | убраны |
+| Project picker | `ctrl+s` star | убран |
+
+### 3.2. Setup — первичная настройка
+
+- **Когда:** нет хоста или токена (2.1), либо `GET /user` вернул 401 при старте.
+- **Форма (huh):** URL инстанса (по умолчанию из remote или `https://gitlab.com`), Personal Access Token (ввод скрыт). Подсказка: «нужен scope `api`; `read_api` — только чтение».
+- **Если найден glab:** третья строка — «Взять токен из glab для <host>», при выборе подставляет токен (раздел 10).
+- **Проверка:** `GET /user` через введённые данные → «Вошли как @egor» → запись конфига (0600) → переход в режим.
+- **Ошибки:** 401 → «токен неверный или истёк»; TLS → подсказка про `ca_file`; сеть → «хост недоступен».
+
+### 3.3. Workspace
+
+**Шапка:** `~/src · workspace · 5 GitLab-проектов`, либо `group: platform · workspace · 23 проекта` для workspace из группы.
+
+**Таб «Проекты»** (макет `WSProjects`):
+
+| Колонка | Источник |
+|---|---|
+| Папка | имя подпапки (для GroupSource — `—`) |
+| GitLab | путь проекта; для не-GitLab — `github.com/egor/dotfiles · не GitLab` серым |
+| Локальная ветка | `.git/HEAD` |
+| ↑↓ | опережение и отставание от upstream (`↓3 ↑1`); во время fetch/pull — `◐`, ошибка — `✗`, пропуск — `○` (раздел 10.4) |
+| MRs | `6 ·2`: открытых / ждут меня (я ревьюер) |
+| default-ветка | глиф и статус последнего пайплайна default-ветки |
+| Тег | последний тег |
+| Акт | `lastActivityAt`, относительное время |
+
+- **Превью:** remote, сводка «6 open MR (2 ждут твоего ревью) · main #91790 ► manual · локально на fix/slot-race → !479 ✓», где `!479` — MR, открытый из локальной ветки.
+- **Действия:** `enter`/`f` — режим проекта, `o` — проект в браузере, `u`/`U` — fetch/pull всех (раздел 10.4). У строки с ошибкой fetch/pull превью показывает причину и последние строки stderr.
+- **Сортировка:** по активности, не-GitLab строки внизу.
+
+**Табы MRs / Pipelines / Tags** (макеты `WSMRs`, `WSPipelines`, `WSTags`):
+
+- Записи сгруппированы по проектам, у группы заголовок `▾ platform/route-service  6 open · 2 твоих · показано 3`.
+- В группе не больше `per_project` записей (по умолчанию 3), затем строка `↳ ещё N · f фильтр по проекту`.
+- Пустая группа сворачивается в одну строку `▸ qa/e2e-routes  нет открытых`.
+- Группы отсортированы по активности. `J/K` прыгают между заголовками групп, `space` сворачивает.
+- Группы рендерятся по мере прихода пачек GraphQL. Ещё не пришедшие — строкой `◐ platform/x загрузка…`.
+- **MRs:** колонки IID, Title, Author, «Ты» (author/assignee/reviewer), Pipeline, Appr, Upd. Фильтр state (opened по умолчанию).
+- **Pipelines:** Status, ID, Ref, Source, Commit, Dur, Ago. Превью — стейджи выбранного пайплайна.
+- **Tags:** Tag, Commit, Message, Pipeline, Ago. Превью: «main опережает на 2 коммита · n предложит v1.14.3» — compare считается только для выбранного тега.
+- **Фильтр `m`:**
+  - MRs — я автор, assignee или ревьюер;
+  - Pipelines — `username = me`;
+  - Tags — в строке фильтров «я: не применяется к тегам».
+- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над объектами (`a`, `P`, `R`, `c`, `n`, `D`) работают и здесь, в контексте проекта строки. Для `n` в Pipelines и Tags берётся проект выбранной строки.
+- **Ленивая загрузка:** таб грузится только при первом открытии, дальше — из кэша с фоновым обновлением.
+
+### 3.4. Project — корневой экран проекта
+
+- **Шапка:** `platform/route-service · gitlab.example.com`; при входе из workspace — крошки.
+- **Табы:** MRs, Pipelines, Issues, Tags. Страница — 20 записей, подгрузка при скролле за 5 строк до конца.
+
+**Таб MRs** (макет `Main`):
+
+- **Колонки:** IID, Title (с префиксом `Draft:` и маркером `⚠ conflicts`), Author, Branch → target, Pipeline, Appr (`1/2` пока апрувов меньше нужного, `3 ✓` когда набрано или больше, `2` без требования), Thr (неразрешённые треды), Upd.
+- **Превью не открытого MR:** вместо `detailed_merge_status` (`not_open`) — состояние: `✓ merged`, `○ closed`, `○ locked`.
+- **Фильтры:**
+  - `state`: opened | merged | closed | all;
+  - `scope`: all | created_by_me | assigned_to_me;
+  - `reviewer`: any | @me | username;
+  - `draft`: any | yes | no;
+  - `labels`: список.
+- **Как менять фильтры:** `/` открывает строку фильтров в виде `key:value`. Под строкой — список подсказок для слова под курсором: ключи с описанием и текущим значением, после `key:` — значения (для `reviewer` — `@me`, `any` и участники проекта, для `labels` — метки проекта; участники и метки ищутся на сервере через 300 мс после ввода). `↑/↓` выбирают, `tab`/`enter` подставляют, `enter` без списка применяет. Свободный текст ищется по заголовку.
+- **Быстрая смена:** `s` — цикл `state`, `backspace` — сброс фильтров к умолчаниям, без открытия строки.
+- **Превью:** заголовок, mergeable-статус, апрувы с именами, пайплайн с длительностью, `+48 −12 в 3 файлах`, первая строка описания.
+- **Действия:** `enter`, `a`, `M`, `b`, `C`, `o`, `y`.
+
+**Таб Pipelines** (макет `Pipelines`):
+
+- **Колонки:** Status, ID, Ref, Source, Commit (short SHA + заголовок), User, Dur, Ago.
+- **Фильтры:** `ref`, `status` (running, pending, success, failed, canceled, skipped, manual, scheduled), `source` (push, web, merge_request_event, schedule, api, trigger, pipeline, parent_pipeline…), `user`.
+- **Ref:** `refs/merge-requests/<iid>/(head|merge|train)` показывается как `!<iid>` (только отображение: фильтр `ref:` и URL не меняются).
+- **Превью:** цепочка стейджей `✓ build → ◐ test 2/3 → ○ deploy → ⇢ e2e (downstream)`.
+- **Действия:** `enter`, `l`, `n`, `R` (retry упавших джоб пайплайна), `c` (cancel пайплайна), `o` (страница пайплайнов проекта в браузере с текущими фильтрами), `O` (выделенный пайплайн в браузере), `y`.
+
+**Таб Issues** (макет `Issues`):
+
+- **Колонки:** IID, Title (+ `→ !479`, если есть связанный MR), Labels, Upd.
+- **Фильтры:** state, assignee (@me), label, milestone.
+- **Превью справа или снизу:** статус, автор, assignee, milestone, описание в markdown, последние комментарии.
+- **Действия:** `enter` — полноэкранное превью со всеми комментариями, `c`, `x`, `o`.
+
+**Таб Tags** (макет `Tags`):
+
+- **Колонки:** Tag, Commit, Message (+ `◆ release`, если есть релиз), Pipeline, Ago. Сортировка по semver ↓, `/` — поиск.
+- **Превью:** `→ main @ 9fa2c51 · protected`, release notes (первая строка).
+- **Действия:** `n`, `D`, `enter` (пайплайн тега), `y`, `o`.
+
+### 3.5. MR detail (макет `MRDetail`)
+
+- **Шапка:** `platform/route-service › MRs › !479`.
+- **Блок заголовка:** title, `author · source → target · открыт 1h назад · +48 −12 в 3 файлах`. Вместо «открыт …» по состоянию: смерженный — `смержил d.orlov 5ч назад` (без `mergeUser` — `смержен 5ч назад`), закрытый — `закрыт 3д назад`; время берётся из `MergedAt`/`ClosedAt`.
+- **Чипы статуса:**
+  - mergeable-статус из `detailed_merge_status`: `● mergeable`, `⚠ conflict`, `◐ ci_still_running`, `✗ not_approved`, `discussions_not_resolved` и т.д.; текст статуса не переводится, к нему добавляется понятная подпись; у merged/closed/locked MR вместо него чип состояния без подписи: `✓ merged`, `○ closed`, `○ locked`;
+  - апрувы `✓ 1/2 approved`, при наборе и сверх нужного — `✓ 3 approved`;
+  - пайплайн;
+  - число неразрешённых тредов.
+- **Вкладки** (`tab` переключает):
+  - **Overview:** описание через glamour слева. Справа колонка: APPROVALS, LABELS, PIPELINE (стейджи и джобы кратко), последний тред.
+  - **Discussions:** треды карточками: каждый тред — рамка во всю ширину (неразрешённый — цвет Warning, разрешённый и неразрешаемый — Border, текущий — толстая рамка `┏━┓` цвета Accent: форма отличает его и там, где Accent и Warning совпадают или цветов нет), между карточками пустая строка. Внутри: у каждой заметки строка-заголовок (автор жирным, время Muted; у первой — статус треда `● unresolved`/`✓ resolved` и `путь:строка` для diff-тредов, без диффа), тело в markdown, между заметками тонкая линия, ответы с отступом. Системные заметки не показываются. Только чтение.
+    - **HTML в комментариях:** перед рендером тело переводится в markdown (боты пишут HTML): `<table>` — таблица, `<br>` — перенос, `<details><summary>X` — `▸ X` и содержимое, `<b>/<i>/<code>/<a href>` — разметка, прочие теги вырезаются с сохранением текста; соседние ячейки не склеиваются.
+    - **Сворачивание:** свёрнутый тред — одна строка: заголовок первой заметки, её первая строка текста и `N ответов`. По умолчанию свёрнуты разрешённые треды и треды с телом первой заметки длиннее 20 строк; выбор пользователя сохраняется при обновлении данных.
+  - **Pipelines:** пайплайны MR, `enter` → Pipeline.
+- **Действия:** `a`, `M`, `b`, `C`, `o`, `y`, `c` (M3).
+- **Перепроверка `unchecked`:** GitLab считает `detailed_merge_status` лениво, чтение через GraphQL пересчёт не запускает, и открытый MR может долго висеть в `unchecked`. Если у открытого MR (state opened) статус `unchecked`, экран один раз за время жизни на ключ `iid@sha` просит GitLab пересчитать его (`RecheckMergeStatus`); ответ `checking` сразу обновляет чип. Пока статус `unchecked`/`checking`/`preparing`, MR опрашивается раз в `polling.active` (3 с), но не дольше 60 с с момента запроса; потом обычный интервал. Ошибка перепроверки (в т.ч. нет прав) пользователю не показывается, только debug-лог. Список MR не перепроверяет.
+- **Поллинг:** пока экран на вершине — 3 с при running-пайплайне, rebase в процессе или перепроверке статуса (до 60 с), иначе 30 с.
+
+### 3.6. Merge dialog
+
+- **Поля (свои контролы оверлея, не huh — нужен `enter` = «подтвердить» с любого поля; `←/→` способ, `space` чекбоксы, `j/k` по полям):**
+  - способ: «Merge сейчас» | «Merge, когда пайплайн пройдёт» (auto-merge);
+  - `[ ] squash` — по умолчанию по настройке проекта или MR;
+  - `[x] удалить source-ветку` — по умолчанию из `force_remove_source_branch`;
+  - сообщение коммита скрыто, используется дефолтное.
+- **Доступность:** если `detailed_merge_status` не `mergeable` и не `ci_still_running`/`ci_must_pass`, диалог показывает причину и кнопка неактивна.
+- **Подтверждение:** диалог сам является confirm-модалкой: `enter` подтверждает, `esc` отменяет.
+- **Защита от гонки:** передаём `sha` = head SHA, который видели. На 409 — тост «в ветку запушили, обнови (r)».
+
+### 3.7. Pipeline (макет `Pipeline`)
+
+- **Шапка:** статус, `#91840 on feat/surge · a91f2c0 commit title`, вторая строка — `anna.k · merge_request !482 · 3m40s · 9 джоб: 4 ✓ 2 ◐ 1 ► 2 ○`.
+- **Стейджи — колонки** в порядке пайплайна, внутри джобы со статусом и длительностью.
+  - Bridges (trigger-джобы) показываются в своём стейдже с глифом `⇢`. Если есть downstream-пайплайн, в отдельной колонке «downstream» — `⇢ qa/e2e-routes  ◐ running`.
+  - Колонки растягиваются на ширину экрана: `w/n`, но не уже 25 символов; остаток ширины достаётся последней колонке. Ref в шапке показывается как `!<iid>` для MR-пайплайнов.
+  - Если стейджей больше, чем влезает, колонки скроллятся горизонтально, активная всегда видна.
+- **Панель выбранной джобы:** имя, `job #id · stage`, runner, длительность, `allow_failure`, число ретраев, последняя непустая строка лога (только у running/failed, ленивый запрос).
+- **Действия:**
+  - `enter` — Job log; на bridge — Pipeline downstream-пайплайна;
+  - `P` — play manual: форма переменных, пустая форма = play без переменных;
+  - `R` — retry джобы (retry всего пайплайна — `R` в списке пайплайнов);
+  - `c` — cancel джобы;
+  - `o` — пайплайн в браузере, `O` — выделенная джоба (на bridge с downstream — downstream-пайплайн), `y` — ссылка на пайплайн.
+- **Поллинг:** 3 с, пока пайплайн не в финальном статусе.
+
+### 3.8. Job log (макет `JobLog`)
+
+- **Шапка:** `#91840 › test:integration ◐ running 1m12s`, справа `● follow · 1 284 строк · обновл. 2s`.
+- **Viewport с номерами строк.** Секции:
+  - заголовок секции — `▸ name` (свёрнута) или `▾ name` (развёрнута), справа длительность;
+  - секции с `[collapsed=true]` изначально свёрнуты.
+- **ANSI SGR сохраняются**, прочие escape-последовательности вырезаются (раздел 5.6).
+- **Follow-режим:**
+  - включён по умолчанию у running-джобы;
+  - viewport прилипает к концу;
+  - ручной скролл вверх выключает follow, `f` или `G` включают обратно.
+- **Поиск `/`:** подстрока без учёта регистра. Совпадения подсвечиваются, `n/N` переходят по ним, свёрнутые секции с совпадением раскрываются. Строка поиска показывает «совпадение 1 из 3».
+- **Длинные строки** не переносятся, горизонтальный скролл `←/→`.
+- **Действия:** `R` retry (открывает лог новой джобы), `c` cancel, `o`.
+
+### 3.9. Run pipeline (макет `RunPipeline`)
+
+Модальная форма в два блока, `tab` переключает фокус:
+
+1. **Ref.** Текстовое поле с автодополнением: ветки и теги (`search` с debounce 300 мс). Текущая локальная ветка — первой с пометкой «текущая в git».
+2. **Переменные.** Таблица `KEY | VALUE | type`.
+   - Фокус на таблице, но не в ячейке: `a` — добавить строку, `d` — удалить, `enter` — редактировать ячейку.
+   - Тип: `env_var` | `file`.
+   - Подсказки под таблицей: «Из .gitlab-ci.yml: DEPLOY_ENV [staging, prod-canary], SKIP_E2E».
+   - Выбор подсказки добавляет строку. Для `valueOptions` значение выбирается из списка.
+
+Макет предлагает `ctrl+a`/`ctrl+d` — они конфликтуют с readline-сочетаниями в полях ввода, поэтому заменены на `a`/`d` вне режима редактирования.
+
+- **Предпросмотр:** «будет создан: ref=feat/surge, variables=2».
+- **Запуск:** `ctrl+s` или кнопка «Запустить». Это и есть подтверждение, отдельной confirm-модалки нет: форма уже явный шаг.
+- **После создания** сразу открывается экран нового пайплайна.
+
+### 3.10. New tag (макет `Tags`, форма справа)
+
+- **Имя.** Select из трёх вариантов: `v1.14.3 (patch)` (по умолчанию), `v1.15.0 (minor)`, `v2.0.0 (major)`, плюс «своё…» с текстовым полем. Сочетания `ctrl+n`/`ctrl+j` из макета не используем: `ctrl+j` в терминале — это Enter.
+- **Из ref:** по умолчанию default-ветка, автодополнение веток. Подпись `main @ 0b7d3e9 · 2 коммита после v1.14.2`.
+- **Сообщение:** необязательное; если заполнено, создаётся annotated-тег. По умолчанию `release: <имя>`.
+- **«В теге окажутся»:** до 10 коммитов из compare `<последний тег>…<ref>`.
+- **Создание:** `enter` → confirm-модалка «Создать тег v1.14.3 на main @ 0b7d3e9?» → создание.
+
+### 3.11. Project picker `p` (макет `ProjectPicker`)
+
+- **Оверлей.** Fuzzy-поиск без сети. Секции: ИЗ GIT REMOTE (текущий), WORKSPACE, STARRED, НЕДАВНИЕ.
+- **В строке:** путь, `★`, число открытых MR и активность, если известны из кэша.
+- **Действия:** `enter` → режим проекта, `esc` закрыть.
+
+### 3.12. Global search `F`
+
+- **Оверлей:** поле ввода и два раздела, «Проекты» и «Группы».
+- **Запрос:**
+  - до 2 символов ничего не ищем;
+  - сразу показываем локальные fuzzy-совпадения из источников picker'а;
+  - через 300 мс после последнего ввода — серверный запрос; результаты подмешиваются без дублей, локальные помечены.
+- **Действия:** `enter` на проекте → режим проекта; `enter` на группе → workspace из проектов группы (`GroupSource`).
+
+### 3.13. Help `?`
+
+- **Оверлей:** все хоткеи текущего экрана по группам (из `KeyMap()`), внизу — глобальные.
+- **Состояние:** текущий язык и подсказка `ctrl+l`; статус glab («glab: найден, вошли на gitlab.example.com» / «glab не найден»).
+
+### 3.14. Confirm-модалка
+
+- **Состав:** заголовок, описание объекта, кнопки «Да» и «Отмена» (по умолчанию «Отмена»). `y`/`enter` на «Да» подтверждает, `n`/`esc` отменяет.
+- **Где используется:** merge (3.6), cancel пайплайна и джобы, delete tag, rebase, close issue, создание тега, pull (10.4). Run pipeline и play job используют свою форму как подтверждение.
+
+---
+
+## 4. Модель данных
+
+Пакет `internal/gitlab`. Типы — свои, не из client-go. UI видит только их.
+
+```go
+type ProjectRef struct {
+    ID       int64  // 0, если ещё не известен
+    FullPath string // "platform/route-service"
+}
+
+type Project struct {
+    ProjectRef
+    Name           string
+    WebURL         string
+    DefaultBranch  string
+    LastActivityAt time.Time
+    Archived       bool
+    Starred        bool
+}
+
+type User struct {
+    ID       int64
+    Username string
+    Name     string
+    WebURL   string
+}
+
+type MergeRequest struct {
+    Project        ProjectRef
+    IID            int64
+    Title          string
+    Description    string // markdown, только в деталях
+    State          MRState // opened | merged | closed | locked
+    Draft          bool
+    Author         User
+    Assignees      []User
+    Reviewers      []User
+    SourceBranch   string
+    TargetBranch   string
+    SHA            string
+    Labels         []string
+    MergeStatus    string // detailed_merge_status как есть
+    HasConflicts   bool
+    HeadPipeline   *PipelineSummary
+    Approvals      Approvals
+    Discussions    DiscussionStats
+    Diff           *DiffStats // additions, deletions, files; может отсутствовать
+    WebURL         string
+    CreatedAt      time.Time
+    UpdatedAt      time.Time
+    MergedAt       time.Time // только в деталях; нулевое, если не смержен
+    ClosedAt       time.Time // только в деталях; нулевое, если не закрыт
+    MergedBy       *User     // только в деталях (mergeUser); может отсутствовать
+    RebaseInProgress bool
+    MergeError     string // причина неудачного rebase/merge (merge_error)
+    Squash         bool   // умолчание squash в диалоге merge
+    ForceRemoveSourceBranch bool // умолчание «удалить ветку» в диалоге merge
+}
+
+type Approvals struct {
+    ApprovedBy []User
+    Required   int  // 0 на CE или без правил
+    Left       int
+    ApprovedByMe bool
+}
+
+type DiscussionStats struct{ Total, Unresolved int }
+
+type Discussion struct {
+    ID         string
+    Resolvable bool
+    Resolved   bool
+    Notes      []Note
+    Position   *NotePosition // путь файла и строка для diff-тредов
+}
+
+type Note struct {
+    ID        int64
+    Author    User
+    Body      string
+    System    bool
+    CreatedAt time.Time
+}
+
+type PipelineStatus string // created, waiting_for_resource, preparing, pending, running,
+                            // success, failed, canceled, skipped, manual, scheduled
+
+type PipelineSummary struct {
+    Project  ProjectRef
+    ID       int64
+    IID      int64
+    Status   PipelineStatus
+    Ref      string
+    SHA      string
+    Source   string
+    User     *User
+    CommitTitle string
+    Duration time.Duration
+    CreatedAt time.Time
+    FinishedAt *time.Time
+    WebURL   string
+    Stages   []StageSummary // только когда запрошено (превью)
+}
+
+type StageSummary struct {
+    Name   string
+    Status PipelineStatus
+    Done, Total int
+}
+
+type Pipeline struct {
+    PipelineSummary
+    Jobs    []Job
+    Bridges []Bridge
+}
+
+type Job struct {
+    ID           int64
+    Name         string
+    Stage        string
+    Status       PipelineStatus
+    AllowFailure bool
+    Duration     time.Duration
+    Runner       string
+    RetryCount   int
+    StartedAt    *time.Time
+    WebURL       string
+}
+
+type Bridge struct {
+    Job
+    Downstream *PipelineSummary // nil, пока не создан
+}
+
+type CIVariable struct {
+    Key   string
+    Value string
+    Type  VarType // env_var | file
+}
+
+type CIConfigVariable struct { // подсказки из ciConfigVariables
+    Key          string
+    Value        string
+    ValueOptions []string
+    Description  string
+}
+
+type Tag struct {
+    Project   ProjectRef
+    Name      string
+    Message   string
+    Commit    CommitSummary
+    Protected bool
+    Release   *ReleaseSummary
+    Pipeline  *PipelineSummary // сопоставляется по ref
+}
+
+type CommitSummary struct {
+    SHA, ShortSHA, Title, AuthorName string
+    CreatedAt time.Time
+}
+
+type Issue struct {
+    Project      ProjectRef
+    IID          int64
+    Title        string
+    Description  string
+    State        string // opened | closed
+    Author       User
+    Assignees    []User
+    Labels       []string
+    Milestone    string
+    UserNotesCount int
+    RelatedMRs   []int64 // IID, если известны
+    WebURL       string
+    UpdatedAt    time.Time
+}
+
+type Group struct {
+    ID       int64
+    FullPath string
+    Name     string
+    WebURL   string
+}
+
+// Результат батча по нескольким проектам.
+type ProjectGroup[T any] struct {
+    Project ProjectRef
+    Items   []T
+    Total   int   // для «ещё N»
+    Err     error // ошибка конкретного проекта (404, нет доступа)
+}
+
+// Страница списка.
+type Page[T any] struct {
+    Items      []T
+    NextCursor string // пусто = конец; для REST — номер страницы строкой
+    Total      int    // -1, если неизвестен
+}
+```
+
+### Статусы → глифы и роли
+
+Тексты статусов не переводятся.
+
+| Статус | Глиф | Роль цвета |
+|---|---|---|
+| success | `✓` | status.success |
+| failed | `✗` | status.failed |
+| running | `◐` | status.running |
+| pending, preparing, waiting_for_resource | `◐` | status.pending |
+| manual | `►` | status.manual |
+| scheduled | `○` | status.manual |
+| created, skipped | `○` | muted |
+| canceled | `⊘` | status.canceled |
+| downstream / bridge | `⇢` | по статусу |
+
+### Локальные типы (`internal/gitremote`, `internal/workspace`)
+
+```go
+type Repo struct {
+    Root      string // рабочая директория
+    GitDir    string
+    RemoteURL string
+    Branch    string // или короткий SHA при detached HEAD
+    Detached  bool
+}
+
+type Remote struct {
+    Host        string // нижний регистр, без порта
+    ProjectPath string // "group/sub/proj"
+}
+
+type LocalProject struct {
+    Dir     string
+    Repo    Repo
+    Remote  *Remote // nil, если не распознан
+    Kind    LocalKind // GitLab | Foreign | Unknown
+}
+```
+
+---
+
+## 5. Интеграция с GitLab
+
+### 5.1. Транспорт
+
+- **REST:** `gitlab.com/gitlab-org/api/client-go` (последняя мажорная версия на момент M0). Используется только внутри `internal/gitlab/rest`.
+- **GraphQL:** собственный тонкий клиент на `net/http`, `POST {host}/api/graphql`. Обоснование:
+  - workspace-запросы динамические: число алиасов `p0…pN` зависит от числа проектов в пачке, а genqlient генерирует только статические запросы под фиксированную схему;
+  - genqlient требует выгружать схему GitLab, а она различается между версиями self-hosted инстансов;
+  - нужно мало: `Do(ctx, query, vars, out)`, разбор `errors`, распознавание ошибки сложности. Это около 200 строк;
+  - типобезопасность компенсируем: запросы лежат константами рядом с типами ответа, на каждый есть тест с JSON-фикстурой.
+- **Общий `http.Client`:** таймаут запроса 15 с, свой `ca_file` и `insecure_skip_verify` из конфига, заголовок `PRIVATE-TOKEN` (REST) и `Authorization: Bearer` (GraphQL), `User-Agent: gitlab-tui/<ver>`.
+- **Ограничение параллелизма:** глобальный семафор на 6 одновременных запросов на хост.
+- **429:** уважаем `Retry-After`, ждём (не дольше 30 с), затем один повтор и тост «GitLab ограничил запросы».
+- **Версия инстанса:** `GET /version` при старте, кэш на сессию. Используется для фич с разной поддержкой (auto-merge, раздел 5.5).
+
+### 5.2. Эндпоинты по экранам
+
+| Экран / действие | Запрос |
+|---|---|
+| Старт, Setup | REST `GET /user`, `GET /version` |
+| Workspace → Проекты (фаза 1) | GraphQL батч: `project(fullPath)` × N: `id name webUrl lastActivityAt archived repository{rootRef}`, `opened: mergeRequests(state: opened){count}`, `review: mergeRequests(state: opened, reviewerUsername: $me){count}` |
+| Workspace → Проекты (фаза 2) | GraphQL батч: `pipelines(ref: $rootRef_i, first: 1){nodes{id status}}`; REST `GET /projects/:id/repository/tags?order_by=updated&per_page=1` на проект (параллельно ≤ 4). `rootRef` кэшируется на 24 ч, поэтому обычно фазы склеиваются в один запрос. |
+| Workspace → MRs | GraphQL батч, фрагмент `MRRow`: `mergeRequests(state, first: $perProject, sort: UPDATED_DESC){count nodes{…MRRow}}`. С фильтром `m` — три алиаса на проект (`a: authorUsername`, `s: assigneeUsername`, `r: reviewerUsername`), объединение и дедупликация по IID на клиенте, `Total` — по объединению загруженного (помечается «≥»). |
+| Workspace → Pipelines | GraphQL батч: `pipelines(first: $perProject, username: $me?, status?){count nodes{…PipelineRow}}` |
+| Workspace → Tags | REST на проект (≤ 4 параллельно): `GET /repository/tags?order_by=version&sort=desc&per_page=3` (+ `X-Total`), `GET /pipelines?scope=tags&per_page=50` → сопоставление по `ref`. GraphQL не отдаёт список тегов репозитория ([gitlab#332144](https://gitlab.com/gitlab-org/gitlab/-/work_items/332144)). |
+| Project → MRs | GraphQL `project{mergeRequests(state, authorUsername?, assigneeUsername?, reviewerUsername?, draft?, labels?, search?, first: 20, after){pageInfo nodes{…MRRow}}}` — тот же фрагмент, что в workspace. С фильтром `m` — три соединения (`a`: author, `s`: assignee, `r`: reviewer) **отдельными параллельными запросами**: в одном запросе три соединения по 20 строк `MRRow` дают сложность ≈300 при лимите 250. Отдельные курсоры (`NextCursor` = `a\|s\|r`), объединение и дедупликация по IID, `Total` — по объединению загруженного (`≥`) |
+| Подсказки фильтров | REST `GET /projects/:id/members/all?query=&per_page=20` (`reviewer`, `user`), `GET /projects/:id/labels?search=&per_page=20` (`labels`), ветки и теги — `GET /repository/branches?search`, `/repository/tags?search`; ответы кэшируются на 5 мин |
+| Project → Pipelines | GraphQL `project{pipelines(ref?, status?, source?, username?, first: 20, after){pageInfo nodes{…PipelineRow}}}`; превью — `pipeline(iid){stages{nodes{name detailedStatus{group} jobs{count}}}}` по выбранной строке |
+| Project → Issues | REST `GET /projects/:id/issues?state&assignee_username&labels&milestone&search&per_page=20&page`; превью — `GET /issues/:iid/notes?sort=asc&per_page=20`, `GET /issues/:iid/related_merge_requests` (лениво) |
+| Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100`; превью — `GET /repository/compare?from=<tag>&to=<default>` |
+| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}` (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
+| Перепроверка статуса MR | REST `GET /merge_requests/:iid?with_merge_status_recheck=true` → `detailed_merge_status` (запускает пересчёт, обычно возвращает `checking`; роль ниже Developer GitLab игнорирует). Единственное чтение деталей MR через REST |
+| approve / unapprove | REST `POST /merge_requests/:iid/approve` (`sha`), `POST …/unapprove` |
+| merge | REST `PUT /merge_requests/:iid/merge` (`sha`, `squash`, `should_remove_source_branch`, `auto_merge` или `merge_when_pipeline_succeeds`) |
+| rebase | REST `PUT /merge_requests/:iid/rebase` → 202; далее GraphQL `MergeRequests().Get` (`rebaseInProgress`, `mergeError`) каждые 2 с до `rebaseInProgress=false`, ошибка — из `mergeError` |
+| Pipeline | REST `GET /pipelines/:id`, `GET /pipelines/:id/jobs?per_page=100&include_retried=true` (все страницы, ретраи сворачиваются в `RetryCount`), `GET /pipelines/:id/bridges?per_page=100` |
+| retry / cancel пайплайна | REST `POST /pipelines/:id/retry`, `POST /pipelines/:id/cancel` |
+| retry / cancel / play джобы | REST `POST /jobs/:id/retry`, `POST /jobs/:id/cancel`, `POST /jobs/:id/play` (`job_variables_attributes`) |
+| Job log | REST `GET /jobs/:id/trace` (поллинг), `GET /jobs/:id` (статус) |
+| Run pipeline | REST `GET /repository/branches?search`, `GET /repository/tags?search`; GraphQL `project{ciConfigVariables(ref){key value valueOptions description}}`; REST `POST /projects/:id/pipeline` |
+| New tag | REST `GET /repository/compare?from&to`, `POST /repository/tags` (`tag_name`, `ref`, `message`) |
+| Delete tag | REST `DELETE /repository/tags/:name` |
+| Issue comment / close / reopen | REST `POST /issues/:iid/notes`, `PUT /issues/:iid` (`state_event=close\|reopen`) |
+| MR comment (M3) | REST `POST /merge_requests/:iid/notes` |
+| Picker `p`, starred | REST `GET /projects?starred=true&simple=true&per_page=100` (фон, кэш на диске 1 ч) |
+| Global search `F` | GraphQL одним запросом: `projects(search: $q, searchNamespaces: true, first: 10, sort: "latest_activity_desc"){nodes{…}} groups(search: $q, first: 5){nodes{…}}`. Запасной путь — REST `GET /projects?search&search_namespaces=true` + `GET /groups?search`. |
+| Workspace из группы | REST `GET /groups/:id/projects?include_subgroups=true&archived=false&order_by=last_activity_at&simple=true&per_page=100` (до 100 проектов, раздел 13) |
+
+### 5.3. GraphQL-батчинг
+
+Запрос workspace собирается из фрагмента и списка проектов:
+
+```graphql
+query WsMRs($me: String!, $first: Int!, $p0: ID!, $p1: ID!, …) {
+  p0: project(fullPath: $p0) { ...WsMRGroup }
+  p1: project(fullPath: $p1) { ...WsMRGroup }
+}
+fragment WsMRGroup on Project {
+  fullPath
+  mergeRequests(state: opened, first: $first, sort: UPDATED_DESC) {
+    count
+    nodes { ...MRRow }
+  }
+}
+```
+
+**Правила:**
+
+- Пути проектов передаются переменными, не вставляются в текст запроса. Фрагменты держат текст запроса под лимитом 10 000 символов.
+- `project: null` в ответе → `ProjectGroup.Err = ErrNotFound`, у группы пометка «нет доступа». Остальные группы не страдают.
+- Частичные `errors` с `path`, указывающим на `pK`, привязываются к своей группе.
+
+**Лимит сложности** (250 для авторизованных, [docs](https://docs.gitlab.com/api/graphql/)):
+
+1. Стартовый размер пачки — `graphql.batch_size` (по умолчанию 10).
+2. На ошибку «Query has complexity of X, which exceeds max complexity of 250» новый размер = `floor(size × 250 / X × 0.9)`, минимум 1. Пачка делится, запрос повторяется.
+3. Выученный размер запоминается на сессию для каждого вида запроса (MRs, MRs+«я», Pipelines, Projects).
+4. Если инстанс поддерживает поле `queryComplexity { score limit }`, первый запрос запрашивает его и калибрует размер заранее.
+
+**Поток:**
+
+- Пачки идут параллельно, не больше 3 одновременно, каждая — отдельный `tea.Cmd`.
+- Каждая пачка возвращает `WsBatchMsg{Gen, Tab, Groups []ProjectGroup[T]}`. Экран вклеивает группы по мере прихода.
+- Порядок групп на экране — по `lastActivityAt` из фазы 1 (или кэша), а не по порядку ответов, чтобы строки не прыгали.
+
+**Таймаут:** у пачки свой, 30 с (как у GraphQL на сервере). По таймауту пачка делится пополам и повторяется один раз.
+
+### 5.4. Пагинация
+
+- **GraphQL:** курсоры `pageInfo{hasNextPage endCursor}`, `first: 20`.
+- **REST:** offset-пагинация `page`/`per_page=20` по заголовкам `X-Next-Page`/`X-Total`. Если `X-Total` нет (больше 10 000 записей), счётчик показывается как `20 из многих`. Keyset не используем: эндпоинты экранов его не поддерживают.
+- **Подгрузка:** курсор в пределах 5 строк от конца загруженного → запрос следующей страницы. В конце списка строка `◐ загружаю ещё…`, по ошибке — `✗ не удалось загрузить, r — повторить`.
+- **Workspace:** без пагинации внутри групп. «Ещё N» ведёт в режим проекта.
+
+### 5.5. Совместимость версий
+
+- **Минимальная поддерживаемая версия GitLab — 16.0.** Ниже — предупреждение в тосте при старте, без блокировки.
+- **Auto-merge:** на GitLab ≥ 17.11 — `auto_merge=true`, ниже — `merge_when_pipeline_succeeds=true` (в 17.11 его объявили deprecated).
+- **Approvals:** `approvalsRequired`/`approvalsLeft` на CE обычно 0. Колонка Appr тогда показывает число апрувов без знаменателя (`2`, а не `2/2`).
+- **Неизвестное поле GraphQL** на старом инстансе: ошибка `Field 'x' doesn't exist` логируется. Для опциональных полей (`diffStatsSummary`, `queryComplexity`) есть запасной запрос без них, решение кэшируется на сессию.
+
+### 5.6. Лог джобы: поллинг и разбор
+
+**Хвост:**
+
+- `GET /jobs/:id/trace` возвращает весь лог. Храним прочитанную длину в байтах. Новый ответ длиннее — разбираем только хвост с учётом незавершённой последней строки. Короче (ретрай, обрезка) — полный перезапуск разбора.
+- Пока джоба running или pending — запрос каждые 3 с, параллельно `GET /jobs/:id` для статуса. После финального статуса — последний запрос лога и остановка.
+- Внутренний инкрементальный эндпоинт веб-интерфейса (`/-/jobs/:id/trace.json`) не используем: он не является публичным API. Это возможная оптимизация после MVP.
+
+**Разбор строк:**
+
+- Секции:
+  - начало — `section_start:<unix>:<name>[<opts>]\r\x1b[0K<заголовок>`, опция `collapsed=true` учитывается;
+  - конец — `section_end:<unix>:<name>\r\x1b[0K`;
+  - секции вкладываются; длительность = end − start.
+- `\r` внутри строки (прогресс-бары): от строки остаётся текст после последнего `\r`, кроме служебных `\r` маркеров секций.
+- Escape-последовательности: SGR (`\x1b[…m`) сохраняются, остальные CSI/OSC (`\x1b[0K`, перемещения курсора) вырезаются.
+- Ширина строк считается по видимым символам (`ansi.StringWidth`).
+
+**Память:**
+
+- Модель хранит строки, разобранные в структуры `{Text (с SGR), Plain (без SGR, для поиска), Section}`.
+- Логи больше 50 000 строк: в памяти держим последние 50 000 и строку «… начало обрезано, o — открыть полный лог в браузере».
+
+### 5.7. Поллинг и обновление
+
+- **Только у экрана на вершине стека.** Экран получает `ActivatedMsg` и `DeactivatedMsg` при изменениях стека. На Deactivated он увеличивает `pollGen`, и уже запланированные тики со старым gen игнорируются.
+- **Адаптивный интервал:**
+
+| Состояние | Интервал |
+|---|---|
+| Есть running/pending пайплайны или джобы на экране, rebase в процессе | 3 с |
+| Списки режима проекта, детали | 30 с |
+| Workspace (табы MRs/Pipelines/Tags/Проекты) | 60 с |
+| Терминал не в фокусе (`tea.BlurMsg`, если терминал сообщает о фокусе) | ×5, но не реже 5 мин |
+
+- **`r`** — немедленное обновление со сбросом кэша для экрана. В шапке `⟳ 14s` — время с последнего успешного обновления.
+- **После действия** (approve, retry…) — сразу перезапрос объекта, не дожидаясь тика.
+
+### 5.8. Кэш
+
+Пакет `internal/cache`, в памяти. Ключ — каноническая сигнатура запроса.
+
+- **TTL:**
+
+| Данные | TTL |
+|---|---|
+| `GET /user`, `/version` | сессия |
+| `rootRef` и метаданные проекта | 24 ч |
+| Списки | 30 с |
+| Финальные пайплайны и джобы | 10 мин |
+| Running | 0 (не кэшируются) |
+
+- **Stale-while-revalidate:** устаревшее значение отдаётся сразу (`Stale: true`), фоновый запрос обновляет его, экран перерисовывается по приходу.
+- **На диске** (`$XDG_CACHE_HOME/gitlab-tui/`): только starred (1 ч) и метаданные проектов workspace (для мгновенного старта). Недавние проекты — в `$XDG_STATE_HOME/gitlab-tui/state.json` (последние 20).
+- **Инвалидация:** любое действие сбрасывает ключи этого объекта и его списков.
+
+---
+
+## 6. Архитектура
+
+### 6.1. Пакеты
+
+```
+cmd/gitlab-tui/            main: флаги, сборка зависимостей, запуск tea.Program
+internal/config/           загрузка/сохранение YAML, пути XDG, цепочка токена
+internal/glab/             обнаружение glab, токен из glab, exec-действия (Action)
+internal/gitremote/        поиск .git, разбор config/HEAD, разбор URL remote, сканер подпапок
+internal/gitexec/          запуск системного git: fetch, pull --ff-only, ahead/behind
+internal/workspace/        ProjectSource (LocalDirSource, GroupSource), Scope
+internal/gitlab/           доменные типы и интерфейсы сервисов
+internal/gitlab/rest/      адаптер client-go → доменные типы
+internal/gitlab/graphql/   тонкий GraphQL-клиент, сборщик батчей, запросы
+internal/gitlab/hybrid/    один gitlab.Client поверх rest и graphql (списки/детали — GraphQL, мутации — REST)
+internal/browser/          открытие ссылки системным обработчиком (open/xdg-open)
+internal/gitlab/fake/      фейковый клиент для тестов и демо
+internal/cache/            TTL + stale-while-revalidate
+internal/i18n/             Messages en/ru, плюрализация, относительное время
+internal/ui/app/           корневая модель, стек, шапка, статус-бар, тосты, оверлеи
+internal/ui/common/        keymap, help, confirm, footer, styles/theme, markdown, Fetch
+internal/ui/common/table/  таблица: приоритеты колонок, курсор по ID, подгрузка
+internal/ui/common/filterline/ строка фильтров key:value с автодополнением
+internal/ui/common/vartable/   таблица переменных KEY | VALUE | type
+internal/ui/screens/       setup, workspace, project, mrdetail, mractions, pipeline, joblog,
+                           runpipeline, newtag, picker, search, help
+internal/joblog/           разбор трейса: секции, ANSI, \r (без зависимостей от UI)
+internal/semver/           предложение следующей версии тега
+```
+
+**Правила зависимостей:**
+
+- `ui/*` импортирует `gitlab` (интерфейсы и типы), но не `gitlab/rest`, `gitlab/graphql` и client-go.
+- `gitlab/rest` и `gitlab/graphql` не знают об UI.
+- `cmd` собирает всё вместе.
+
+### 6.2. Стек
+
+| Библиотека | Версия | Зачем |
+|---|---|---|
+| Bubble Tea | `charm.land/bubbletea/v2` (v2.1.x) | рантайм TUI |
+| Bubbles | `charm.land/bubbles/v2` | viewport, textinput, textarea, help, key, spinner |
+| Lip Gloss | `charm.land/lipgloss/v2` | стили, раскладка |
+| Huh | `charm.land/huh/v2` (v2.0.x) | формы |
+| Glamour | `charm.land/glamour/v2` (v2.0.x) | markdown |
+| Chroma | `github.com/alecthomas/chroma/v2` | подсветка кода в markdown (диффы после MVP) |
+| client-go | `gitlab.com/gitlab-org/api/client-go` | REST |
+| YAML | `go.yaml.in/yaml/v3` | конфиг |
+| Fuzzy | `github.com/sahilm/fuzzy` | picker |
+
+**Почему Bubble Tea v2:**
+
+1. **Это стабильная ветка.** v2.0.0 вышла как мажорный релиз, сейчас актуальна v2.1.0 ([releases](https://github.com/charmbracelet/bubbletea/releases)) после серии патчей v2.0.x.
+2. **Экосистема уже на v2.** Huh v2 «built on the all-new Bubble Tea v2 and Lip Gloss v2» ([huh releases](https://github.com/charmbracelet/huh/releases)), Glamour v2 использует Lip Gloss v2 ([glamour releases](https://github.com/charmbracelet/glamour/releases)). Смешивать v1 и v2 нельзя, а новый код на v1 сразу стал бы legacy.
+3. **glab на v2.** Сам glab обновляется на `charm.land/bubbletea/v2` ([пример MR](https://gitlab.com/gitlab-org/cli/-/merge_requests/3793)), то есть ветка проверена на похожем приложении.
+4. **Нужные возможности есть только в v2:**
+   - события фокуса терминала (`FocusMsg`/`BlurMsg`) — для замедления поллинга;
+   - запрос цвета фона (`RequestBackgroundColor` → `BackgroundColorMsg`) — для выбора светлого или тёмного варианта темы;
+   - OSC52-буфер обмена (`SetClipboard`) — для `y`;
+   - улучшенная обработка клавиш (различение `shift+…`, `ctrl+…` в поддерживающих терминалах);
+   - декларативный `View` без глобального рендерера Lip Gloss.
+
+Следствие: в Lip Gloss v2 `lipgloss.Color(...)` возвращает `color.Color` (`image/color`), а не отдельный тип. Поэтому поля `Theme` — `color.Color` (раздел 9).
+
+### 6.3. Ключевые интерфейсы
+
+```go
+// internal/gitlab
+
+type Client interface {
+    Users() UserService
+    Projects() ProjectService
+    MergeRequests() MergeRequestService
+    Pipelines() PipelineService
+    Jobs() JobService
+    Tags() TagService
+    Issues() IssueService
+    Workspace() WorkspaceService // GraphQL-батчи
+    Search() SearchService
+    Instance() InstanceInfo      // хост, версия, WebURL(path)
+}
+
+type UserService interface {
+    Current(ctx context.Context) (User, error)
+}
+
+type ProjectService interface {
+    Get(ctx context.Context, ref ProjectRef) (Project, error)
+    Starred(ctx context.Context) ([]Project, error)
+    ListGroupProjects(ctx context.Context, groupID int64, limit int) ([]Project, error)
+    Branches(ctx context.Context, p ProjectRef, search string) ([]string, error)
+    CIConfigVariables(ctx context.Context, p ProjectRef, ref string) ([]CIConfigVariable, error)
+}
+
+type MRFilter struct {
+    State     MRState
+    Scope     MRScope // all | created_by_me | assigned_to_me
+    Reviewer  string  // "" | "@me" | username
+    Draft     *bool
+    Labels    []string
+    Search    string
+    Mine      bool    // фильтр «я»: author ∪ assignee ∪ reviewer
+}
+
+type MergeOptions struct {
+    AutoMerge          bool
+    Squash             bool
+    RemoveSourceBranch bool
+    SHA                string
+}
+
+type MergeRequestService interface {
+    List(ctx context.Context, p ProjectRef, f MRFilter, cursor string, limit int) (Page[MergeRequest], error)
+    Get(ctx context.Context, p ProjectRef, iid int64) (MergeRequest, error)
+    Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
+    Pipelines(ctx context.Context, p ProjectRef, iid int64) ([]PipelineSummary, error)
+    Approve(ctx context.Context, p ProjectRef, iid int64, sha string) error
+    Unapprove(ctx context.Context, p ProjectRef, iid int64) error
+    Merge(ctx context.Context, p ProjectRef, iid int64, o MergeOptions) (MergeRequest, error)
+    Rebase(ctx context.Context, p ProjectRef, iid int64) error
+    // RecheckMergeStatus asks GitLab to recompute the merge status (REST,
+    // with_merge_status_recheck=true) and returns detailed_merge_status.
+    RecheckMergeStatus(ctx context.Context, p ProjectRef, iid int64) (string, error)
+    Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+}
+
+type PipelineFilter struct {
+    Ref, Status, Source, Username string
+    Scope string // "", "tags", "branches"
+}
+
+type PipelineService interface {
+    List(ctx context.Context, p ProjectRef, f PipelineFilter, cursor string, limit int) (Page[PipelineSummary], error)
+    Get(ctx context.Context, p ProjectRef, id int64) (Pipeline, error) // с джобами и bridges
+    Stages(ctx context.Context, p ProjectRef, iid int64) ([]StageSummary, error)
+    Create(ctx context.Context, p ProjectRef, ref string, vars []CIVariable) (PipelineSummary, error)
+    Retry(ctx context.Context, p ProjectRef, id int64) error
+    Cancel(ctx context.Context, p ProjectRef, id int64) error
+}
+
+type JobService interface {
+    Get(ctx context.Context, p ProjectRef, id int64) (Job, error)
+    Trace(ctx context.Context, p ProjectRef, id int64) ([]byte, error)
+    Retry(ctx context.Context, p ProjectRef, id int64) (Job, error)
+    Cancel(ctx context.Context, p ProjectRef, id int64) error
+    Play(ctx context.Context, p ProjectRef, id int64, vars []CIVariable) (Job, error)
+}
+
+type TagService interface {
+    List(ctx context.Context, p ProjectRef, search, cursor string, limit int) (Page[Tag], error)
+    Create(ctx context.Context, p ProjectRef, name, ref, message string) (Tag, error)
+    Delete(ctx context.Context, p ProjectRef, name string) error
+    Compare(ctx context.Context, p ProjectRef, from, to string) ([]CommitSummary, error)
+}
+
+type IssueFilter struct {
+    State, Assignee, Milestone, Search string
+    Labels []string
+}
+
+type IssueService interface {
+    List(ctx context.Context, p ProjectRef, f IssueFilter, cursor string, limit int) (Page[Issue], error)
+    Notes(ctx context.Context, p ProjectRef, iid int64) ([]Note, error)
+    Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+    SetState(ctx context.Context, p ProjectRef, iid int64, closed bool) (Issue, error)
+}
+
+// Батчи workspace. Каждый метод отдаёт результаты по мере готовности пачек.
+type WorkspaceService interface {
+    ProjectsOverview(ctx context.Context, ps []ProjectRef, me string) <-chan BatchResult[ProjectOverview]
+    MergeRequests(ctx context.Context, ps []ProjectRef, f MRFilter, perProject int) <-chan BatchResult[MergeRequest]
+    Pipelines(ctx context.Context, ps []ProjectRef, f PipelineFilter, perProject int) <-chan BatchResult[PipelineSummary]
+    Tags(ctx context.Context, ps []ProjectRef, perProject int) <-chan BatchResult[Tag]
+}
+
+type BatchResult[T any] struct {
+    Groups []ProjectGroup[T]
+    Err    error // ошибка всей пачки
+}
+
+type SearchService interface {
+    Search(ctx context.Context, q string) (projects []Project, groups []Group, err error)
+}
+```
+
+**Каналы в Bubble Tea.** Канал `<-chan BatchResult` превращается в цепочку команд: команда читает одно значение и возвращает msg вместе с командой чтения следующего (стандартный паттерн «listen» из Bubble Tea).
+
+```go
+// internal/workspace
+
+type ProjectSource interface {
+    Name() string
+    Projects(ctx context.Context) ([]Project, error)
+}
+
+type Project struct { // элемент workspace: удалённая часть + локальная (если есть)
+    Ref    gitlab.ProjectRef
+    Local  *gitremote.LocalProject // nil для GroupSource/StarredSource
+    Foreign bool                   // папка с не-GitLab remote: показываем серым
+}
+
+// LocalDirSource — сканер подпапок; GroupSource — проекты группы; позже StarredSource.
+
+type ScopeKind int // ScopeProject | ScopeWorkspace
+
+type Scope struct {
+    Kind       ScopeKind
+    Projects   []Project
+    PerProject int    // workspace: 3; проект: размер страницы (20)
+    Source     string // "~/src", "group: platform", "-p"
+}
+
+func ProjectScope(p Project, pageSize int) Scope
+func WorkspaceScope(src ProjectSource, ps []Project, perProject int) Scope
+```
+
+```go
+// internal/ui/app
+
+type Screen interface {
+    Init() tea.Cmd
+    Update(msg tea.Msg) (Screen, tea.Cmd)
+    View() string
+    Title() string          // для крошек и заголовка окна
+    KeyMap() common.KeyMap  // источник для футера и ?-хелпа
+    SetSize(width, height int)
+}
+
+type PushMsg    struct{ Screen Screen }
+type PopMsg     struct{}
+type ReplaceRootMsg struct{ Screen Screen }
+type ActivatedMsg   struct{} // экран стал вершиной стека
+type DeactivatedMsg struct{} // экран перестал быть вершиной
+
+type ToastLevel int // Info | Success | Warn | Error
+type ToastMsg struct {
+    Level ToastLevel
+    Text  string
+    Hint  string // например «обнови токен: glab auth login»
+}
+
+type LangChangedMsg  struct{ Lang i18n.Lang }
+type ThemeChangedMsg struct{ Theme common.Theme }
+type ExecFinishedMsg struct{ Action string; Err error }
+
+// Каждый ответ сервера несёт поколение экрана; ответ с устаревшим Gen выбрасывается.
+type Loaded[T any] struct {
+    Gen   uint64
+    Value T
+    Stale bool
+    Err   error
+}
+```
+
+```go
+// internal/ui/common
+
+type Binding struct {
+    key.Binding
+    Priority int // футер выкидывает младшие при нехватке ширины; ? всегда виден
+    Hidden   bool // например, glab-действия без glab
+}
+
+type KeyMap interface {
+    Short() []Binding     // футер
+    Full()  [][]Binding   // ?-хелп, по группам
+}
+```
+
+### 6.4. Асинхронность
+
+- **Каждый запрос — `tea.Cmd`** с `context.WithTimeout`. Экран хранит `cancel` текущих запросов и отменяет их при pop или новом запросе того же вида.
+- **Generation counter.** У экрана `gen uint64`, он увеличивается при смене фильтра, таба или при `r`. Команда захватывает текущий gen. В `Update` msg с `Gen != m.gen` выбрасывается. Так ответ на старый фильтр не перетрёт новый.
+- **Тики поллинга** — отдельный `pollGen` (раздел 5.7).
+- **Мутации** (approve, merge…) не используют gen экрана. Они всегда показывают тост с результатом и инициируют перезапрос.
+- **Корневая модель:**
+  - раздаёт `tea.WindowSizeMsg` всем экранам стека;
+  - `LangChangedMsg` и `ThemeChangedMsg` — тоже всем, чтобы нижние экраны были готовы к возврату;
+  - остальные msg — только вершине (и оверлею, если он открыт).
+
+---
+
+## 7. Конфиг
+
+**Путь:** `$XDG_CONFIG_HOME/gitlab-tui/config.yaml`, по умолчанию `~/.config/gitlab-tui/config.yaml` на всех ОС, включая macOS. `os.UserConfigDir` не используем, он дал бы `~/Library/Application Support`.
+
+- **Права:** файл пишется с правами `0600`. Если в нём есть токен, а права шире, при старте показывается тост-предупреждение.
+- **Ошибка разбора YAML:** запуск не прерывается. Тост с номером строки, используются значения по умолчанию.
+- **Запись:** только то, что меняет TUI (`language`, `host`/`token` из Setup). Запись сохраняет порядок ключей и комментарии: через `yaml.Node`.
+
+```yaml
+# ~/.config/gitlab-tui/config.yaml
+host: https://gitlab.example.com     # URL инстанса; можно с path-prefix: https://example.com/gitlab
+token: ""                            # PAT; пусто → env GITLAB_TOKEN → glab
+host_aliases: [gitlab-work]          # SSH-алиасы из ~/.ssh/config, которые означают этот хост
+language: en                         # en | ru; пусто → en
+theme: terminal                      # пока единственная
+
+tls:
+  ca_file: ""                        # свой CA для self-hosted
+  insecure_skip_verify: false
+
+workspace:
+  per_project: 3                     # записей на проект в общих табах
+  max_group_projects: 100            # лимит проектов для workspace из группы
+
+project:
+  page_size: 20
+
+graphql:
+  batch_size: 10                     # стартовый размер пачки, дальше адаптивно
+
+polling:
+  active: 3s
+  idle: 30s
+  workspace: 60s
+
+glab:
+  enabled: auto                      # auto | false
+  path: ""                           # пусто → поиск в PATH
+
+git:
+  enabled: auto                      # auto | false
+  path: ""                           # пусто → поиск в PATH
+  parallel: 6                        # одновременных fetch/pull
+  timeout: 60s                       # на один репозиторий
+  fetch_on_start: false              # фоновый fetch всех проектов workspace при старте
+
+# После MVP:
+# custom_commands:
+#   - key: "X"
+#     context: mr
+#     command: "glab mr view {{.MR.IID}} --web"
+```
+
+**Цепочка источников:**
+
+- **Хост:** флаг URL в `-p` → `config.host` → env `GITLAB_HOST` → хост remote → Setup.
+- **Токен:** `config.token` → env `GITLAB_TOKEN` → glab для этого хоста → Setup.
+- В Help показывается, откуда взят токен: config / env / glab. Сам токен нигде не печатается.
+
+---
+
+## 8. i18n
+
+Пакет `internal/i18n`, без внешних библиотек.
+
+```go
+type Lang string
+
+const (
+    EN Lang = "en"
+    RU Lang = "ru"
+)
+
+type Messages struct {
+    Tabs struct {
+        Projects, MRs, Pipelines, Issues, Tags string
+    }
+    Filters struct {
+        Me, NotApplicableToTags, Project, State string
+        // …
+    }
+    Keys struct { // подписи в футере и хелпе
+        Up, Down, Open, Back, Refresh, Browser, Help, Approve, Merge, Rebase,
+        Checkout, Play, Retry, Cancel, Log, New, Delete, Follow, Fold string
+        // …
+    }
+    Toast struct {
+        Approved, Merged, AutoMergeSet, RebaseStarted, TagCreated func(ref string) string
+        // …
+    }
+    Errors struct {
+        Unauthorized, Forbidden, NotFound, RateLimited, Network string
+        TokenHint, GlabLoginHint func(host string) string
+    }
+    Plural struct {
+        MoreN        func(n int) string // «ещё 3» / «3 more»
+        Projects     func(n int) string // «5 GitLab-проектов»
+        Tags         func(n int) string // «31 тег», «58 тегов»
+        Lines        func(n int) string
+    }
+    RelTime RelTimeFormats
+}
+
+type PluralForms struct{ One, Few, Many string } // для en Few == Many
+
+func Get(l Lang) *Messages
+func Plural(l Lang, n int, f PluralForms) string
+func RelTimeShort(l Lang, d time.Duration) string // en: 4m 1h 2d 3w 1mo 1y; ru: 4м 1ч 2д 3н 1мес 1г
+func RelTimeLong(l Lang, d time.Duration) string  // «4 минуты назад» / «4 minutes ago»
+```
+
+**Плюрализация:**
+
+- Русское правило: `n%10==1 && n%100!=11` → one; `n%10 in 2..4 && n%100 not in 12..14` → few; иначе many.
+- Английское: `n==1` → one, иначе many.
+
+**Строки:**
+
+- Сообщения — Go-литералы структур (`en.go`, `ru.go`), поэтому опечатка в имени поля не скомпилируется.
+- Тест через reflection проверяет, что все строковые поля и функции заполнены в обоих языках.
+
+**Переключение:**
+
+- `ctrl+l` переключает RU↔EN. Корень сохраняет `language` в конфиг и рассылает `LangChangedMsg`.
+- Экраны и компоненты пересобирают keymap и help, заголовки колонок, плейсхолдеры `textinput`, тексты `help.Model`.
+- Открытая форма huh пересобирается: значения лежат в привязанных переменных и не теряются, `huh.KeyMap` получает переведённые `Help`.
+- Автоопределения по `LANG` нет: пустое значение → `en`.
+
+**Что переводим и что нет:**
+
+- Переводим: табы, фильтры, заголовки колонок, подсказки, тосты, ошибки, относительное время, пустые состояния.
+- Не переводим: данные GitLab (заголовки, имена, ветки, описание), статусы пайплайнов и джоб (`running`, `failed`), `detailed_merge_status`. Рядом со статусом может стоять переведённая подпись.
+
+**Ширина:**
+
+- Всегда `lipgloss.Width`: русские строки длиннее английских.
+- Футер собирается из `Short()` по убыванию `Priority`, пока влезает в ширину минус правый блок. `?` всегда остаётся.
+
+---
+
+## 9. Темы
+
+### 9.1. Семантические роли
+
+Экраны не знают цветов. Они используют только `Styles`, построенные из `Theme`.
+
+```go
+// internal/ui/common/theme.go
+import "image/color"
+
+type Theme struct {
+    Name      string
+    Fg        color.Color // основной текст
+    Muted     color.Color // второстепенный текст, заголовки колонок
+    Border    color.Color
+    Accent    color.Color // имя приложения, хоткеи, активный таб, IID выбранной строки
+    Selection color.Color // фон выбранной строки; nil → reverse
+    Warning   color.Color // ⚠ conflicts, предупреждения
+    Status struct {
+        Success, Failed, Running, Pending, Manual, Canceled color.Color
+    }
+    Diff struct{ Add, Del color.Color }
+    IsDark bool
+}
+
+type Styles struct {
+    App, Header, HeaderMuted, Breadcrumb lipgloss.Style
+    Tab, TabActive, TabCount             lipgloss.Style
+    FilterKey, FilterValue               lipgloss.Style
+    ColumnHeader, Row, RowSelected, RowMuted lipgloss.Style
+    GroupHeader, GroupHeaderCollapsed, MoreRow lipgloss.Style
+    Preview, PreviewTitle                lipgloss.Style
+    Footer, Key, KeyDesc                 lipgloss.Style
+    Toast map[ToastLevel]lipgloss.Style
+    Status map[gitlab.PipelineStatus]lipgloss.Style
+    Chip, ChipOK, ChipBad                lipgloss.Style
+    Modal, ModalTitle, Button, ButtonActive lipgloss.Style
+    LogLineNo, LogSection, LogMatch, LogMatchCurrent lipgloss.Style
+    DiffAdd, DiffDel                     lipgloss.Style
+    Markdown glamour.TermRendererOption  // стиль glamour, собранный из Theme
+}
+
+func NewStyles(t Theme) Styles
+func TerminalTheme(isDark bool) Theme
+```
+
+К ролям из брифа добавлены `Warning`, `Status.Pending` и `IsDark`. Список ролей можно расширять: новые роли добавляются в `Theme` и `TerminalTheme`, а экраны о них узнают через `Styles`.
+
+### 9.2. Тема `terminal`
+
+Только 16 ANSI-цветов, `lipgloss.Color("0")…("15")`. Реальные значения задаёт тема терминала пользователя.
+
+| Роль | Тёмный фон | Светлый фон |
+|---|---|---|
+| Fg | `NoColor` (цвет терминала по умолчанию) | `NoColor` |
+| Muted | `8` | `8` |
+| Border | `8` | `8` |
+| Accent | `3` (yellow) | `4` (blue) |
+| Selection | `nil` → reverse | `nil` → reverse |
+| Warning | `3` | `1` |
+| Success | `2` | `2` |
+| Failed | `1` | `1` |
+| Running | `4` | `4` |
+| Pending | `3` | `3` |
+| Manual | `5` | `5` |
+| Canceled | `8` | `8` |
+| Diff Add / Del | `2` / `1` | `2` / `1` |
+
+- **Выделение строки** — `Reverse(true)`, без цвета фона. Работает на любой теме и без цвета. IID выбранной строки — Accent + Bold, маркер `›`.
+- **Активный таб** — `Reverse + Bold` поверх Accent: фон акцента, текст цвета фона, как в макете.
+- **Светлый или тёмный фон:**
+  - при старте отправляется `tea.RequestBackgroundColor`; по `BackgroundColorMsg` собирается `TerminalTheme(isDark)` и рассылается `ThemeChangedMsg`;
+  - до ответа (и если терминал не отвечает) считаем фон тёмным;
+  - Accent меняется, потому что жёлтый на светлом фоне в большинстве терминальных тем нечитаем.
+- **Статусы** отличаются и цветом, и глифом (раздел 4), так что ни одна роль не держится на цвете в одиночку.
+- **Markdown:**
+  - glamour получает `ansi.StyleConfig`, собранный из `Theme`: заголовки — Accent + Bold, код — Muted, ссылки — Running, цитаты — Muted;
+  - встроенные стили glamour `dark`/`light` не берём: они используют 256 цветов;
+  - подсветка блоков кода — chroma с форматтером `terminal16`.
+- **Диффы (после MVP):** chroma `terminal16`, плюс фон и цвет строк из `Diff.Add`/`Diff.Del`.
+
+**`NO_COLOR`:**
+
+- Lip Gloss v2 через `colorprofile` при `NO_COLOR` переходит на профиль Ascii и выбрасывает все цвета. Bold и reverse остаются: выделение и активный таб видны, статусы различимы по глифам.
+- glamour в этом режиме получает стиль `notty`.
+
+### 9.3. Точка расширения под кастомные темы
+
+- `common.Theme` уже отделена от `Styles`. Новая тема — это только новый конструктор `Theme`.
+- Реестр тем (после MVP):
+
+```go
+type ThemeProvider interface {
+    Name() string
+    Theme(isDark bool) Theme
+}
+
+// Встроенные: terminal (MVP), catppuccin, gruvbox… (после MVP);
+// файлы ~/.config/gitlab-tui/themes/*.toml → TOMLTheme (после MVP).
+```
+
+- Смена темы на лету идёт тем же путём, что и смена языка: `ThemeChangedMsg` → корень пересобирает `Styles` → рассылает всем экранам. Экраны хранят `*Styles`, а не отдельные стили, поэтому новая тема применяется одной заменой указателя.
+- **Правило код-ревью:** в `ui/screens` запрещены `lipgloss.Color(...)` и `lipgloss.NewStyle().Foreground(...)`. Проверка — простой тест-грепом в CI.
+
+---
+
+## 10. Внешние инструменты: glab и git
+
+glab — опциональная зависимость. Как Go-библиотеку не используем: почти весь код glab лежит в `internal/`. Его вывод вместо API не парсим.
+
+### 10.1. Обнаружение
+
+- При старте: `glab.enabled != false` → `exec.LookPath(config.glab.path || "glab")` → `Glab{Path}` или `nil`.
+- `glab == nil` → все glab-действия получают `Hidden: true`: их нет ни в футере, ни в хелпе. В Help строка «glab не найден — checkout недоступен».
+- **Проверка входа на хост** — лениво, при первом glab-действии или при открытии Help: `glab auth status --hostname <host>`, по коду возврата. Не 0 → тост «glab не залогинен на <host>: выполни `glab auth login --hostname <host>`», действие не запускается.
+- Все вызовы glab для проверок — с таймаутом 3 с и без stdin.
+
+### 10.2. Токен из glab
+
+Это третий шаг цепочки после config и `GITLAB_TOKEN`.
+
+1. `glab config get token --host <host>` → stdout без пробелов. Непусто → берём.
+2. Пусто (токен в keyring) → `glab auth status --hostname <host> --show-token --output json` → поле токена из JSON. Флаги `--show-token` и `--output json` есть в [документации](https://docs.gitlab.com/cli/auth/status/).
+3. Ошибка или пусто → дальше по цепочке, то есть Setup.
+
+Полученный токен проверяется обычным `GET /user`. Он не сохраняется в конфиг и не логируется.
+
+Риск: в glab ≥ 1.84 есть открытый баг с токенами из keyring ([cli#8168](https://gitlab.com/gitlab-org/cli/-/work_items/8168)). Поэтому оба пути проверяем на живом glab в задаче M0, а точное имя JSON-поля фиксируем в тесте с записанным выводом.
+
+### 10.3. Exec-действия
+
+Встроенные glab-действия описываются той же структурой, что будущие custom commands:
+
+```go
+// internal/glab
+
+type Context string // mr | pipeline | job | tag | issue | project
+
+type Action struct {
+    ID       string   // "mr.checkout"
+    Key      string   // "C"
+    Context  Context
+    Command  string   // text/template: "glab mr checkout {{.MR.IID}}"
+    NeedsRepo bool    // нужна локальная папка проекта (cmd.Dir)
+    NeedsGlab bool
+    Refresh  []RefreshKind // что перечитать после выхода: Branch, MR, ...
+}
+
+type TemplateData struct {
+    Host    string
+    Project gitlab.Project
+    MR      *gitlab.MergeRequest
+    Pipeline *gitlab.PipelineSummary
+    Job     *gitlab.Job
+    Tag     *gitlab.Tag
+    Issue   *gitlab.Issue
+}
+
+func (a Action) Cmd(d TemplateData, repoDir string) (*exec.Cmd, error)
+func BuiltinActions() []Action
+```
+
+**Checkout МРа (MVP):**
+
+- `C` на MR в списке MR проекта или в MR detail.
+- Доступно, если glab найден и у проекта есть локальная папка: режим проекта из cwd, проект workspace из LocalDirSource или проект, открытый через `-p`/`p`/`F`, путь которого совпал с одной из известных локальных папок. Иначе действие скрыто.
+- `tea.ExecProcess(exec.Command(glab, "mr", "checkout", iid))` с `cmd.Dir = repo.Root`. TUI отдаёт терминал glab'у, по завершении возвращается.
+- По `ExecFinishedMsg`: перечитываем `.git/HEAD` → обновляются шапка и колонка «Локальная ветка», превью показывает «локально на <branch> → !iid». Код возврата не 0 → тост «glab завершился с ошибкой (код N)», вывод glab пользователь видел в терминале.
+- Подтверждения нет: действие локальное и обратимое (ветку можно сменить обратно). Если в рабочей копии есть изменения, glab сам откажется или спросит.
+
+### 10.4. Локальный git: fetch и pull
+
+git — опциональная зависимость, как glab. При старте выполняется `exec.LookPath("git")`; нет git → `u`/`U` скрыты, колонка ↑↓ пустая.
+
+**Системный git, не go-git.** go-git не учитывает настройки пользователя: credential helpers, `core.sshCommand`, `url.insteadOf`, `includeIf`. Системный git применяет их как есть.
+
+**Действия:**
+
+| Клавиша | Где | Что делает | Подтверждение |
+|---|---|---|---|
+| `u` | workspace, любой таб | `git fetch --prune <remote>` во всех локальных репозиториях workspace: GitLab и серых не-GitLab | нет: меняются только remote-ссылки, рабочие копии не трогаются |
+| `U` | workspace, любой таб | fetch, затем `git merge --ff-only @{u}` в тех же репозиториях | confirm со списком: «обновить 11 репозиториев, пропустить 2 (detached, нет upstream)» |
+| `u` / `U` | режим проекта с локальной папкой | то же для одного репозитория | `U` — confirm |
+
+- Workspace из группы (`GroupSource`) локальных папок не имеет, `u`/`U` там скрыты.
+- `<remote>` — remote, по которому определён проект (обычно `origin`).
+
+**Почему pull только fast-forward.** `merge --ff-only @{u}` вместо `git pull`:
+- не зависит от `pull.rebase` и других настроек pull у пользователя;
+- никогда не создаёт merge-коммит и не оставляет репозиторий в состоянии конфликта.
+
+Разошедшаяся ветка или мешающие локальные изменения — это пропуск с причиной, а не ошибка посреди merge.
+
+**Предпроверки перед `U`.** Читаются из файлов, без git. Репозиторий пропускается (`○`) с причиной, если:
+- detached HEAD;
+- у ветки нет upstream (`branch.<name>.remote`/`merge` в `.git/config`);
+- идёт merge или rebase (`MERGE_HEAD`, `rebase-merge/`, `rebase-apply/`).
+
+**Запуск без терминала.** TUI занимает терминал, поэтому git не должен ничего спрашивать:
+
+- `stdin = /dev/null`, `GIT_TERMINAL_PROMPT=0`;
+- процесс запускается в новой сессии (`SysProcAttr.Setsid`), без управляющего терминала. ssh и credential helpers не могут открыть `/dev/tty` и перехватить ввод TUI: при нехватке авторизации они быстро падают с ошибкой;
+- ssh-agent, Keychain и credential helpers без интерактива работают как обычно;
+- таймаут — `git.timeout` (60 с) на репозиторий, параллельно — `git.parallel` (6). Выход из TUI отменяет все процессы через ctx.
+
+**Результаты:**
+
+| Статус | Глиф | Когда |
+|---|---|---|
+| обновлено | `✓` | fetch прошёл, или pull сдвинул ветку (`✓ +3`) |
+| актуально | `✓` muted | pull: уже на upstream |
+| пропущено | `○` | предпроверки, ветка разошлась (`○ разошлась`), мешают локальные изменения |
+| ошибка | `✗` | авторизация, сеть, таймаут, прочее |
+
+- **stdout и stderr** захватываются, последние 20 строк хранятся для превью строки.
+- **Классификация ошибок:** код возврата и несколько известных шаблонов stderr: `Permission denied`, `could not read Username`, `Host key verification failed` → «нужна авторизация»; `Could not resolve host` → «сеть»; `Not possible to fast-forward` / `diverged` → «разошлась»; `would be overwritten` → «мешают локальные изменения». Всё остальное — последняя строка stderr как есть.
+- **Данные из вывода git не берём.** ↑↓ считаются отдельной командой.
+- **Подсказка** для «нужна авторизация»: «выполни `git fetch` в <папка> вручную (ssh-ключ, known_hosts)».
+
+**Ход операции:**
+- в шапке `⟳ fetch 7/13`, у строк таба «Проекты» `◐`;
+- итоговый тост «fetch: 12 ✓, 1 ✗ (route-planner-ui: нужна авторизация)»;
+- повторный `u` во время операции игнорируется с тостом «fetch уже идёт».
+
+**↑↓ (ahead/behind):**
+- команда — `git rev-list --left-right --count HEAD...@{u}`;
+- считается после каждого fetch/pull и один раз в фоне при старте workspace (локальная операция, параллельно 8);
+- показывается в колонке ↑↓ таба «Проекты» и в шапке режима проекта (`fix/slot-race ↓3`);
+- после pull перечитывается `.git/HEAD`.
+
+**`git.fetch_on_start: true`** — фоновый fetch всех репозиториев при открытии workspace. По умолчанию выключен: сетевые операции только по явной команде.
+
+```go
+// internal/gitexec
+
+type Op int // OpFetch | OpPullFF
+
+type Status int // StatusUpdated | StatusUpToDate | StatusSkipped | StatusFailed
+
+type Result struct {
+    Dir           string
+    Op            Op
+    Status        Status
+    Reason        string   // переводимая причина пропуска или ошибки (ключ i18n)
+    Ahead, Behind int
+    Moved         int      // pull: на сколько коммитов сдвинулась ветка
+    Stderr        []string // последние строки
+}
+
+type Runner interface {
+    // Результаты приходят по мере готовности репозиториев; канал закрывается в конце.
+    Run(ctx context.Context, op Op, repos []gitremote.Repo) <-chan Result
+    AheadBehind(ctx context.Context, repo gitremote.Repo) (ahead, behind int, err error)
+}
+```
+
+В UI канал превращается в `GitProgressMsg{Result}` и `GitDoneMsg{Summary}` по тому же паттерну, что батчи GraphQL (6.3).
+
+### 10.5. После MVP
+
+Всё ниже ложится на `Action`:
+
+- `glab repo clone <path> <workspace>/<name>` из `F` (`Context: project`, `NeedsRepo: false`), затем пересканирование `LocalDirSource`.
+- `glab mr create` (`Context: project`, открывает редактор через ExecProcess).
+- `glab ci lint` перед запуском пайплайна: шаг в Run pipeline, если glab найден.
+- `custom_commands` из конфига: те же `Action` с `ID: "custom.N"`. Валидация при загрузке: шаблон компилируется, контекст известен, `key` не конфликтует со встроенными хоткеями этого контекста (конфликт — ошибка загрузки с понятным текстом, а не тихое переопределение).
+
+---
+
+## 11. Ошибки и пограничные случаи
+
+### 11.1. Ошибки API → сообщения
+
+Слой `gitlab` переводит HTTP и GraphQL ошибки в доменные:
+
+| Ошибка | Признак | Тост | Подсказка |
+|---|---|---|---|
+| `ErrUnauthorized` | 401 | «Токен не принят» | источник токена: config → «обнови token в config.yaml»; env → «проверь GITLAB_TOKEN»; glab → «выполни `glab auth login --hostname <host>`» |
+| `ErrForbidden` | 403 | «Недостаточно прав» | 403 `insufficient_scope` → «у токена нет scope `api` (только чтение)» |
+| `ErrNotFound` | 404, `project: null` | «Не найдено или нет доступа» | — |
+| `ErrConflict` | 409 | merge: «в ветку запушили, обнови (r)»; rebase: «не удалось поставить rebase в очередь» | — |
+| `ErrNotMergeable` | 405, 422 | «Нельзя смержить: <detailed_merge_status>» | — |
+| `ErrRateLimited` | 429 | «GitLab ограничил запросы, повтор через N с» | — |
+| `ErrNetwork` | DNS, TLS, таймаут | «Хост недоступен» / «Ошибка TLS» | TLS → `tls.ca_file` |
+| `ErrComplexity` | GraphQL | не показывается пользователю | обрабатывается батчером |
+
+- **Тосты:** живут 4 с (Error — 8 с), не больше одного одновременно, новый вытесняет старый. Последний тост остаётся в правой части футера до следующего действия.
+- **401 посреди сессии:** поллинг всех экранов останавливается, в шапке появляется `✗ auth`, `r` проверяет токен заново.
+- **Офлайн:**
+  - экраны показывают данные из кэша с пометкой в шапке `⟳ 5m (офлайн)`;
+  - поллинг продолжается с экспоненциальной задержкой до 60 с;
+  - при восстановлении — тост «соединение восстановлено».
+
+### 11.2. Пограничные случаи
+
+| Случай | Поведение |
+|---|---|
+| Пустые списки | Текст пустого состояния с текущими фильтрами: «Нет открытых MR, где ты ревьюер. m — снять фильтр «я»» |
+| Workspace без GitLab-проектов | 2.4 |
+| Проект workspace удалён или нет доступа | Группа «✗ нет доступа» в табах, в «Проектах» серым; не ломает остальные |
+| Две папки с одним проектом | Обе строки в «Проектах», в групповых табах проект один (дедупликация по пути); checkout — в папку текущей строки |
+| Архивный проект | Строка с пометкой `archived`, действия записи (merge, tag…) скрыты |
+| Пайплайн без стейджей или джоб (ошибка YAML) | Pipeline показывает `yaml_errors` из ответа и статус |
+| Bridge без downstream (ещё не создан) | `⇢ <project> · ждёт <stage>`, `enter` недоступен |
+| Downstream в проекте без доступа | `⇢ нет доступа`, `enter` → тост |
+| Джоба без лога (created, skipped) | Job log с текстом «лог пуст: джоба <status>» |
+| Лог очень большой | 5.6 (обрезка начала, `o`) |
+| `ciConfigVariables` вернул `null` | Сервер считает конфиг асинхронно: повтор через 1, 2, 4 с, потом «подсказки недоступны» без блокировки формы |
+| Нет прав Developer для запуска пайплайна, тега | Действие видно; ответ 403 → тост «недостаточно прав» |
+| Protected tag | Удаление → 403 → «тег защищён» |
+| Нет semver-тегов | Предложение `v0.1.0`; есть только тег без `v` → сохраняем стиль (`1.2.3` → `1.2.4`) |
+| Последний тег — prerelease (`v1.14.0-rc2`) | База — последний не-prerelease; в Select добавляется вариант «release v1.14.0» |
+| Rebase долго в процессе | Чип `◐ rebase…`, поллинг 2 с до 2 мин, потом тост «rebase ещё идёт» и обычный поллинг |
+| Узкий терминал (< 80) | Сообщение «расширь терминал до 80×24», без попытки отрисовать |
+| Смена ветки снаружи TUI | `.git/HEAD` перечитывается на каждом обновлении экрана (`r`, тики), дешёвое чтение файла |
+| Группа в `F` с > 100 проектов | Берутся 100 самых активных, в шапке «показаны 100 из 342» |
+
+---
+
+## 12. Тестирование
+
+### 12.1. Модульные тесты (без сети)
+
+| Пакет | Что проверяем |
+|---|---|
+| `gitremote` | Фикстуры каталогов в `testdata/`: обычный `.git`, worktree (`commondir`), сабмодуль, detached HEAD, нет origin, несколько remote, все формы URL (2.5), relative URL root, `host_aliases`, сканер (скрытые папки, симлинки, папки без `.git`) |
+| `config` | Чтение и запись с сохранением комментариев, права 0600, цепочка хоста и токена с подменой env и фейковым glab |
+| `glab` | Фейковый бинарь glab (скрипт в `testdata`, путь через `glab.path`): токен из `config get`, запасной путь через `auth status --output json`, таймаут, нет glab; рендер шаблонов `Action` |
+| `gitexec` | Настоящий git во временных каталогах: bare-репозиторий как remote, клоны с новыми коммитами, разошедшейся веткой, грязной рабочей копией, detached HEAD, без upstream. Проверяются статусы, причины, ↑↓, таймаут, отмена; процесс без терминала не зависает на запросе пароля (remote с недоступным ssh-хостом) |
+| `gitlab/graphql` | Сборка батч-запроса (алиасы, переменные, длина < 10 000), разбор ответа с `null`-проектом и частичными ошибками, адаптация размера пачки по ошибке сложности |
+| `gitlab/rest` | `httptest.Server` с JSON-фикстурами: маппинг в доменные типы, пагинация, маппинг ошибок (11.1), выбор `auto_merge`/`merge_when_pipeline_succeeds` по версии |
+| `cache` | TTL, SWR (отдать stale + один фоновый запрос), инвалидация |
+| `i18n` | Плюрализация RU (0, 1, 2, 5, 11, 12, 21, 22, 25, 111), полнота `Messages` через reflection, относительное время |
+| `joblog` | Секции (вложенные, `collapsed=true`, без закрытия), `\r`, вырезание не-SGR, инкрементальный разбор (результат по кускам = результат целиком), поиск |
+| `semver` | Предложения patch/minor/major, префикс `v`, prerelease, мусорные теги |
+| `ui/common` | Футер по приоритетам на разных ширинах (en/ru), `NewStyles` не паникует на `Theme` с nil-цветами |
+
+### 12.2. UI-тесты (`teatest`)
+
+- **Инструменты:**
+  - `teatest` для Bubble Tea v2 (`github.com/charmbracelet/x/exp/teatest/v2`, проверить путь в M0);
+  - фейковый клиент `internal/gitlab/fake`: in-memory данные, сценарные задержки и ошибки на вызов, журнал вызовов.
+- **Golden-файлы:** фиксированный размер 120×40, профиль цвета Ascii (стабильно), отдельный набор на 80×24.
+- **Сценарии:**
+  - старт в режиме проекта → MRs отрисованы → `2` → Pipelines → `enter` → Pipeline → `enter` → Job log → `esc esc` → снова Pipelines;
+  - generation counter: смена фильтра при медленном первом ответе → на экране результат второго;
+  - поллинг: экран под стеком не делает запросов (журнал фейка);
+  - workspace: пачки приходят в обратном порядке → группы стоят по активности; проект с `null` → строка «нет доступа»;
+  - `f` в workspace → Project с тем же табом → `esc` → курсор и свёрнутые группы на месте;
+  - `M` → диалог → `enter` → вызов `Merge` с `sha`; 409 → тост;
+  - `ctrl+l` → футер и заголовки на русском, открытая форма huh тоже;
+  - без glab: `C` нет в футере и хелпе; с фейковым glab — `ExecProcess` вызван с `iid` и `Dir`;
+  - 401 → тост с подсказкой по источнику токена.
+
+### 12.3. Ручная проверка
+
+Перед закрытием M3, чек-лист в `docs/TASKS.md`:
+
+- светлая и тёмная тема терминала (iTerm2/Ghostty/Terminal.app), `NO_COLOR=1`;
+- 80×24 и широкий экран;
+- реальный self-hosted инстанс и gitlab.com;
+- glab с токеном в файле и в keyring.
+
+---
+
+## 13. Принятые допущения и открытые вопросы
+
+### 13.1. Принятые допущения
+
+1. **Bubble Tea v2** (и v2 всей экосистемы Charm). Обоснование — 6.2.
+2. **GraphQL — свой тонкий клиент**, не genqlient. Обоснование — 5.1.
+3. **Фильтр по проекту в workspace сливается с режимом проекта.** Обоснование — 2.7.
+4. **Хоткеи:**
+   - `m` — фильтр «я» везде, `M` — merge с выбором «сейчас / auto-merge» в диалоге;
+   - checkout — `C`, язык — `ctrl+l`;
+   - в Pipeline `h/l` — стейджи, лог — `enter`; в списке пайплайнов `l` — лог упавшей джобы.
+5. **Списки MR и пайплайнов идут через GraphQL в обоих режимах.** REST-списки не отдают head pipeline, апрувы и длительность, которые нужны в колонках. Один фрагмент на оба режима. Остальное (детали пайплайна, лог, теги, issues, мутации) — REST.
+6. **Теги — только REST** (в GraphQL нет списка тегов). Workspace Tags делает до 2 REST-запросов на проект, параллельно не больше 4.
+7. **«Ждут меня»** в табе «Проекты» = открытые MR, где я ревьюер. Фильтр «я» в табах = автор ∪ assignee ∪ ревьюер, как в макете.
+8. **Размер страницы режима проекта — 20** (бриф: «10+»): заполняет экран при той же цене запроса. Настраивается через `project.page_size`.
+9. **Один инстанс за запуск.** Remote на другой хост — экран 2.4, а не переключение инстанса.
+10. **SSH-алиасы** поддерживаются только через `host_aliases` в конфиге. `~/.ssh/config` и `url.insteadOf` не разбираем.
+11. **Workspace из группы** ограничен 100 самыми активными проектами без архивных.
+12. **Подтверждения:**
+    - confirm-модалка: merge, cancel, delete tag, rebase, close issue, создание тега;
+    - run pipeline и play job подтверждаются своей формой;
+    - approve и checkout — без подтверждения (обратимы).
+13. **Формы:**
+    - переменные в Run pipeline редактируются как таблица (`a`/`d`/`enter`), а не через `ctrl+a`/`ctrl+d` из макета: конфликт с readline;
+    - версия тега выбирается в Select, а не через `ctrl+n`/`ctrl+j`: `ctrl+j` — это Enter.
+14. **Комментарий к MR** (общий, не к строке) делаем в M3 вместе с комментариями issue: тот же компонент.
+15. **Минимальная версия GitLab** — 16.0. Auto-merge выбирает параметр по версии (5.5).
+16. **Лог:** полный `GET /trace` каждые 3 с с разбором только хвоста. Обрезка в памяти — 50 000 строк.
+17. **Диски:** на диск пишутся только конфиг, `state.json` (недавние) и кэш starred и метаданных workspace. Данные MR, пайплайнов и логов на диск не попадают.
+18. **Макеты** задают раскладку и тексты, а не цвета. Цвета — по разделу 9.
+19. **Fetch и pull:**
+    - через системный git, pull только fast-forward (`merge --ff-only @{u}`);
+    - fetch затрагивает и серые не-GitLab репозитории: это локальный git, к GitLab API он не относится;
+    - процессы запускаются без терминала, авторизация — только неинтерактивная (agent, keychain, helpers);
+    - хоткеи `u`/`U` не заняты ни в одном контексте. `f`/`p`, привычные по lazygit, у нас уже заняты фильтром и picker'ом (раздел 10.4).
+
+### 13.2. Открытые вопросы
+
+Ни один не блокирует M0, все проверяются по ходу.
+
+1. **Muted = ANSI 8** в Solarized Dark совпадает с фоном (base03). Варианты: Faint вместо цвета 8, либо переопределение роли в конфиге (это уже кастомные темы). Решить после проверки на нескольких темах в M3.
+2. **Точная команда токена glab** и имя JSON-поля в `auth status --output json`, поведение при баге keyring (cli#8168) — проверить на живом glab в M0, задача T02.
+3. **Путь модуля `teatest` для v2** — проверить в M0, T09.
+4. **Поле `queryComplexity`** — есть ли на целевом self-hosted инстансе. Если нет, остаётся адаптация по ошибке.
+5. **Правило «ждут меня»** — нужен ли ещё фильтр «я ещё не апрувил». В GraphQL это либо отдельный аргумент фильтра (если инстанс поддерживает), либо фильтрация на клиенте по загруженным MR.

@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/s… @egor · ⟳ <1m
+ 1 MRs 6   2 Pipelines   3 Issues   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  state:opened  scope:all  reviewer:any  draft:any  labels:any           6 of 6
+  IID    Title                                    Author    Pipeline  Appr   Upd
+────────────────────────────────────────────────────────────────────────────────
+› !471   Draft: Fix race in courier slot alloca…  anna.k    ◐          1/2    7m
+  !472   Add surge pricing to estimator ⚠ confl…  bob       ✗          1/2   14m
+  !473   Bump grpc to 1.64                        maria.s   ✓            2   21m
+  !474   Refactor dispatch queue                  anna.k    —          0/2   28m
+  !475   Fix flaky TestSlotRelease                bob       —          1/2   35m
+  !476   Document the route-service API           maria.s   —          1/2   42m
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  a approve  M merge  s state  ? help      poll 3s

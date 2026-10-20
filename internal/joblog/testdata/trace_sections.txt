@@ -1,0 +1,15 @@
+Running with gitlab-runner 17.0.0
+section_start:1700000000:prepare_executor[0K[0KPreparing the "docker" executor
+Using Docker executor with image golang:1.26 ...
+section_end:1700000003:prepare_executor[0K
+section_start:1700000003:step_script[collapsed=true][0K[36;1mExecuting "step_script" stage[0;m
+[32;1m$ go mod download[0;m
+section_start:1700000004:deps[0K[33mdownloading dependencies[0m
+10%50%100%
+[1A[2K]0;window titlecursor moves are dropped
+Привет, мир ✓ unicode
+timeout while fetching module
+section_end:1700000009:deps[0Ksection_end:1700000010:step_script[0K
+section_start:1700000010:never_closed[0KUnclosed section
+[31;1mERROR: Job failed: exit code 1[0;m
+last line without newline
