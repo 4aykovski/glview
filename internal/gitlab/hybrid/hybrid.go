@@ -6,6 +6,7 @@ package hybrid
 import (
 	"context"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/graphql"
 	"github.com/4aykovski/glview/internal/gitlab/rest"
@@ -13,9 +14,10 @@ import (
 
 // Client implements gitlab.Client over both transports.
 type Client struct {
-	rest *rest.Client
-	gql  *graphql.Client
-	me   string
+	rest  *rest.Client
+	gql   *graphql.Client
+	me    string
+	cache *cache.Cache // default branches and latest tags of workspace projects
 }
 
 var _ gitlab.Client = (*Client)(nil)
@@ -23,7 +25,16 @@ var _ gitlab.Client = (*Client)(nil)
 // New returns a client for the current user me (username): it is needed for
 // "@me", the "me" filter and the "approved by me" flag.
 func New(r *rest.Client, g *graphql.Client, me string) *Client {
-	return &Client{rest: r, gql: g, me: me}
+	return &Client{rest: r, gql: g, me: me, cache: cache.New()}
+}
+
+// WithCache makes the client keep its workspace caches (default branches,
+// latest tags) in c, shared with the UI.
+func (c *Client) WithCache(cc *cache.Cache) *Client {
+	if cc != nil {
+		c.cache = cc
+	}
+	return c
 }
 
 func (c *Client) Users() gitlab.UserService        { return c.rest.Users() }

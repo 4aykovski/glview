@@ -143,3 +143,20 @@ func (c *Cache) Invalidate(prefix string) {
 		}
 	}
 }
+
+// Lookup returns the cached value of key if it is younger than ttl,
+// without fetching or revalidating.
+func Lookup[T any](c *Cache, key string, ttl time.Duration) (T, bool) {
+	var zero T
+	if c == nil {
+		return zero, false
+	}
+	c.mu.Lock()
+	e, ok := c.entries[key]
+	c.mu.Unlock()
+	if !ok || c.now().Sub(e.at) >= ttl {
+		return zero, false
+	}
+	v, ok := e.value.(T)
+	return v, ok
+}

@@ -644,6 +644,7 @@ type ProjectOverview struct {
     ReviewMRs int                 // открытые MR, где я ревьюер («ждут меня»)
     DefaultPipeline *PipelineSummary // последний пайплайн default-ветки (фаза 2); nil — нет или неизвестно
     LastTag   string              // последний тег (фаза 2, REST); "" — нет
+    TagKnown  bool                // тег уже запрошен (пустой LastTag — тегов нет)
     Phase     int                 // 1 или 2: какие поля уже заполнены
 }
 

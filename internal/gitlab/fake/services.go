@@ -253,6 +253,9 @@ func matchMR(mr gitlab.MergeRequest, f gitlab.MRFilter, me string) bool {
 	if f.Search != "" && !strings.Contains(strings.ToLower(mr.Title), strings.ToLower(f.Search)) {
 		return false
 	}
+	if f.SourceBranch != "" && mr.SourceBranch != f.SourceBranch {
+		return false
+	}
 	return true
 }
 

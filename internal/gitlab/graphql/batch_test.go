@@ -41,7 +41,7 @@ func mrSpec() BatchSpec[mrRow] {
 		FragmentName: "WsMRGroup",
 		VarDecls:     "$first: Int!",
 		Vars:         map[string]any{"first": 3},
-		Decode: func(raw json.RawMessage) ([]mrRow, int, error) {
+		Decode: func(_ string, raw json.RawMessage) ([]mrRow, int, error) {
 			var p struct {
 				MergeRequests struct {
 					Count int     `json:"count"`

@@ -31,6 +31,13 @@ type Client struct {
 	calls  []Call
 	hooks  map[string][]func(n int)
 	data   data
+
+	// Workspace and search data (workspace.go).
+	projDelay     map[string]time.Duration
+	batchSize     int
+	starred       []string
+	groups        []gitlab.Group
+	groupProjects map[int64][]string
 }
 
 var _ gitlab.Client = (*Client)(nil)
@@ -46,6 +53,8 @@ func New() *Client {
 		errs:           map[string][]error{},
 		hooks:          map[string][]func(n int){},
 		data:           newData(),
+		projDelay:      map[string]time.Duration{},
+		groupProjects:  map[int64][]string{},
 	}
 }
 
