@@ -626,18 +626,30 @@ func (s jobService) Retry(ctx context.Context, p gitlab.ProjectRef, id int64) (g
 	nj.ID = s.c.data.nextJobID
 	nj.Status = gitlab.StatusPending
 	nj.Duration = 0
-	nj.Attempts = append([]gitlab.Job{*old}, old.Attempts...)
-	nj.Attempts[0].Attempts = nil
-	for i := range s.c.data.pipes[path] {
-		pl := &s.c.data.pipes[path][i]
+	nj.Attempts = nil
+	// As in GitLab, the new job becomes the latest attempt of its name even
+	// when an earlier attempt is retried; the previous latest one moves to
+	// the attempts.
+	if latest := s.c.latestAttempt(path, id); latest != nil {
+		nj.Attempts = latest.AllAttempts()
+		*latest = nj
+	}
+	return nj, nil
+}
+
+// latestAttempt finds the latest attempt of the job one of whose attempts
+// has the given ID; nil for a bridge or an unknown ID.
+func (c *Client) latestAttempt(path string, id int64) *gitlab.Job {
+	for i := range c.data.pipes[path] {
+		pl := &c.data.pipes[path][i]
 		for j := range pl.Jobs {
-			if pl.Jobs[j].ID == id {
-				pl.Jobs[j] = nj
-				return nj, nil
+			job := &pl.Jobs[j]
+			if job.ID == id || slices.ContainsFunc(job.Attempts, func(a gitlab.Job) bool { return a.ID == id }) {
+				return job
 			}
 		}
 	}
-	return nj, nil
+	return nil
 }
 
 func (s jobService) Cancel(ctx context.Context, p gitlab.ProjectRef, id int64) error {
