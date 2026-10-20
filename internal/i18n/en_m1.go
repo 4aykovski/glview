@@ -29,6 +29,7 @@ func fillM1EN(m *Messages) {
 	k.PrevNextAttempt = "prev/next attempt"
 	k.State, k.Status, k.Reset = "state", "status", "reset filters"
 	k.BrowserList, k.BrowserOne, k.BrowserJob = "list in browser", "pipeline in browser", "job in browser"
+	k.BrowserMR = "MR in browser"
 	k.Find = "find in log"
 	k.Comment = "comment"
 	k.Threads = "threads"

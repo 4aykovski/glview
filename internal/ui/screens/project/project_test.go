@@ -307,9 +307,13 @@ func TestMRsOpenAndCopy(t *testing.T) {
 	var opened string
 	env.Browser = func(u string) error { opened = u; return nil }
 	d := uitest.New(t, app.New(env, New(env, path, nil), app.Options{}))
-	d.Key("o")
+	d.Key("O")
 	if opened != "https://gitlab.example.com/"+path+"/-/merge_requests/1" {
 		t.Fatalf("opened %q", opened)
+	}
+	d.Key("o")
+	if opened != "https://gitlab.example.com/"+path+"/-/merge_requests" {
+		t.Fatalf("o opens the list: %q", opened)
 	}
 	d.Key("y")
 	d.RequireView("copied: …/merge_requests/1")
