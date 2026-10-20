@@ -173,6 +173,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `c` комментарий (M3) |
 | Таб MRs (список) | `o` список MR проекта в браузере с текущими фильтрами, `O` выделенный MR в браузере, `y` копировать ссылку выделенного MR |
 | MR detail, вкладка Discussions | `J/K` следующий/предыдущий тред (текущий — толстая рамка Accent), `j/k` построчно, `space` свернуть/развернуть текущий тред (на других вкладках `space` листает, `pgdown`/`ctrl+d` листают везде), `o` открыть текущий тред в браузере (`<ссылка MR>#note_<id>` первой заметки), `y` копировать эту ссылку |
+| MR detail, вкладка Commits | `j/k` коммит, `o` выделенный коммит в браузере (`<проект>/-/commit/<sha>`), `y` копировать эту ссылку |
 | Pipelines (список) | `enter` пайплайн, `l` лог первой упавшей (иначе running) джобы, `n` новый пайплайн, `R` retry, `c` cancel, `o` список пайплайнов проекта в браузере с текущими фильтрами, `O` выделенный пайплайн в браузере |
 | Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `a` попытки джобы, `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
 | Job log | `f` follow, `space` свернуть секцию, `z` свернуть/развернуть все, `/` поиск, `n/N` следующее/предыдущее совпадение, `g/G`, `a` попытки джобы, `[`/`]` предыдущая/следующая попытка, `R` retry, `c` cancel |
@@ -193,7 +194,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | Где | В макете | В MVP |
 |---|---|---|
 | Список MR | `d` diff | убран (диффы после MVP) |
-| Детали MR | вкладки Diff, Commits | только Overview, Discussions, Pipelines |
+| Детали MR | вкладка Diff | убрана (диффы после MVP), есть Overview, Discussions, Pipelines, Commits |
 | Pipeline | `a` артефакты | убран |
 | Issues | `n` новая, `L` labels, `A` assign, `b` ветка+MR | убраны |
 | Project picker | `ctrl+s` star | убран |
@@ -309,7 +310,13 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
     - **HTML в комментариях:** перед рендером тело переводится в markdown (боты пишут HTML): `<table>` — таблица, `<br>` — перенос, `<details><summary>X` — `▸ X` и содержимое, `<b>/<i>/<code>/<a href>` — разметка, прочие теги вырезаются с сохранением текста; соседние ячейки не склеиваются.
     - **Сворачивание:** свёрнутый тред — одна строка: заголовок первой заметки, её первая строка текста и `N ответов`. По умолчанию свёрнуты разрешённые треды и треды с телом первой заметки длиннее 20 строк; выбор пользователя сохраняется при обновлении данных.
   - **Pipelines:** пайплайны MR, `enter` → Pipeline.
-- **Действия:** `a`, `M`, `b`, `C`, `o`, `y`, `c` (M3).
+  - **Commits:** коммиты MR таблицей: short SHA (Accent), заголовок коммита (тянется), автор (`AuthorName`), «когда» (`CreatedAt`, относительное время). Порядок — как отдаёт API, новые сверху (как в вебе); клиент не пересортировывает.
+    - **Заголовок вкладки:** `Commits N`; N — длина загруженного списка, до загрузки — `MergeRequest.CommitCount` из деталей MR, если он больше 0, иначе без числа.
+    - **Загрузка лениво:** при первом переходе на вкладку. Дальше перезапрос только при `r` и когда head SHA MR (`MergeRequest.SHA` из очередного ответа деталей) отличается от SHA, при котором коммиты запрашивались; тики поллинга сами коммиты не запрашивают. Пока вкладку не открывали, ни `r`, ни смена SHA коммиты не запрашивают.
+    - **Загрузка, пусто, ошибка** — как на вкладке Pipelines: строка загрузки в таблице, `Нет коммитов` / `No commits`, ошибка — тостом; после ошибки повторный переход на вкладку или `r` запрашивают снова.
+    - **Клавиши:** `j/k`, `g/G`, листание — как в других таблицах; `enter` ничего не делает (диффы после MVP) и в футере не показывается; `o` — выделенный коммит в браузере, `y` — копировать его ссылку. Пока список пуст или не загружен, `o`/`y` работают со ссылкой MR.
+    - **Ссылка коммита:** `<проект>/-/commit/<sha>`, где `<проект>` — `MergeRequest.WebURL` до `/-/merge_requests/`; если так не выделить — URL инстанса + `/` + полный путь проекта.
+- **Действия:** `a`, `M`, `b`, `C`, `o`, `y`, `c` (M3). `o`/`y` на Discussions — текущий тред, на Commits — выделенный коммит, на остальных вкладках — MR.
 - **Перепроверка `unchecked`:** GitLab считает `detailed_merge_status` лениво, чтение через GraphQL пересчёт не запускает, и открытый MR может долго висеть в `unchecked`. Если у открытого MR (state opened) статус `unchecked`, экран один раз за время жизни на ключ `iid@sha` просит GitLab пересчитать его (`RecheckMergeStatus`); ответ `checking` сразу обновляет чип. Пока статус `unchecked`/`checking`/`preparing`, MR опрашивается раз в `polling.active` (3 с), но не дольше 60 с с момента запроса; потом обычный интервал. Ошибка перепроверки (в т.ч. нет прав) пользователю не показывается, только debug-лог. Список MR не перепроверяет.
 - **Поллинг:** пока экран на вершине — 3 с при running-пайплайне, rebase в процессе или перепроверке статуса (до 60 с), иначе 30 с.
 
@@ -486,6 +493,7 @@ type MergeRequest struct {
     Approvals      Approvals
     Discussions    DiscussionStats
     Diff           *DiffStats // additions, deletions, files; может отсутствовать
+    CommitCount    int        // только в деталях (commitCount); 0 — неизвестно
     WebURL         string
     CreatedAt      time.Time
     UpdatedAt      time.Time
@@ -712,7 +720,8 @@ type LocalProject struct {
 | Project → Pipelines | GraphQL `project{pipelines(ref?, status?, source?, username?, first: 20, after){pageInfo nodes{…PipelineRow}}}`; превью — `pipeline(iid){stages{nodes{name detailedStatus{group} jobs{count}}}}` по выбранной строке |
 | Project → Issues | REST `GET /projects/:id/issues?state&assignee_username&labels&milestone&search&per_page=20&page`; превью — `GET /issues/:iid/notes?sort=asc&per_page=20`, `GET /issues/:iid/related_merge_requests` (лениво) |
 | Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100`; превью — `GET /repository/compare?from=<tag>&to=<default>` |
-| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}` (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
+| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
+| MR detail → Commits | REST `GET /projects/:id/merge_requests/:iid/commits?per_page=100`, все страницы (`id short_id title author_name created_at` → `CommitSummary`); лениво, при первом открытии вкладки (3.5). REST, а не GraphQL `mergeRequest{commits}`: так же устроены discussions, и `CommitSummary` уже собирается из REST (теги) |
 | Перепроверка статуса MR | REST `GET /merge_requests/:iid?with_merge_status_recheck=true` → `detailed_merge_status` (запускает пересчёт, обычно возвращает `checking`; роль ниже Developer GitLab игнорирует). Единственное чтение деталей MR через REST |
 | approve / unapprove | REST `POST /merge_requests/:iid/approve` (`sha`), `POST …/unapprove` |
 | merge | REST `PUT /merge_requests/:iid/merge` (`sha`, `squash`, `should_remove_source_branch`, `auto_merge` или `merge_when_pipeline_succeeds`) |
@@ -957,6 +966,8 @@ type MergeRequestService interface {
     Get(ctx context.Context, p ProjectRef, iid int64) (MergeRequest, error)
     Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
     Pipelines(ctx context.Context, p ProjectRef, iid int64) ([]PipelineSummary, error)
+    // Commits returns all commits of the MR, newest first (REST, all pages).
+    Commits(ctx context.Context, p ProjectRef, iid int64) ([]CommitSummary, error)
     Approve(ctx context.Context, p ProjectRef, iid int64, sha string) error
     Unapprove(ctx context.Context, p ProjectRef, iid int64) error
     Merge(ctx context.Context, p ProjectRef, iid int64, o MergeOptions) (MergeRequest, error)
