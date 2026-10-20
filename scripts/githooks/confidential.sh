@@ -9,8 +9,10 @@
 #
 # Two kinds of checks:
 #   1. the local denylist .confidential-patterns (gitignored: it names the
-#      things that must not leak, so it never leaves the machine), one
-#      case-insensitive extended regex per line, '#' starts a comment;
+#      things that must not leak, so it never leaves the machine), one entry
+#      per line, '#' starts a comment: a case-insensitive extended regex, or
+#      "=word" for a fixed string matched as a whole word (fast; use it for
+#      logins and project names);
 #   2. built-in generic checks: tokens and keys, e-mail addresses outside
 #      the allowlist, URLs of internal hosts.
 #
@@ -34,8 +36,10 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 patterns="$tmp/patterns"
+words="$tmp/words"
 hits="$tmp/hits" # scan runs in pipeline subshells, so findings go to a file
-grep -v -E '^[[:space:]]*(#|$)' "$denylist" >"$patterns" || true
+grep -v -E '^[[:space:]]*(#|$|=)' "$denylist" >"$patterns" || true
+{ grep -E '^=' "$denylist" || true; } | cut -c2- | { grep -v -E '^[[:space:]]*$' || true; } >"$words"
 
 # Built-in secret shapes. Obvious test fakes (glpat-xxxx…, glpat-test-…) pass.
 secret_re='(gl(pat|ptt|dt|rt|cbt|imt|agent|oas|ft|soat)-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|xox[abposr]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)'
@@ -54,6 +58,39 @@ emit() { # input file, reason
 		}' - "$1"
 }
 
+# word_hits prints numbers of lines containing a denylisted "=word": tokens
+# of [a-z0-9._/-] are looked up whole and by their "/"- and "-"-separated
+# runs ("team/app/billing-api-v2" finds "team/app" and "billing-api"). BSD
+# grep -F -w is too slow for hundreds of words, awk hashes are instant.
+word_hits() {
+	awk -v W="$words" '
+		function has(s,   p, n, a, b, x) {
+			if (s in w) return 1
+			n = split(s, p, "-")
+			for (a = 1; a <= n; a++) {
+				x = p[a]
+				if (x in w) return 1
+				for (b = a + 1; b <= n; b++) { x = x "-" p[b]; if (x in w) return 1 }
+			}
+			return 0
+		}
+		BEGIN { while ((getline l < W) > 0) w[tolower(l)] = 1 }
+		{
+			n = split(tolower($0), t, /[^a-z0-9._\/-]+/)
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+				gsub(/^[._\/-]+|[._\/-]+$/, "", tok)
+				if (tok == "") continue
+				m = split(tok, seg, "/")
+				for (a = 1; a <= m; a++) {
+					x = seg[a]
+					if (has(x)) { print NR; next }
+					for (b = a + 1; b <= m; b++) { x = x "/" seg[b]; if (has(x)) { print NR; next } }
+				}
+			}
+		}' "$1"
+}
+
 # scan reads "location<TAB>text" lines; "authors" checks the denylist only
 # (an author's own e-mail is not a leak).
 scan() {
@@ -64,6 +101,9 @@ scan() {
 	cut -f2- "$in" >"$text"
 	if [[ -s "$patterns" ]]; then
 		{ grep -n -i -E -f "$patterns" "$text" || true; } | cut -d: -f1 | emit "$in" "matches .confidential-patterns"
+	fi
+	if [[ -s "$words" ]]; then
+		word_hits "$text" | emit "$in" "matches .confidential-patterns"
 	fi
 	[[ "${1:-}" == authors ]] && return 0
 	{ grep -n -o -E "$secret_re" "$text" || true; } | { grep -v -i -E "$fake_re" || true; } | cut -d: -f1 | emit "$in" "looks like a secret"
