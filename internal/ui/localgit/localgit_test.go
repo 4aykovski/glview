@@ -79,3 +79,53 @@ func TestABText(t *testing.T) {
 		t.Fatal("ab text")
 	}
 }
+
+// counts runs the commands of CountAheadBehind and returns their messages
+// without handling them.
+func counts(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, counts(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
+}
+
+func TestStaleAheadBehindIsDropped(t *testing.T) {
+	r := gittest.New()
+	dir := "/src/route-service"
+	r.AB[dir] = [2]int{0, 0}
+	tr := New(r)
+	repos := []*gitremote.Repo{{Root: dir}}
+
+	// A count starts before the fetch and arrives after it.
+	stale := counts(tr.CountAheadBehind(repos))
+	r.AB[dir] = [2]int{0, 3}
+	drain(t, tr, tr.Start(gitexec.OpFetch, repos))
+	if ab := tr.AheadBehind(dir); !ab.Known || ab.Behind != 3 {
+		t.Fatalf("after fetch = %+v", ab)
+	}
+	for _, msg := range stale {
+		if ok, _, _ := tr.Handle(msg); !ok {
+			t.Fatalf("unexpected %T", msg)
+		}
+	}
+	if ab := tr.AheadBehind(dir); !ab.Known || ab.Behind != 3 {
+		t.Fatalf("a stale count changed ↑↓: %+v", ab)
+	}
+
+	// A count started after the fetch applies.
+	r.AB[dir] = [2]int{1, 0}
+	for _, msg := range counts(tr.CountAheadBehind(repos)) {
+		tr.Handle(msg)
+	}
+	if ab := tr.AheadBehind(dir); ab.Ahead != 1 || ab.Behind != 0 {
+		t.Fatalf("fresh count = %+v", ab)
+	}
+}

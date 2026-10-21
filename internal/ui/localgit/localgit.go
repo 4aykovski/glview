@@ -38,10 +38,13 @@ type (
 		tok common.Token
 		Op  gitexec.Op
 	}
-	// AheadBehindMsg carries a local ahead/behind count.
+	// AheadBehindMsg carries a local ahead/behind count. gen is the
+	// folder's generation when the count started: a fetch or pull of the
+	// folder since then makes it stale.
 	AheadBehindMsg struct {
 		Dir string
 		AB  AB
+		gen int
 	}
 )
 
@@ -59,13 +62,14 @@ type Tracker struct {
 	repos       map[string]*gitremote.Repo
 	results     map[string]gitexec.Result // last result per folder
 	ab          map[string]AB
+	abGen       map[string]int   // per folder: bumped by every fetch/pull of it
 	run         []gitexec.Result // results of the running (or last) operation
 }
 
 // New creates a tracker; runner may be nil.
 func New(runner gitexec.Runner) *Tracker {
 	return &Tracker{runner: runner, gen: common.NewGen(), pending: map[string]bool{},
-		repos: map[string]*gitremote.Repo{}, results: map[string]gitexec.Result{}, ab: map[string]AB{}}
+		repos: map[string]*gitremote.Repo{}, results: map[string]gitexec.Result{}, ab: map[string]AB{}, abGen: map[string]int{}}
 }
 
 // Available reports whether git can be used (u/U are hidden otherwise).
@@ -116,6 +120,7 @@ func (t *Tracker) Start(op gitexec.Op, repos []*gitremote.Repo) tea.Cmd {
 	for i, r := range repos {
 		t.pending[r.Root] = true
 		t.repos[r.Root] = r
+		t.abGen[r.Root]++ // counts started before the operation are stale
 		list[i] = *r
 	}
 	return listen(tok, op, t.runner.Run(ctx, op, list))
@@ -156,12 +161,12 @@ func (t *Tracker) CountAheadBehind(repos []*gitremote.Repo) tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(repos))
 	for _, r := range repos {
 		t.repos[r.Root] = r
-		repo := *r
+		repo, gen := *r, t.abGen[r.Root]
 		cmds = append(cmds, func() tea.Msg {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			a, b, err := runner.AheadBehind(context.Background(), repo)
-			return AheadBehindMsg{Dir: repo.Root, AB: AB{Ahead: a, Behind: b, Known: err == nil}}
+			return AheadBehindMsg{Dir: repo.Root, AB: AB{Ahead: a, Behind: b, Known: err == nil}, gen: gen}
 		})
 	}
 	return tea.Batch(cmds...)
@@ -180,6 +185,7 @@ func (t *Tracker) Handle(msg tea.Msg) (ok, done bool, cmd tea.Cmd) {
 		}
 		r := msg.Result
 		t.done++
+		t.abGen[r.Dir]++ // the result carries fresher counts than any running one
 		delete(t.pending, r.Dir)
 		t.results[r.Dir] = r
 		t.run = append(t.run, r)
@@ -200,6 +206,9 @@ func (t *Tracker) Handle(msg tea.Msg) (ok, done bool, cmd tea.Cmd) {
 		t.pending = map[string]bool{}
 		return true, true, nil
 	case AheadBehindMsg:
+		if msg.gen != t.abGen[msg.Dir] {
+			return true, false, nil // counted before a fetch or pull of the folder
+		}
 		t.ab[msg.Dir] = msg.AB
 		return true, false, nil
 	}
