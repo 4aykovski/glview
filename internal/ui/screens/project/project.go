@@ -32,11 +32,7 @@ type shared struct {
 // projectURL is the project page in the web UI without a trailing slash:
 // webURL, or the instance URL and the full path until the project loads.
 func (sh *shared) projectURL() string {
-	base := sh.webURL
-	if base == "" {
-		base = strings.TrimRight(sh.env.Host, "/") + "/" + sh.ref.FullPath
-	}
-	return strings.TrimRight(base, "/")
+	return sh.env.ProjectURL(sh.webURL, sh.ref.FullPath)
 }
 
 // tab is one tab of the project screen.

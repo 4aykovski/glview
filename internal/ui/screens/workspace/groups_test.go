@@ -6,8 +6,11 @@ import (
 	"time"
 
 	"github.com/4aykovski/glview/internal/gitlab"
+	"github.com/4aykovski/glview/internal/gitlab/fake"
+	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common/grouped"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
+	"github.com/4aykovski/glview/internal/ui/uitest"
 	"github.com/4aykovski/glview/internal/workspace"
 )
 
@@ -213,4 +216,45 @@ func TestGoldenGroupTabs(t *testing.T) {
 	d.RequireGoldenSizes("mrs")
 	d.Key("3")
 	d.RequireGoldenSizes("pipelines")
+}
+
+func openGroup(t *testing.T, client *fake.Client, limit int) (*uitest.Driver, *Screen) {
+	t.Helper()
+	env := newEnv(client)
+	env.Settings.MaxGroupProjects = limit
+	scr := NewGroup(env, gitlab.Group{ID: 9, FullPath: "platform"})
+	return uitest.New(t, app.New(env, scr, app.Options{})), scr
+}
+
+func TestGroupListErrorRetries(t *testing.T) {
+	client := newFake()
+	client.AddGroup(gitlab.Group{ID: 9, FullPath: "platform"}, "platform/route-service", "platform/routing-engine")
+	client.FailNext("Projects.ListGroupProjects", &gitlab.Error{Kind: gitlab.ErrServer, Message: "502 Bad Gateway"})
+	d, scr := openGroup(t, client, 0)
+	d.RequireView("group: platform · workspace · ✗ could not load, r — retry")
+	d.RequireNoView("platform/route-service")
+	if client.CallCount("Workspace.ProjectsOverview") != 0 {
+		t.Fatal("no overview without the list")
+	}
+	d.Key("r")
+	if n := client.CallCount("Projects.ListGroupProjects"); n != 2 {
+		t.Fatalf("r must reload the list: %d calls", n)
+	}
+	d.RequireView("group: platform · workspace · 2 projects", "platform/route-service", "platform/routing-engine")
+	d.RequireNoView("could not load")
+	if !scr.sh.ready || client.CallCount("Workspace.ProjectsOverview") != 1 {
+		t.Fatalf("after the retry the workspace works as usual: overview calls = %d", client.CallCount("Workspace.ProjectsOverview"))
+	}
+	d.Key("ctrl+l")
+	d.RequireView("group: platform · workspace · 2 проекта")
+}
+
+func TestGroupHeaderShownOfMany(t *testing.T) {
+	client := newFake()
+	client.AddGroup(gitlab.Group{ID: 9, FullPath: "platform"}, "platform/route-service", "platform/routing-engine", "qa/e2e-routes")
+	client.SetUnknownTotal(9)
+	d, _ := openGroup(t, client, 2)
+	d.RequireView("group: platform · workspace · 2 projects · showing 2 of many")
+	d.Key("ctrl+l")
+	d.RequireView("показаны 2 из многих")
 }

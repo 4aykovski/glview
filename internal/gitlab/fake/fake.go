@@ -38,6 +38,7 @@ type Client struct {
 	starred       []string
 	groups        []gitlab.Group
 	groupProjects map[int64][]string
+	unknownTotal  map[int64]bool // ListGroupProjects reports total -1
 }
 
 var _ gitlab.Client = (*Client)(nil)
@@ -55,6 +56,7 @@ func New() *Client {
 		data:           newData(),
 		projDelay:      map[string]time.Duration{},
 		groupProjects:  map[int64][]string{},
+		unknownTotal:   map[int64]bool{},
 	}
 }
 

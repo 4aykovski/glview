@@ -5,6 +5,7 @@ import "fmt"
 func fillM2RU(m *Messages) {
 	w := &m.WS
 	w.ShownOf = func(shown, total int) string { return fmt.Sprintf("показаны %d из %d", shown, total) }
+	w.ShownOfMany = func(shown int) string { return fmt.Sprintf("показаны %d из многих", shown) }
 	w.ColFolder, w.ColGitLab, w.ColBranch, w.ColAheadBehind = "Папка", "GitLab", "Локальная ветка", "↑↓"
 	w.ColMRs, w.ColDefault, w.ColTag, w.ColActivity = "MRs", "default-ветка", "Тег", "Акт"
 	w.NoAccess = "нет доступа"

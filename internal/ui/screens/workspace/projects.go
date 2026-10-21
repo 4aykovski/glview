@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -47,6 +48,7 @@ type projectsTab struct {
 	lmGen   common.Gen
 	localMR map[string]*gitlab.MergeRequest // by path@branch; nil value: no open MR
 	lmFor   string                          // key of the request in flight
+	lmForce bool                            // the next request bypasses the cache (r)
 	lmCan   context.CancelFunc
 
 	moved  bool // the user moved the cursor: keep it on its row
@@ -137,7 +139,7 @@ func (t *projectsTab) Deactivate() {
 
 func (t *projectsTab) Refresh() tea.Cmd {
 	t.localMR = map[string]*gitlab.MergeRequest{}
-	t.lmFor = ""
+	t.lmFor, t.lmForce = "", true
 	return t.loadLocalMR()
 }
 
@@ -167,9 +169,12 @@ func (t *projectsTab) Rebuild() {
 		t.tbl.SetCursorID(rows[0].ID) // follow the order until the user moves
 	}
 	t.tbl.SetEmpty("")
-	if !t.sh.ready {
+	switch {
+	case t.sh.err != nil:
+		t.tbl.SetTail(table.TailError, env.Msg.Project.LoadFailed)
+	case !t.sh.ready:
 		t.tbl.SetTail(table.TailLoading, env.Msg.Project.Loading)
-	} else {
+	default:
 		t.tbl.SetTail(table.TailNone, "")
 	}
 	t.layout()
@@ -182,7 +187,7 @@ func (t *projectsTab) sortedRows() []workspace.Project {
 	rows := make([]workspace.Project, 0, len(t.sh.scope.Rows))
 	q := strings.ToLower(t.text)
 	for _, r := range t.sh.scope.Rows {
-		if q != "" && !strings.Contains(strings.ToLower(rowID(r)+" "+t.remoteText(r)), q) {
+		if q != "" && !strings.Contains(strings.ToLower(t.filterText(r)), q) {
 			continue
 		}
 		rows = append(rows, r)
@@ -213,6 +218,16 @@ func (t *projectsTab) sortedRows() []workspace.Project {
 		return ni < nj
 	})
 	return rows
+}
+
+// filterText is what the text filter matches: the folder name and the
+// project path (SPEC §3.3), never the absolute path of the folder.
+func (t *projectsTab) filterText(r workspace.Project) string {
+	text := t.remoteText(r)
+	if r.Local != nil {
+		text = filepath.Base(r.Local.Dir) + " " + text
+	}
+	return text
 }
 
 // rowID identifies a row: the folder, or the project path of a group row.
@@ -366,6 +381,13 @@ func (t *projectsTab) localBranch() (path, branch string) {
 	return r.Ref.FullPath, r.Local.Repo.Branch
 }
 
+// selection identifies the selected row with the project and branch whose
+// MR the preview shows.
+func (t *projectsTab) selection() string {
+	path, branch := t.localBranch()
+	return t.tbl.CursorID() + "\x00" + path + "@" + branch
+}
+
 // loadLocalMR asks for the open MR of the selected row's local branch,
 // once per row and branch.
 func (t *projectsTab) loadLocalMR() tea.Cmd {
@@ -381,7 +403,8 @@ func (t *projectsTab) loadLocalMR() tea.Cmd {
 		t.lmCan()
 	}
 	tok := t.lmGen.Next()
-	t.lmFor = key
+	force := t.lmForce
+	t.lmFor, t.lmForce = key, false
 	env := t.env()
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	t.lmCan = cancel
@@ -389,7 +412,7 @@ func (t *projectsTab) loadLocalMR() tea.Cmd {
 	f := gitlab.MRFilter{State: gitlab.MRStateOpened, SourceBranch: branch}
 	return func() tea.Msg {
 		defer cancel()
-		page, _, err := common.Fetch(ctx, env.Cache, "mrbranch:"+key, localMRTTL, false, func(ctx context.Context) (gitlab.Page[gitlab.MergeRequest], error) {
+		page, _, err := common.Fetch(ctx, env.Cache, "mrbranch:"+key, localMRTTL, force, func(ctx context.Context) (gitlab.Page[gitlab.MergeRequest], error) {
 			return env.Client.MergeRequests().List(ctx, ref, f, "", 1)
 		})
 		msg := localMRMsg{tok: tok, key: key, err: err}
@@ -465,11 +488,11 @@ func (t *projectsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return t.sh.openProject(r.Ref.FullPath, repo, 0, &mf, nil)
 	case "o":
 		if r := t.selected(); r != nil && !r.Foreign {
-			return app.OpenURL(env, t.sh.webURL(r.Ref.FullPath))
+			return app.OpenURL(env, t.sh.projectURL(r.Ref.FullPath))
 		}
 	case "y":
 		if r := t.selected(); r != nil && !r.Foreign {
-			u := t.sh.webURL(r.Ref.FullPath)
+			u := t.sh.projectURL(r.Ref.FullPath)
 			return app.Copy(env, u, u)
 		}
 	}

@@ -99,7 +99,7 @@ type Scope struct {
 	Source  string    // ProjectSource.Name()
 	Rows    []Project // folders with .git and group projects, in source order
 	Skipped []string  // names of folders without .git
-	Total   int       // all projects of a group (≥ number of rows); 0 for folders
+	Total   int       // all projects of a group (≥ number of rows); 0 for folders; -1: unknown, more than the rows
 
 	refs    []gitlab.ProjectRef
 	primary map[string]*gitremote.LocalProject

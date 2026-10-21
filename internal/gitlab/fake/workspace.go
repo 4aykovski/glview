@@ -45,6 +45,14 @@ func (c *Client) AddGroup(g gitlab.Group, projects ...string) {
 	c.groupProjects[g.ID] = projects
 }
 
+// SetUnknownTotal makes ListGroupProjects of the group report total -1
+// when it has more projects than the limit (GitLab without X-Total).
+func (c *Client) SetUnknownTotal(groupID int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.unknownTotal[groupID] = true
+}
+
 func (c *Client) Workspace() gitlab.WorkspaceService { return workspace{c} }
 func (c *Client) Search() gitlab.SearchService       { return search{c} }
 
@@ -239,6 +247,9 @@ func (s projects) ListGroupProjects(ctx context.Context, groupID int64, limit in
 			p = gitlab.Project{ProjectRef: gitlab.ProjectRef{FullPath: path}}
 		}
 		out = append(out, p)
+	}
+	if c := s.c; c.unknownTotal[groupID] && len(all) > limit {
+		return out, -1, nil
 	}
 	return out, len(all), nil
 }

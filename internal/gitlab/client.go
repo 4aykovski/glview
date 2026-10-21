@@ -26,7 +26,7 @@ type ProjectService interface {
 	Starred(ctx context.Context) ([]Project, error)
 	// ListGroupProjects returns up to limit non-archived projects of the
 	// group and its subgroups, most active first, and the total number of
-	// such projects.
+	// such projects; -1 when the total is unknown and there are more.
 	ListGroupProjects(ctx context.Context, groupID int64, limit int) (ps []Project, total int, err error)
 	// Branches returns branch names matching search (server side).
 	Branches(ctx context.Context, p ProjectRef, search string) ([]string, error)

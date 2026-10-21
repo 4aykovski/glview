@@ -308,7 +308,7 @@ func (t *mrsTab) listURL(path string) string {
 	if t.filter.Search != "" {
 		q.Set("search", t.filter.Search)
 	}
-	u := t.sh.webURL(path) + "/-/merge_requests"
+	u := t.sh.projectURL(path) + "/-/merge_requests"
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}

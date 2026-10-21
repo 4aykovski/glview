@@ -6,8 +6,8 @@ package workspace
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -39,7 +39,8 @@ type shared struct {
 	source string
 	group  *workspace.GroupSource // nil for a folder
 	scope  workspace.Scope
-	ready  bool // the scope is known (a group loads it first)
+	ready  bool  // the scope is known (a group loads it first)
+	err    error // the group's project list failed to load (r retries)
 
 	over    map[string]gitlab.ProjectOverview // by project path
 	errs    map[string]error                  // per-project overview errors
@@ -115,12 +116,10 @@ func (sh *shared) refsInOrder() []gitlab.ProjectRef {
 	return out
 }
 
-// webURL is the project page in the web UI.
-func (sh *shared) webURL(path string) string {
-	if ov, ok := sh.over[path]; ok && ov.WebURL != "" {
-		return strings.TrimRight(ov.WebURL, "/")
-	}
-	return strings.TrimRight(sh.env.Host, "/") + "/" + path
+// projectURL is the project page in the web UI (the rule of the project
+// screen, app.Env.ProjectURL).
+func (sh *shared) projectURL(path string) string {
+	return sh.env.ProjectURL(sh.over[path].WebURL, path)
 }
 
 // primaryRepo is the first local folder of project path, nil if none.
@@ -414,8 +413,11 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, nil
 		}
 		if msg.err != nil {
+			s.sh.err = msg.err
+			s.tabs[TabProjects].Rebuild()
 			return s, env.Fail(msg.err)
 		}
+		s.sh.err = nil
 		scope := workspace.NewScope(s.sh.source, msg.rows)
 		scope.Total = msg.total
 		s.setScope(scope)
@@ -459,7 +461,10 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 }
 
 // onOverview merges one overview batch; at the end of the run it fixes
-// the order, saves the snapshot and schedules the next poll.
+// the order, saves the snapshot and schedules the next poll. Only the tabs
+// whose data changed are rebuilt: the group tabs read from the overview
+// just the order, "no access" and the review count. The MR of the local
+// branch is asked only when the selected row or its branch changed.
 func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 	if !s.ovGen.Valid(msg.tok) {
 		return nil
@@ -469,15 +474,22 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 		s.sh.loading = false
 		s.cancel = nil
 		sh.updated = env.Now()
+		old := sh.order
 		sh.reorder()
-		s.rebuild()
+		if slices.Equal(old, sh.order) {
+			s.projects().Rebuild()
+		} else {
+			s.rebuild()
+		}
 		s.saveSnapshot()
 		env.Catalog.Note(s.CatalogEntries()...)
 		return tea.Batch(s.schedulePoll(), s.projects().loadLocalMR())
 	}
 	var fail tea.Cmd
+	groups := false // the group tabs show something that changed
 	for _, g := range msg.res.Groups {
 		path := g.Project.FullPath
+		noAccess := sh.noAccess(path)
 		switch {
 		case g.Err != nil:
 			sh.errs[path] = g.Err
@@ -489,11 +501,25 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 			}
 		case len(g.Items) > 0:
 			delete(sh.errs, path)
-			sh.over[path] = mergeOverview(sh.over[path], g.Items[0])
+			old := sh.over[path]
+			nw := mergeOverview(old, g.Items[0])
+			groups = groups || old.ReviewMRs != nw.ReviewMRs
+			sh.over[path] = nw
 		}
+		groups = groups || noAccess != sh.noAccess(path)
 	}
-	s.rebuild()
-	return tea.Batch(fail, msg.next, s.projects().loadLocalMR())
+	pt := s.projects()
+	sel := pt.selection()
+	pt.Rebuild()
+	if groups {
+		s.tabs[TabMRs].Rebuild()
+		s.tabs[TabPipelines].Rebuild()
+	}
+	var local tea.Cmd
+	if pt.selection() != sel {
+		local = pt.loadLocalMR()
+	}
+	return tea.Batch(fail, msg.next, local)
 }
 
 // mergeOverview keeps what the old row knew and the new report does not
@@ -547,6 +573,9 @@ func (s *Screen) key(k tea.KeyPressMsg) tea.Cmd {
 		case "U":
 			return s.pull()
 		case "r":
+			if !s.sh.ready {
+				return s.retryScope()
+			}
 			s.refreshRepos()
 			cmds := []tea.Cmd{cur.Refresh()}
 			if s.cur == TabProjects {
@@ -558,6 +587,17 @@ func (s *Screen) key(k tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 	s.tabs[s.cur], cmd = cur.Update(k)
 	return cmd
+}
+
+// retryScope loads the group's project list again after it failed (r);
+// while the first load is in flight r does nothing.
+func (s *Screen) retryScope() tea.Cmd {
+	if s.sh.group == nil || s.sh.err == nil {
+		return nil
+	}
+	s.sh.err = nil
+	s.tabs[TabProjects].Rebuild()
+	return s.Init()
 }
 
 // refreshRepos re-reads HEAD of every local folder (a checkout outside).
@@ -578,7 +618,12 @@ func (s *Screen) View() string {
 		count = m.Plural.Projects(n)
 	}
 	ctx := sh.source + " " + st.Muted.Render("· "+m.Header.Workspace+" · "+count)
-	if sh.scope.Total > len(sh.scope.Rows) {
+	switch {
+	case sh.err != nil:
+		ctx = sh.source + " " + st.Muted.Render("· "+m.Header.Workspace+" ·") + " " + st.Error.Render(m.Project.LoadFailed)
+	case sh.scope.Total < 0:
+		ctx += " " + st.Muted.Render("· "+m.WS.ShownOfMany(len(sh.scope.Rows)))
+	case sh.scope.Total > len(sh.scope.Rows):
 		ctx += " " + st.Muted.Render("· "+m.WS.ShownOf(len(sh.scope.Rows), sh.scope.Total))
 	}
 	updated := s.tabs[s.cur].UpdatedAt()

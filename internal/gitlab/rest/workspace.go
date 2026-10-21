@@ -31,7 +31,8 @@ func (s projects) Starred(ctx context.Context) ([]gitlab.Project, error) {
 }
 
 // ListGroupProjects returns up to limit non-archived projects of the group
-// and its subgroups, most active first, and the total count (X-Total).
+// and its subgroups, most active first, and the total count (X-Total);
+// -1 when GitLab sent no X-Total and there are more projects than taken.
 func (s projects) ListGroupProjects(ctx context.Context, groupID int64, limit int) ([]gitlab.Project, int, error) {
 	if limit <= 0 {
 		limit = maxPerPage
@@ -46,6 +47,7 @@ func (s projects) ListGroupProjects(ctx context.Context, groupID int64, limit in
 	}
 	var out []gitlab.Project
 	total := -1
+	more := false // projects beyond what was taken
 	for len(out) < limit {
 		list, resp, err := s.c.api.Groups.ListGroupProjects(groupID, opt, gl.WithContext(ctx))
 		if err != nil {
@@ -55,16 +57,22 @@ func (s projects) ListGroupProjects(ctx context.Context, groupID int64, limit in
 			total = int(resp.TotalItems)
 		}
 		for _, p := range list {
-			if len(out) < limit {
-				out = append(out, mapProject(p))
+			if len(out) == limit {
+				more = true
+				break
 			}
+			out = append(out, mapProject(p))
 		}
 		if resp.NextPage == 0 || len(list) == 0 {
 			break
 		}
+		more = true
 		opt.Page = resp.NextPage
 	}
-	if total < len(out) {
+	switch {
+	case total < 0 && more:
+		// GitLab omits X-Total above 10 000 rows: the total is unknown.
+	case total < len(out):
 		total = len(out)
 	}
 	return out, total, nil

@@ -5,6 +5,7 @@ import "fmt"
 func fillM2EN(m *Messages) {
 	w := &m.WS
 	w.ShownOf = func(shown, total int) string { return fmt.Sprintf("showing %d of %d", shown, total) }
+	w.ShownOfMany = func(shown int) string { return fmt.Sprintf("showing %d of many", shown) }
 	w.ColFolder, w.ColGitLab, w.ColBranch, w.ColAheadBehind = "Folder", "GitLab", "Local branch", "↑↓"
 	w.ColMRs, w.ColDefault, w.ColTag, w.ColActivity = "MRs", "Default branch", "Tag", "Act"
 	w.NoAccess = "no access"

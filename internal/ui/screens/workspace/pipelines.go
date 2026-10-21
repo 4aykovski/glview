@@ -372,7 +372,7 @@ func (t *pipelinesTab) listURL(path string) string {
 			q.Set(k, v)
 		}
 	}
-	u := t.sh.webURL(path) + "/-/pipelines"
+	u := t.sh.projectURL(path) + "/-/pipelines"
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}

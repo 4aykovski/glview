@@ -5,7 +5,8 @@ package i18n
 
 // WorkspaceMessages are the strings of the Workspace screen.
 type WorkspaceMessages struct {
-	ShownOf func(shown, total int) string // "showing 100 of 342"
+	ShownOf     func(shown, total int) string // "showing 100 of 342"
+	ShownOfMany func(shown int) string        // "showing 100 of many" (no X-Total)
 
 	// Projects tab
 	ColFolder, ColGitLab, ColBranch, ColAheadBehind, ColMRs, ColDefault, ColTag, ColActivity string

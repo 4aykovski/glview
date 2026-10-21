@@ -68,6 +68,34 @@ func TestListGroupProjects(t *testing.T) {
 	}
 }
 
+func TestListGroupProjectsWithoutTotal(t *testing.T) {
+	// Above 10 000 rows GitLab sends no X-Total (and no X-Total-Pages).
+	pages := 2
+	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
+		"GET /api/v4/groups/9/projects": func(w http.ResponseWriter, r *http.Request) {
+			var items []string
+			for i := range 3 {
+				items = append(items, fmt.Sprintf(`{"id":%d,"path_with_namespace":"platform/p%d"}`, i+1, i+1))
+			}
+			if pages > 1 {
+				w.Header().Set("X-Next-Page", "2")
+			}
+			jsonReply(200, "["+strings.Join(items, ",")+"]")(w, r)
+		},
+	})
+	ps, total, err := c.Projects().ListGroupProjects(context.Background(), 9, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 3 || total != -1 {
+		t.Fatalf("len = %d total = %d, want 3 of unknown", len(ps), total)
+	}
+	pages = 1
+	if ps, total, _ = c.Projects().ListGroupProjects(context.Background(), 9, 100); len(ps) != 3 || total != 3 {
+		t.Fatalf("last page: len = %d total = %d", len(ps), total)
+	}
+}
+
 func TestLatestTag(t *testing.T) {
 	var query string
 	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){

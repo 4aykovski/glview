@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -151,6 +152,17 @@ func OpenURL(env *Env, url string) tea.Cmd {
 		}
 		return nil
 	}
+}
+
+// ProjectURL is the project page in the web UI without a trailing slash:
+// webURL when known, else the instance URL and the full path (the project
+// is not loaded yet). Both modes build links to a project with it.
+func (e *Env) ProjectURL(webURL, path string) string {
+	base := webURL
+	if base == "" {
+		base = strings.TrimRight(e.Host, "/") + "/" + path
+	}
+	return strings.TrimRight(base, "/")
 }
 
 // Copy puts text on the terminal clipboard (OSC 52) and confirms with a
