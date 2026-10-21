@@ -91,6 +91,7 @@ func fillM2RU(m *Messages) {
 	s.Failed = func(err string) string { return "✗ поиск не удался: " + err }
 	s.Counter = func(shown, total int) string { return fmt.Sprintf("%d / %d", shown, total) }
 	s.KeyPicker, s.KeyGlobal = "выбрать проект", "поиск по GitLab"
+	s.HelpTitle, s.KeyMove, s.KeyHalfPage, s.KeyClose = "оверлеи p и F", "ход", "полстраницы вниз / вверх", "закрыть"
 
 	g := &m.Git
 	g.Progress = func(op string, done, total int) string { return fmt.Sprintf("⟳ %s %d/%d", op, done, total) }

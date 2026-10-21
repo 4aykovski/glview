@@ -235,7 +235,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 			return m.checkAuth()
 		}
 	case "?":
-		m.overlay = NewHelp(m.env, m.Top().KeyMap(), m.globalBindings())
+		m.overlay = NewHelp(m.env, m.Top().KeyMap(), m.globalBindings(), m.searchBindings()...)
 		return nil
 	case "p", "F":
 		if m.env.Search != nil && m.env.Client != nil {
@@ -352,6 +352,21 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 // contentSize is the area given to screens: everything above the footer.
 // A thin rule separates the content from the footer line.
 func (m *Model) contentSize() (int, int) { return m.width, max(0, m.height-2) }
+
+// searchBindings is the help group of the p and F overlays (none when
+// search is not available).
+func (m *Model) searchBindings() []common.Group {
+	if m.env.Search == nil {
+		return nil
+	}
+	k, s := m.env.Msg.Keys, m.env.Msg.Search
+	return []common.Group{{Title: s.HelpTitle, Bindings: []common.Binding{
+		common.NewBinding([]string{"down", "up", "ctrl+n", "ctrl+p"}, "↓/↑ ctrl+n/ctrl+p", s.KeyMove, common.PriorityLow),
+		common.NewBinding([]string{"ctrl+d", "ctrl+u", "pgdown", "pgup"}, "ctrl+d/ctrl+u pgdown/pgup", s.KeyHalfPage, common.PriorityLow),
+		common.NewBinding([]string{"enter"}, "enter", k.Open, common.PriorityLow),
+		common.NewBinding([]string{"esc"}, "esc", s.KeyClose, common.PriorityLow),
+	}}}
+}
 
 func (m *Model) globalBindings() []common.Binding {
 	k := m.env.Msg.Keys

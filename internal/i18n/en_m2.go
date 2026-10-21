@@ -84,6 +84,7 @@ func fillM2EN(m *Messages) {
 	s.Failed = func(err string) string { return "✗ search failed: " + err }
 	s.Counter = func(shown, total int) string { return fmt.Sprintf("%d / %d", shown, total) }
 	s.KeyPicker, s.KeyGlobal = "pick project", "search GitLab"
+	s.HelpTitle, s.KeyMove, s.KeyHalfPage, s.KeyClose = "p and F overlays", "move", "half a page down / up", "close"
 
 	g := &m.Git
 	g.Progress = func(op string, done, total int) string { return fmt.Sprintf("⟳ %s %d/%d", op, done, total) }

@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -346,4 +347,86 @@ func lineWith(d *uitest.Driver, sub string) string {
 		}
 	}
 	return ""
+}
+
+// bigScope is a workspace of n projects named group/proj-NN.
+func bigScope(n int) workspace.Scope {
+	var rows []workspace.Project
+	for i := range n {
+		path := fmt.Sprintf("group/proj-%02d", i)
+		r := repo("/src/" + path)
+		rows = append(rows, workspace.Project{Ref: gitlab.ProjectRef{FullPath: path},
+			Local: &gitremote.LocalProject{Dir: "/src/" + path, Name: path, Kind: gitremote.KindGitLab, Repo: r, ProjectPath: path}})
+	}
+	return workspace.NewScope("~/big", rows)
+}
+
+func TestHalfPageInOverlays(t *testing.T) {
+	for _, global := range []bool{false, true} {
+		client := newFake()
+		for i := range 35 {
+			client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: int64(100 + i), FullPath: fmt.Sprintf("group/proj-%02d", i)}})
+		}
+		env, last := setup(t, client)
+		d := uitest.New(t, app.New(env, wsscreen.New(env, "~/big", bigScope(35)), app.Options{}))
+		if global {
+			d.Key("F", "p", "r", "o", "j")
+			d.Send((*last).DebounceMsg())
+			if client.CallCount("Search.Search") != 1 {
+				t.Fatal("the server search ran")
+			}
+		} else {
+			d.Key("p", "p", "r", "o", "j")
+		}
+		o := *last
+		_ = d.View() // the list height comes from the last render
+		if n := len(o.Lines()); n < 30 {
+			t.Fatalf("global=%v: %d lines", global, n)
+		}
+		first := o.Selected()
+		d.Key("ctrl+d")
+		half := o.Selected()
+		if half == first || o.Input() != "proj" {
+			t.Fatalf("global=%v: ctrl+d %q → %q, input %q", global, first, half, o.Input())
+		}
+		// Half a page of the 18-line list: 9 lines down.
+		if idx := index(o.Lines(), half) - index(o.Lines(), first); idx != 9 {
+			t.Fatalf("global=%v: moved %d lines", global, idx)
+		}
+		d.Key("ctrl+u")
+		if o.Selected() != first || o.Input() != "proj" {
+			t.Fatalf("global=%v: ctrl+u → %q, input %q", global, o.Selected(), o.Input())
+		}
+		d.Key("pgdown")
+		if o.Selected() != half {
+			t.Fatalf("global=%v: pgdown → %q", global, o.Selected())
+		}
+		d.Key("pgup")
+		if o.Selected() != first {
+			t.Fatalf("global=%v: pgup → %q", global, o.Selected())
+		}
+		for range 10 {
+			d.Key("ctrl+d")
+		}
+		if lines := o.Lines(); o.Selected() == "" || index(lines, o.Selected()) < len(lines)-2 {
+			t.Fatalf("global=%v: ctrl+d stops at the end: %q", global, o.Selected())
+		}
+	}
+}
+
+func index(lines []string, s string) int {
+	for i, l := range lines {
+		if l == s {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestHelpListsOverlayKeys(t *testing.T) {
+	client := newFake()
+	env, _ := setup(t, client)
+	d := uitest.New(t, app.New(env, wsscreen.New(env, "~/src", wsScope()), app.Options{}))
+	d.Key("?")
+	d.RequireView("P AND F OVERLAYS", "ctrl+d/ctrl+u pgdown/pgup", "half a page down / up")
 }

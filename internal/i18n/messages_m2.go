@@ -60,6 +60,9 @@ type SearchMessages struct {
 	Failed                                                        func(err string) string
 	Counter                                                       func(shown, total int) string // "6 / 214"
 	KeyPicker, KeyGlobal                                          string
+
+	// Help group of the overlay keys
+	HelpTitle, KeyMove, KeyHalfPage, KeyClose string
 }
 
 // GitMessages are the strings of fetch and pull (SPEC §10.4).

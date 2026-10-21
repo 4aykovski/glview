@@ -30,6 +30,8 @@ const (
 	timeout   = 15 * time.Second
 	maxWidth  = 84
 	maxHeight = 24
+
+	defaultHalfPage = 5 // before the first View
 )
 
 type kind int
@@ -74,6 +76,7 @@ type Overlay struct {
 	sel    int // index into lines (a selectable one)
 	lines  []line
 	total  int // picker: all known projects
+	listH  int // lines of the list shown by the last View (for half pages)
 
 	tok    int        // input version for the debounce
 	gen    common.Gen // server requests
@@ -149,6 +152,12 @@ func (o *Overlay) key(k tea.KeyPressMsg) (app.Overlay, tea.Cmd) {
 	case "up", "ctrl+p":
 		o.move(-1)
 		return o, nil
+	case "ctrl+d", "pgdown": // never reach the input: ctrl+d deletes, ctrl+u erases
+		o.page(1)
+		return o, nil
+	case "ctrl+u", "pgup":
+		o.page(-1)
+		return o, nil
 	case "enter":
 		return o.open()
 	}
@@ -215,6 +224,40 @@ func (o *Overlay) move(d int) {
 		}
 	}
 }
+
+// page moves the selection half a visible list down (d > 0) or up; section
+// and message lines count. It lands on the nearest selectable line in the
+// direction of the move, or before it at the end of the list.
+func (o *Overlay) page(d int) {
+	n := len(o.lines)
+	if n == 0 {
+		return
+	}
+	step := max(1, o.listH/2)
+	if o.listH == 0 {
+		step = defaultHalfPage
+	}
+	target := min(max(o.sel+d*step, 0), n-1)
+	for _, dir := range []int{d, -d} {
+		for i := target; i >= 0 && i < n; i += dir {
+			if o.lines[i].selectable() {
+				o.sel = i
+				return
+			}
+		}
+	}
+}
+
+// Selected returns the path of the selected line ("" if none, for tests).
+func (o *Overlay) Selected() string {
+	if l := o.selected(); l != nil {
+		return l.path
+	}
+	return ""
+}
+
+// Input returns the text of the input (for tests).
+func (o *Overlay) Input() string { return o.input.Value() }
 
 func (o *Overlay) selected() *line {
 	if o.sel >= 0 && o.sel < len(o.lines) && o.lines[o.sel].selectable() {
@@ -397,6 +440,7 @@ func (o *Overlay) View(width, height int) string {
 	head := lipgloss.PlaceHorizontal(inner, lipgloss.Left, s.ModalTitle.Render(title)+"   "+s.Muted.Render(host))
 
 	listH := max(3, min(maxHeight, height-4)-6)
+	o.listH = listH
 	start := 0
 	if o.sel >= listH {
 		start = o.sel - listH + 1

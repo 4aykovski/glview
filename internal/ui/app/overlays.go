@@ -66,8 +66,9 @@ type Help struct {
 	groups []common.Group
 }
 
-// NewHelp builds the help overlay from the screen and global key maps.
-func NewHelp(env *Env, screen common.KeyMap, global []common.Binding) *Help {
+// NewHelp builds the help overlay from the screen and global key maps;
+// extra groups follow the global keys.
+func NewHelp(env *Env, screen common.KeyMap, global []common.Binding, extra ...common.Group) *Help {
 	var groups []common.Group
 	if len(screen.Groups) > 0 {
 		groups = append(groups, screen.Groups...)
@@ -75,6 +76,7 @@ func NewHelp(env *Env, screen common.KeyMap, global []common.Binding) *Help {
 		groups = append(groups, common.Group{Title: env.Msg.Help.Screen, Bindings: screen.Short})
 	}
 	groups = append(groups, common.Group{Title: env.Msg.Help.Global, Bindings: global})
+	groups = append(groups, extra...)
 	return &Help{env: env, groups: groups}
 }
 
