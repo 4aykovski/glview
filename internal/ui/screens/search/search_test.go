@@ -123,10 +123,11 @@ func TestPickerOtherHost(t *testing.T) {
 	d.RequireView("STARRED", "platform/routing-engine", "RECENT", "qa/e2e-routes", "infra/router-configs")
 }
 
-func TestPickerFromProjectModeReplacesRoot(t *testing.T) {
+func TestPickerFromProjectModeKeepsRoot(t *testing.T) {
 	client := newFake()
 	env, _ := setup(t, client)
-	root := app.New(env, project.New(env, project.Options{Path: "platform/route-service"}), app.Options{})
+	start := project.New(env, project.Options{Path: "platform/route-service"})
+	root := app.New(env, start, app.Options{})
 	d := uitest.New(t, root)
 	d.Send(app.PushMsg{Screen: joblog.New(env, gitlab.ProjectRef{FullPath: "platform/route-service"}, 1, gitlab.Job{ID: 5, Name: "test", Status: gitlab.StatusSuccess})})
 	if root.Depth() != 2 {
@@ -136,17 +137,92 @@ func TestPickerFromProjectModeReplacesRoot(t *testing.T) {
 	d.RequireView("Search GitLab", "type at least 3 characters")
 	d.Key("esc", "p", "q", "a", "/", "e")
 	d.Key("enter")
-	if root.Depth() != 1 {
-		t.Fatalf("the project becomes the only screen: depth %d", root.Depth())
+	if root.Depth() != 2 {
+		t.Fatalf("the project goes above the start project: depth %d", root.Depth())
 	}
-	p := root.Top().(*project.Project)
-	if p.Path() != "qa/e2e-routes" {
+	if p := root.Top().(*project.Project); p.Path() != "qa/e2e-routes" {
 		t.Fatalf("top = %s", p.Path())
 	}
+	// A second p does not grow the stack.
+	d.Key("p", "i", "n", "f", "r", "a", "enter")
+	if p := root.Top().(*project.Project); root.Depth() != 2 || p.Path() != "infra/router-configs" {
+		t.Fatalf("depth %d top %s", root.Depth(), p.Path())
+	}
 	d.Key("esc")
-	if root.Depth() != 1 || root.Top() != p {
+	if root.Depth() != 1 || root.Top() != start {
+		t.Fatal("esc returns to the start project")
+	}
+	d.RequireView("platform/route-service")
+	d.Key("esc")
+	if root.Depth() != 1 {
 		t.Fatal("esc on the root does nothing")
 	}
+}
+
+// openGroup types q into F and opens the first group found.
+func openGroup(d *uitest.Driver, last **Overlay, q string) {
+	d.Key("F")
+	for _, r := range q {
+		d.Key(string(r))
+	}
+	d.Send((*last).DebounceMsg())
+	for range 30 {
+		d.Key("down")
+	}
+	d.Key("enter")
+}
+
+func TestGroupFromSearchKeepsStartWorkspace(t *testing.T) {
+	client := newFake()
+	client.AddGroup(gitlab.Group{ID: 9, FullPath: "platform", Name: "platform"}, "platform/route-service", "platform/routing-engine")
+	client.AddGroup(gitlab.Group{ID: 10, FullPath: "frontend", Name: "frontend"}, "frontend/route-planner-ui")
+	env, last := setup(t, client)
+	ws := wsscreen.New(env, "~/src", wsScope())
+	root := app.New(env, ws, app.Options{})
+	d := uitest.New(t, root)
+	// MRs tab, route-service expanded, the cursor on !479.
+	d.Key("2", "space")
+	d.Send(ws.ExpandMsg())
+	d.Key("j")
+	if !strings.HasPrefix(lineWith(d, "!479"), "›") {
+		t.Fatalf("cursor on !479:\n%s", d.View())
+	}
+
+	openGroup(d, last, "pla")
+	group, ok := root.Top().(*wsscreen.Screen)
+	if !ok || group == ws || root.Depth() != 2 {
+		t.Fatalf("the group goes above the start workspace: %T depth %d", root.Top(), root.Depth())
+	}
+	d.RequireView("group: platform · workspace · 2 projects")
+
+	// p lists the projects of the group workspace and opens one above it.
+	d.Key("p")
+	d.RequireView("WORKSPACE", "platform/routing-engine")
+	d.Key("r", "o", "u", "t", "i", "n", "g", "enter")
+	if p, ok := root.Top().(*project.Project); !ok || p.Path() != "platform/routing-engine" || root.Depth() != 3 {
+		t.Fatalf("stack: depth %d top %T", root.Depth(), root.Top())
+	}
+	d.Key("esc")
+	if root.Top() != group {
+		t.Fatal("esc returns to the group workspace")
+	}
+	// Another group replaces the first one.
+	openGroup(d, last, "fron")
+	if g, ok := root.Top().(*wsscreen.Screen); !ok || g == group || root.Depth() != 2 {
+		t.Fatalf("one group workspace at most: depth %d", root.Depth())
+	}
+	d.RequireView("group: frontend · workspace")
+
+	d.Key("esc")
+	if root.Top() != ws || root.Depth() != 1 || ws.Current() != wsscreen.TabMRs {
+		t.Fatal("esc returns to the start workspace on its tab")
+	}
+	if !strings.HasPrefix(lineWith(d, "!479"), "›") {
+		t.Fatalf("the cursor and the expanded group are kept:\n%s", d.View())
+	}
+	// The picker lists the start workspace again.
+	d.Key("p")
+	d.RequireView("WORKSPACE", "infra/router-configs")
 }
 
 func TestPickerKeepsWorkspaceRoot(t *testing.T) {
@@ -221,7 +297,7 @@ func TestGlobalMergesLocalAndServer(t *testing.T) {
 	}
 	d.RequireGoldenSizes("global")
 
-	// A group opens as a new Workspace root.
+	// A group opens as a Workspace above the start screen.
 	d.Key("backspace", "backspace", "backspace", "backspace", "backspace", "p", "l", "a")
 	d.Send((*last).DebounceMsg())
 	d.RequireView("GROUPS", "platform")
@@ -230,8 +306,8 @@ func TestGlobalMergesLocalAndServer(t *testing.T) {
 	}
 	d.Key("enter")
 	ws, ok := root.Top().(*wsscreen.Screen)
-	if !ok || root.Depth() != 1 {
-		t.Fatalf("top = %T", root.Top())
+	if !ok || root.Depth() != 2 {
+		t.Fatalf("top = %T, depth %d", root.Top(), root.Depth())
 	}
 	d.RequireView("group: platform · workspace · 2 projects", "platform/routing-engine")
 	if ws.Scope().Local() {

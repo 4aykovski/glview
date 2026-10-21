@@ -224,7 +224,7 @@ func (o *Overlay) selected() *line {
 }
 
 // open opens the selected project (on its MRs tab, with the known local
-// folder) or the group as a new Workspace root.
+// folder) or the group as a Workspace above the start screen.
 func (o *Overlay) open() (app.Overlay, tea.Cmd) {
 	l := o.selected()
 	if l == nil {
@@ -233,7 +233,7 @@ func (o *Overlay) open() (app.Overlay, tea.Cmd) {
 	o.stop()
 	env := o.env
 	if l.kind == kindGroup {
-		return nil, app.ReplaceRoot(wsscreen.NewGroup(env, l.group))
+		return nil, app.OpenGroup(wsscreen.NewGroup(env, l.group))
 	}
 	scr := project.New(env, project.Options{Path: l.path, Repo: env.Catalog.LocalRepo(l.path), Tab: project.TabMRs})
 	return nil, app.OpenProject(scr)

@@ -1140,7 +1140,9 @@ type Screen interface {
 
 type PushMsg    struct{ Screen Screen }
 type PopMsg     struct{}
-type ReplaceRootMsg struct{ Screen Screen }
+type ReplaceRootMsg struct{ Screen Screen } // только setup и экраны старта
+type OpenProjectMsg struct{ Screen Screen } // проект из p/F: над верхним Workspace стека или над корнем (2.6)
+type OpenGroupMsg   struct{ Screen Screen } // Workspace группы из F: над корнем, прежний Workspace группы закрывается
 type ActivatedMsg   struct{} // экран стал вершиной стека
 type DeactivatedMsg struct{} // экран перестал быть вершиной
 

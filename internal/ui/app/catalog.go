@@ -28,7 +28,7 @@ type CatalogEntry struct {
 // global search (F) read. It never makes network requests.
 type ProjectCatalog interface {
 	Current() *CatalogEntry
-	// Workspace lists the projects of the Workspace at the bottom of the stack.
+	// Workspace lists the projects of the topmost Workspace of the stack.
 	Workspace() []CatalogEntry
 	Starred() []CatalogEntry
 	Recent() []CatalogEntry
@@ -36,9 +36,9 @@ type ProjectCatalog interface {
 	LocalRepo(path string) *gitremote.Repo
 }
 
-// WorkspaceRoot is implemented by the Workspace screen. When it is the
-// root of the stack, opening a project from search keeps it below the
-// project, and the catalog lists its projects.
+// WorkspaceRoot is implemented by the Workspace screen. Opening a project
+// from search puts it above the topmost Workspace of the stack, and the
+// catalog lists that Workspace's projects.
 type WorkspaceRoot interface {
 	Screen
 	CatalogEntries() []CatalogEntry
@@ -122,8 +122,8 @@ func (c *Catalog) SetCurrent(path string, repo *gitremote.Repo) {
 	c.current = &CatalogEntry{Path: path, Current: true, OpenMRs: -1, Repo: repo}
 }
 
-// SetWorkspace registers the Workspace at the bottom of the stack (nil
-// when the root is another screen).
+// SetWorkspace registers the topmost Workspace of the stack (nil when
+// there is none).
 func (c *Catalog) SetWorkspace(w WorkspaceRoot) {
 	if c == nil {
 		return

@@ -55,13 +55,28 @@ func New(env *Env, first Screen, opts Options) *Model {
 		m.isDark = env.Styles.Theme.IsDark
 	}
 	m.stack = []Screen{first}
-	m.registerRoot()
+	m.registerWorkspace()
 	return m
 }
 
-// registerRoot tells the catalog which Workspace (if any) is the root.
-func (m *Model) registerRoot() {
-	w, _ := m.stack[0].(WorkspaceRoot)
+// topWorkspace is the index of the topmost Workspace of the stack, -1 if
+// there is none.
+func (m *Model) topWorkspace() int {
+	for i := len(m.stack) - 1; i >= 0; i-- {
+		if _, ok := m.stack[i].(WorkspaceRoot); ok {
+			return i
+		}
+	}
+	return -1
+}
+
+// registerWorkspace tells the catalog which Workspace (if any) is the
+// topmost one of the stack: the picker lists its projects.
+func (m *Model) registerWorkspace() {
+	var w WorkspaceRoot
+	if i := m.topWorkspace(); i >= 0 {
+		w = m.stack[i].(WorkspaceRoot)
+	}
 	m.env.Catalog.SetWorkspace(w)
 }
 
@@ -120,6 +135,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.replaceRoot(msg.Screen)
 	case OpenProjectMsg:
 		return m, m.openProject(msg.Screen)
+	case OpenGroupMsg:
+		return m, m.openAbove(0, msg.Screen)
 
 	case OpenOverlayMsg:
 		m.overlay = msg.Overlay
@@ -257,6 +274,7 @@ func (m *Model) toggleLanguage() tea.Cmd {
 func (m *Model) push(s Screen) tea.Cmd {
 	deact := m.sendTop(DeactivatedMsg{})
 	m.stack = append(m.stack, s)
+	m.registerWorkspace()
 	s.SetSize(m.contentSize())
 	return tea.Batch(deact, s.Init(), m.sendTop(ActivatedMsg{}))
 }
@@ -267,6 +285,7 @@ func (m *Model) pop() tea.Cmd {
 	}
 	deact := m.sendTop(DeactivatedMsg{})
 	m.stack = m.stack[:len(m.stack)-1]
+	m.registerWorkspace()
 	return tea.Batch(deact, m.sendTop(ActivatedMsg{}))
 }
 
@@ -277,26 +296,31 @@ func (m *Model) replaceRoot(s Screen) tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 	m.stack = []Screen{s}
-	m.registerRoot()
+	m.registerWorkspace()
 	s.SetSize(m.contentSize())
 	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred())...)
 }
 
-// openProject keeps a Workspace root under the project and closes every
-// other screen; without a Workspace root the project becomes the root.
+// openProject puts a project chosen in search above the topmost
+// Workspace of the stack, or above the root without one; every screen
+// above is closed (SPEC §2.6).
 func (m *Model) openProject(s Screen) tea.Cmd {
-	if _, ok := m.stack[0].(WorkspaceRoot); !ok {
-		return m.replaceRoot(s)
-	}
+	return m.openAbove(max(0, m.topWorkspace()), s)
+}
+
+// openAbove closes every screen above stack[keep] and puts s on top. The
+// start screen at the bottom is never replaced.
+func (m *Model) openAbove(keep int, s Screen) tea.Cmd {
 	var cmds []tea.Cmd
-	for i := len(m.stack) - 1; i >= 1; i-- {
+	for i := len(m.stack) - 1; i > keep; i-- {
 		_, cmd := m.stack[i].Update(DeactivatedMsg{})
 		cmds = append(cmds, cmd)
 	}
-	if len(m.stack) == 1 {
+	if len(m.stack) == keep+1 {
 		cmds = append(cmds, m.sendTop(DeactivatedMsg{}))
 	}
-	m.stack = append(m.stack[:1], s)
+	m.stack = append(m.stack[:keep+1], s)
+	m.registerWorkspace()
 	s.SetSize(m.contentSize())
 	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}))...)
 }

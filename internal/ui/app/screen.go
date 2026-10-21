@@ -152,9 +152,14 @@ type (
 	// DeactivatedMsg is sent when another screen covers it or it is popped.
 	DeactivatedMsg struct{}
 
-	// OpenProjectMsg opens a project chosen in search: above a Workspace
-	// root (everything above it is closed), otherwise as the new root.
+	// OpenProjectMsg opens a project chosen in search above the topmost
+	// Workspace of the stack, or above the root without one; everything
+	// above is closed.
 	OpenProjectMsg struct{ Screen Screen }
+	// OpenGroupMsg opens the Workspace of a group chosen in search above
+	// the root (the start screen); everything above the root is closed, so
+	// the stack holds one group Workspace at most.
+	OpenGroupMsg struct{ Screen Screen }
 
 	OpenOverlayMsg  struct{ Overlay Overlay }
 	CloseOverlayMsg struct{}
@@ -217,6 +222,9 @@ func ReplaceRoot(s Screen) tea.Cmd { return msgCmd(ReplaceRootMsg{Screen: s}) }
 
 // OpenProject opens a project screen chosen in search (OpenProjectMsg).
 func OpenProject(s Screen) tea.Cmd { return msgCmd(OpenProjectMsg{Screen: s}) }
+
+// OpenGroup opens the Workspace of a group chosen in search (OpenGroupMsg).
+func OpenGroup(s Screen) tea.Cmd { return msgCmd(OpenGroupMsg{Screen: s}) }
 
 // OpenOverlay shows o above the current screen.
 func OpenOverlay(o Overlay) tea.Cmd { return msgCmd(OpenOverlayMsg{Overlay: o}) }
