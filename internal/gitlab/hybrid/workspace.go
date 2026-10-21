@@ -124,11 +124,17 @@ func (r *overviewRun) phase1(res gitlab.BatchResult[gitlab.ProjectOverview], use
 	need := map[string]string{}
 	r.mu.Lock()
 	for i, g := range res.Groups {
-		if g.Err != nil || len(g.Items) == 0 {
-			continue
+		if len(g.Items) == 0 {
+			continue // project: null or an error without data
 		}
 		ov := g.Items[0]
 		path := g.Project.FullPath
+		if g.Err != nil {
+			// A field error (no CI access…) with the project's data: the
+			// row stays, the error goes to the debug log (SPEC §5.2).
+			debuglog.L().Debug("workspace overview: partial error", "project", path, "err", g.Err)
+			res.Groups[i].Err = nil
+		}
 		if ov.DefaultBranch != "" {
 			r.c.cache.Set(rootRefKey(path), ov.DefaultBranch)
 		}
@@ -188,7 +194,8 @@ func (r *overviewRun) phase2(refs map[string]string) {
 			}
 			if g.Err != nil {
 				debuglog.L().Debug("workspace overview: phase 2 failed", "project", path, "err", g.Err)
-			} else if len(g.Items) > 0 {
+			}
+			if len(g.Items) > 0 {
 				ov.DefaultPipeline = g.Items[0].DefaultPipeline
 			}
 			ov.Phase = 2

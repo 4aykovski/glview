@@ -24,6 +24,10 @@ type wsServer struct {
 	tags        int
 	searchFails bool
 	rest        []string
+	// fieldErr makes a field of a project null with a GraphQL error
+	// addressed to it (path → field alias, e.g. "dp" or "review").
+	fieldErr map[string]string
+	p2Paths  []string // projects asked in phase 2 requests
 }
 
 func (s *wsServer) handler(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +59,7 @@ func (s *wsServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := map[string]any{}
+	var errs []any
 	for k, v := range req.Variables {
 		if !strings.HasPrefix(k, "p") {
 			continue
@@ -72,9 +77,24 @@ func (s *wsServer) handler(w http.ResponseWriter, r *http.Request) {
 		if kind != "p1" {
 			node["dp"] = map[string]any{"nodes": []any{map[string]any{"id": "gid://gitlab/Ci::Pipeline/1" + id, "status": "SUCCESS"}}}
 		}
+		if field, ok := s.fieldErr[path]; ok {
+			if _, asked := node[field]; asked {
+				node[field] = nil
+				errs = append(errs, map[string]any{"message": "insufficient permissions for " + field, "path": []any{k, field}})
+			}
+		}
+		if kind == "p2" {
+			s.mu.Lock()
+			s.p2Paths = append(s.p2Paths, path)
+			s.mu.Unlock()
+		}
 		data[k] = node
 	}
-	json.NewEncoder(w).Encode(map[string]any{"data": data})
+	body := map[string]any{"data": data}
+	if len(errs) > 0 {
+		body["errors"] = errs
+	}
+	json.NewEncoder(w).Encode(body)
 }
 
 func (s *wsServer) count(kind string) int {
@@ -184,6 +204,52 @@ func TestOverviewKnownRootRefsFromSnapshot(t *testing.T) {
 	final(c.Workspace().ProjectsOverview(context.Background(), refs(3), gitlab.OverviewOptions{RootRefs: known}))
 	if len(s.gql) != 1 || s.gql[0] != "full" {
 		t.Fatalf("requests = %v", s.gql)
+	}
+}
+
+func TestOverviewKeepsRowWithFieldError(t *testing.T) {
+	c, s := newWS(t)
+	s.fieldErr = map[string]string{"g/p2": "dp"}
+	known := map[string]string{}
+	for _, p := range refs(3) {
+		known[p.FullPath] = "main"
+	}
+	got := final(c.Workspace().ProjectsOverview(context.Background(), refs(3), gitlab.OverviewOptions{RootRefs: known}))
+	ov, ok := got["g/p2"]
+	if !ok {
+		t.Fatalf("row with a field error was dropped: %v", got)
+	}
+	if ov.ID != 2 || ov.Name != "p2" || ov.OpenMRs != 3 || ov.ReviewMRs != 1 || ov.Phase != 2 || ov.DefaultPipeline != nil {
+		t.Fatalf("overview = %+v", ov)
+	}
+	if ov.LastTag != "v1.0.2" || !ov.TagKnown {
+		t.Fatalf("tag of the row was not fetched: %+v", ov)
+	}
+	if got["g/p1"].DefaultPipeline == nil {
+		t.Fatalf("other rows must keep their pipeline: %+v", got["g/p1"])
+	}
+}
+
+func TestOverviewFieldErrorStillRunsPhase2(t *testing.T) {
+	c, s := newWS(t)
+	s.fieldErr = map[string]string{"g/p2": "review", "g/p3": "dp"}
+	got := final(c.Workspace().ProjectsOverview(context.Background(), refs(3), gitlab.OverviewOptions{}))
+	if s.count("p2") != 1 {
+		t.Fatalf("requests = %v", s.gql)
+	}
+	s.mu.Lock()
+	p2 := strings.Join(s.p2Paths, ",")
+	s.mu.Unlock()
+	if !strings.Contains(p2, "g/p2") {
+		t.Fatalf("phase 2 must include the row with a field error: %s", p2)
+	}
+	ov := got["g/p2"]
+	if ov.Name != "p2" || ov.OpenMRs != 3 || ov.ReviewMRs != 0 || ov.Phase != 2 || ov.DefaultPipeline == nil || !ov.TagKnown {
+		t.Fatalf("overview g/p2 = %+v", ov)
+	}
+	ov = got["g/p3"]
+	if ov.Name != "p3" || ov.OpenMRs != 3 || ov.Phase != 2 || ov.DefaultPipeline != nil || !ov.TagKnown {
+		t.Fatalf("overview g/p3 = %+v", ov)
 	}
 }
 
