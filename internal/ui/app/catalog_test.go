@@ -109,6 +109,45 @@ func TestCatalogPerHost(t *testing.T) {
 	}
 }
 
+func TestCatalogExpandedGroups(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	host := testHost
+	c := NewCatalog(nil, statePath, func() string { return host })
+	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	c.now = func() time.Time { return at }
+	if c.OpenWorkspace("~/src") != nil {
+		t.Fatal("a workspace without a record writes nothing")
+	}
+	first := c.SetExpanded("~/src", "mrs", []string{"platform/route-service"})
+	second := c.SetExpanded("~/src", "mrs", []string{"platform/route-service", "qa/e2e-routes"})
+	// The saves run in the background in any order: the newer state wins.
+	second()
+	first()
+	if got := cache.LoadState(statePath).Expanded(testHost, "~/src", "mrs"); len(got) != 2 {
+		t.Fatalf("an older save overwrote a newer one: %v", got)
+	}
+	if got := c.Expanded("~/src", "mrs"); len(got) != 2 || len(c.Expanded("~/src", "pipelines")) != 0 {
+		t.Fatalf("expanded = %v", got)
+	}
+	at = at.Add(time.Hour)
+	if cmd := c.OpenWorkspace("~/src"); cmd == nil {
+		t.Fatal("a known workspace is marked opened")
+	} else {
+		cmd()
+	}
+	if ws := cache.LoadState(statePath).Hosts[testHost].Workspaces["~/src"]; !ws.At.Equal(at) {
+		t.Fatalf("at = %v", ws.At)
+	}
+	host = "https://gitlab.example.org"
+	if len(c.Expanded("~/src", "mrs")) != 0 {
+		t.Fatal("another host has its own groups")
+	}
+	var nilCat *Catalog
+	if nilCat.Expanded("~/src", "mrs") != nil || nilCat.SetExpanded("~/src", "mrs", nil) != nil || nilCat.OpenWorkspace("~/src") != nil {
+		t.Fatal("a nil catalog keeps nothing")
+	}
+}
+
 func TestRootRegistersWorkspaceAndRefreshesStarred(t *testing.T) {
 	client := fake.New()
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{FullPath: "qa/e2e-routes"}})

@@ -34,8 +34,8 @@ type stagesMsg struct {
 }
 
 // pipelinesTab is the Pipelines tab: the first per_project pipelines of
-// every project. While some are running, those projects are asked again
-// every polling.active.
+// every expanded project. While some are running, those projects are asked
+// again every polling.active.
 type pipelinesTab struct {
 	*groupBase[gitlab.PipelineSummary]
 	filter gitlab.PipelineFilter // Status, Ref, Username
@@ -56,7 +56,7 @@ func pipeFilterKeys(env *app.Env) []filterline.Key {
 
 func newPipelinesTab(sh *shared) *pipelinesTab {
 	t := &pipelinesTab{fast: common.NewGen(), stG: common.NewGen(), stages: map[int64][]gitlab.StageSummary{}}
-	t.groupBase = newGroupBase[gitlab.PipelineSummary](sh, pipeFilterKeys(sh.env))
+	t.groupBase = newGroupBase[gitlab.PipelineSummary](sh, "pipelines", pipeFilterKeys(sh.env))
 	t.fetch = func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[gitlab.PipelineSummary] {
 		return sh.env.Client.Workspace().Pipelines(ctx, ps, t.filter, perProject(sh.env))
 	}
@@ -64,7 +64,20 @@ func newPipelinesTab(sh *shared) *pipelinesTab {
 	return t
 }
 
-func (t *pipelinesTab) Count() int { return t.count() }
+// Count is the number of pipelines found with a filter; collapsed groups
+// have no count.
+func (t *pipelinesTab) Count() int {
+	if !t.narrowed() {
+		return -1
+	}
+	return t.count()
+}
+
+// narrowed reports a filter that narrows the list: status, ref or "me".
+func (t *pipelinesTab) narrowed() bool {
+	f := t.filter
+	return f.Status != "" || f.Ref != "" || f.Username != ""
+}
 
 // running lists the projects with a running or pending pipeline.
 func (t *pipelinesTab) running() []gitlab.ProjectRef {
@@ -105,7 +118,8 @@ func (t *pipelinesTab) Deactivate() {
 }
 
 func (t *pipelinesTab) Refresh() tea.Cmd {
-	return tea.Batch(t.load(false), t.loadStages(true))
+	t.fast.Next()
+	return tea.Batch(t.refresh(), t.loadStages(true))
 }
 
 // scheduleFast plans the next fast tick while something is running.
@@ -136,7 +150,7 @@ func (t *pipelinesTab) Rebuild() {
 		{Title: m.MR.ColDur, Min: 5, Priority: 20, AlignRight: true},
 		{Title: m.MR.ColAgo, Min: 4, Priority: 60, AlignRight: true},
 	})
-	t.setGroups(t.groups(t.row, t.summary, m.WS.EmptyPipes(t.filter.Username != "")))
+	t.setGroups(t.groups(t.row, t.summary, t.head, m.WS.EmptyPipes(t.filter.Username != "")))
 	t.layout()
 }
 
@@ -151,6 +165,40 @@ func (t *pipelinesTab) row(p gitlab.PipelineSummary) table.Row {
 
 func (t *pipelinesTab) summary(_ string, g gitlab.ProjectGroup[gitlab.PipelineSummary]) string {
 	return t.env().Msg.WS.GroupShown(len(g.Items))
+}
+
+// head is the header of a collapsed group: the default branch pipeline
+// from the overview ("✓ main #91790 · 2h").
+func (t *pipelinesTab) head(path string) string {
+	env := t.env()
+	s := env.Styles
+	ov, ok := t.sh.overview(path)
+	switch {
+	case !ok:
+		return ""
+	case ov.DefaultPipeline != nil:
+		p := ov.DefaultPipeline
+		ref := ov.DefaultBranch
+		if ref == "" {
+			ref = p.Ref
+		}
+		text := s.StatusGlyph(p.Status) + " " + ref + " " + fmt.Sprintf("#%d", p.ID)
+		if !p.CreatedAt.IsZero() {
+			text += " · " + render.Ago(env.Lang, env.Now(), p.CreatedAt)
+		}
+		return text
+	case ov.Phase >= 2:
+		return env.Msg.WS.EmptyPipes(false)
+	}
+	return ""
+}
+
+// toggle collapses or expands the group under the cursor.
+func (t *pipelinesTab) toggle() tea.Cmd {
+	path, cmd := t.groupBase.toggle()
+	t.Rebuild()
+	t.onToggled(path)
+	return tea.Batch(cmd, t.scheduleFast())
 }
 
 func (t *pipelinesTab) selected() *gitlab.PipelineSummary {
@@ -218,6 +266,10 @@ func (t *pipelinesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 			return t, tea.Batch(cmds...)
 		}
 		return t, cmd
+	case expandMsg:
+		cmd := t.onExpand(msg)
+		t.Rebuild()
+		return t, cmd
 	case stagesMsg:
 		if t.stG.Valid(msg.tok) && msg.err == nil {
 			t.stages[msg.id] = msg.stages
@@ -226,7 +278,8 @@ func (t *pipelinesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		switch {
 		case !t.active || env.AuthLost:
 		case t.poll.Valid(msg.Token):
-			return t, t.load(false)
+			t.fast.Next()
+			return t, t.refresh()
 		case t.fast.Valid(msg.Token):
 			return t, t.reload(t.running())
 		}
@@ -275,6 +328,8 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	path := t.cursorGroup()
 	switch k.String() {
+	case "space":
+		return t.toggle()
 	case "/":
 		vals := map[string]string{}
 		if t.filter.Status != "" {
@@ -317,6 +372,9 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			ov, _ := t.sh.overview(path)
 			return pipeactions.RunForm(env, t.ref(path), t.sh.primaryRepo(path), ov.DefaultBranch)
 		}
+	}
+	if _, _, kind := t.tbl.Cursor(); kind == grouped.KindHeader && k.String() == "enter" {
+		return t.toggle()
 	}
 	p := t.selected()
 	if p == nil {

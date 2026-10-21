@@ -59,6 +59,13 @@ type Catalog struct {
 	ws        WorkspaceRoot
 	starred   map[string]*starredSnap // by host, read from disk on first use
 	stats     map[string]CatalogEntry
+	now       func() time.Time
+
+	// Saves run off the UI goroutine; version orders them so an older
+	// copy of the state never overwrites a newer one.
+	version uint64
+	saveMu  sync.Mutex
+	saved   uint64
 }
 
 // starredSnap is the starred list of one host.
@@ -74,7 +81,7 @@ var _ ProjectCatalog = (*Catalog)(nil)
 // the current GitLab host (nil: one unnamed host).
 func NewCatalog(disk *cache.Disk, statePath string, host func() string) *Catalog {
 	c := &Catalog{disk: disk, statePath: statePath, host: host,
-		starred: map[string]*starredSnap{}, stats: map[string]CatalogEntry{}}
+		starred: map[string]*starredSnap{}, stats: map[string]CatalogEntry{}, now: time.Now}
 	if statePath != "" {
 		c.state = cache.LoadState(statePath)
 	}
@@ -240,17 +247,67 @@ func (c *Catalog) Touch(path string) tea.Cmd {
 		return nil
 	}
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.state.Touch(c.curHost(), path)
-	st := c.state.Clone()
-	file := c.statePath
-	c.mu.Unlock()
-	if file == "" {
+	return c.saveLocked()
+}
+
+// Expanded returns the expanded groups of tab ("mrs", "pipelines") of
+// workspace source on the current host.
+func (c *Catalog) Expanded(source, tab string) []string {
+	if c == nil {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.state.Expanded(c.curHost(), source, tab)...)
+}
+
+// SetExpanded remembers the expanded groups of tab of workspace source and
+// saves the state file in the background.
+func (c *Catalog) SetExpanded(source, tab string, paths []string) tea.Cmd {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.state.SetExpanded(c.curHost(), source, tab, paths, c.now())
+	return c.saveLocked()
+}
+
+// OpenWorkspace marks workspace source opened now (the oldest workspaces
+// are forgotten first). Without a record nothing is written.
+func (c *Catalog) OpenWorkspace(source string) tea.Cmd {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.state.TouchWorkspace(c.curHost(), source, c.now()) {
+		return nil
+	}
+	return c.saveLocked()
+}
+
+// saveLocked returns a command writing a copy of the state (the caller
+// holds mu).
+func (c *Catalog) saveLocked() tea.Cmd {
+	if c.statePath == "" {
+		return nil
+	}
+	c.version++
+	st, file, v := c.state.Clone(), c.statePath, c.version
 	return func() tea.Msg {
+		c.saveMu.Lock()
+		defer c.saveMu.Unlock()
+		if v <= c.saved {
+			return nil // a newer state is already on disk
+		}
 		if err := cache.SaveState(file, st); err != nil {
 			debuglog.L().Debug("save state", "err", err)
+			return nil
 		}
+		c.saved = v
 		return nil
 	}
 }

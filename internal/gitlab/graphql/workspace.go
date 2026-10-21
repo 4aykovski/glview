@@ -31,7 +31,7 @@ fragment WsOverview on Project {
 
 // defaultPipelineField is phase 2: the latest pipeline of the default
 // branch, whose name is the alias's own variable $rN.
-const defaultPipelineField = `dp: pipelines(ref: $r%d, first: 1) { nodes { id iid status path } }`
+const defaultPipelineField = `dp: pipelines(ref: $r%d, first: 1) { nodes { id iid status path createdAt } }`
 
 type gqlOverview struct {
 	ID             string `json:"id"`

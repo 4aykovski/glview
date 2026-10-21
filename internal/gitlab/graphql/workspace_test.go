@@ -52,7 +52,7 @@ const overviewResponse = `{"data":{
  "p0":{"id":"gid://gitlab/Project/42","name":"route-service","webUrl":"https://gitlab.example.com/platform/route-service",
    "lastActivityAt":"2026-10-19T11:00:00Z","archived":false,"repository":{"rootRef":"main"},
    "opened":{"count":6},"review":{"count":2},
-   "dp":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/91790","iid":"790","status":"MANUAL","path":"/platform/route-service/-/pipelines/91790"}]}},
+   "dp":{"nodes":[{"id":"gid://gitlab/Ci::Pipeline/91790","iid":"790","status":"MANUAL","path":"/platform/route-service/-/pipelines/91790","createdAt":"2026-10-19T07:00:00Z"}]}},
  "p1":null,
  "p2":{"id":"gid://gitlab/Project/7","name":"empty","webUrl":"u","lastActivityAt":"2026-10-01T00:00:00Z","archived":true,
    "repository":{"rootRef":null},"opened":{"count":0},"review":{"count":0},"dp":{"nodes":[]}},
@@ -75,7 +75,7 @@ func TestOverviewMapping(t *testing.T) {
 	if ov.ID != 42 || ov.OpenMRs != 6 || ov.ReviewMRs != 2 || ov.DefaultBranch != "main" || ov.Phase != 2 {
 		t.Fatalf("overview = %+v", ov)
 	}
-	if p := ov.DefaultPipeline; p == nil || p.ID != 91790 || p.Status != gitlab.StatusManual || !strings.HasSuffix(p.WebURL, "/pipelines/91790") {
+	if p := ov.DefaultPipeline; p == nil || p.ID != 91790 || p.Status != gitlab.StatusManual || !strings.HasSuffix(p.WebURL, "/pipelines/91790") || p.CreatedAt.IsZero() {
 		t.Fatalf("pipeline = %+v", ov.DefaultPipeline)
 	}
 	if !errors.Is(groups[1].Err, gitlab.ErrNotFound) {

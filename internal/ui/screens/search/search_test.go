@@ -155,7 +155,9 @@ func TestPickerKeepsWorkspaceRoot(t *testing.T) {
 	ws := wsscreen.New(env, "~/src", wsScope())
 	root := app.New(env, ws, app.Options{})
 	d := uitest.New(t, root)
-	d.Key("2", "j", "enter") // MR detail of !479
+	d.Key("2", "space") // expand platform/route-service
+	d.Send(ws.ExpandMsg())
+	d.Key("j", "enter") // MR detail of !479
 	if root.Depth() != 2 {
 		t.Fatalf("depth = %d", root.Depth())
 	}

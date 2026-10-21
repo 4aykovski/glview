@@ -23,6 +23,9 @@ func TestWorkspaceEndToEnd(t *testing.T) {
 	}
 
 	d.Key("2")
+	d.RequireView("▸ platform/route-service  1 open")
+	d.Key("space")
+	d.Send(ws.ExpandMsg())
 	d.RequireView("▾ platform/route-service", "!479")
 	d.Key("f")
 	p, ok := root.Top().(*project.Project)

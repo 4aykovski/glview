@@ -9,12 +9,12 @@ gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · �
   !479   Fix race in courier slot al…  egor      author    ✓ success   0/2    1h
   !477   Kafka consumer: batch offse…  bob       reviewer  ✗ failed    0/2    3h
   ↳ 1 more · f filter by project
-  ▾ platform/routing-engine  1 open · 1 waiting for you
-  !88    Contraction hierarchies: re…  maria.s   reviewer  ✓ success   0/2    3h
-  ▾ frontend/route-planner-ui  1 open
-  !311   Map layers: courier heatmap…  k.lee     —         ◐ running   0/2   12m
-  ▸ infra/router-configs  no open
+  ▸ platform/routing-engine  1 open · 1 waiting for you
+  ▸ frontend/route-planner-ui  1 open
+  ▾ infra/router-configs
+    no open
   ▸ qa/e2e-routes  no open
+
 
 
 

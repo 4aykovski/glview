@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/ui/app"
+	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/grouped"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
 	"github.com/4aykovski/glview/internal/ui/uitest"
@@ -26,16 +28,19 @@ func lastCall(t *testing.T, calls interface{ CallsOf(string) [][]any }, method s
 
 func TestGroupTabsLoadLazily(t *testing.T) {
 	client := newFake()
-	d, _, scr := open(t, client, testScope())
+	d, _, _ := openExpanded(t, client, testScope(), allPaths, nil)
 	if client.CallCount("Workspace.MergeRequests") != 0 {
 		t.Fatal("MRs are not asked before the tab is opened")
 	}
 	d.Key("2")
-	if scr.Current() != TabMRs || client.CallCount("Workspace.MergeRequests") != 1 {
+	if client.CallCount("Workspace.MergeRequests") != 1 {
 		t.Fatalf("calls = %d", client.CallCount("Workspace.MergeRequests"))
 	}
 	d.RequireView("▾ platform/route-service  4 open · 2 waiting for you · showing 3", "!482", "Draft: add surge pricing",
-		"↳ 1 more · f filter by project", "▸ infra/router-configs  no open", "2 MRs 6")
+		"↳ 1 more · f filter by project", "▾ infra/router-configs", "2 MRs 6")
+	if next := lineAfter(t, d, "▾ infra/router-configs"); strings.TrimSpace(next) != "no open" {
+		t.Fatalf("an empty expanded group: %q", next)
+	}
 	d.Key("1", "2")
 	if client.CallCount("Workspace.MergeRequests") != 1 {
 		t.Fatal("a loaded tab is not reloaded at once")
@@ -45,9 +50,130 @@ func TestGroupTabsLoadLazily(t *testing.T) {
 	}
 }
 
+func TestGroupsCollapsedByDefault(t *testing.T) {
+	client := newFake()
+	d, _, _ := open(t, client, testScope())
+	d.Key("2")
+	if n := client.CallCount("Workspace.MergeRequests"); n != 0 {
+		t.Fatalf("collapsed groups are not asked: %d calls", n)
+	}
+	d.RequireView("▸ platform/route-service  4 open · 2 waiting for you", "▸ platform/routing-engine  1 open · 1 waiting for you",
+		"▸ frontend/route-planner-ui  1 open", "▸ infra/router-configs  no open", "▸ qa/e2e-routes  no open", "2 MRs 6")
+	d.RequireNoView("!482", "loading")
+	d.Key("3")
+	if n := client.CallCount("Workspace.Pipelines"); n != 0 {
+		t.Fatalf("collapsed groups are not asked: %d calls", n)
+	}
+	d.RequireView("▸ platform/route-service  ► main #91790 · 5h", "▸ frontend/route-planner-ui  ◐ main #7001 · 3m",
+		"▸ qa/e2e-routes  ✓ main #5501 · 2w")
+	d.RequireNoView("3 Pipelines 6")
+}
+
+func TestGroupHeaderBeforeOverview(t *testing.T) {
+	client := newFake()
+	for _, p := range allPaths {
+		client.SetProjectDelay(p, time.Second) // the overview never comes in this test
+	}
+	d, _, _ := open(t, client, testScope())
+	d.Key("2")
+	if !strings.HasSuffix(strings.TrimRight(lineWith(t, d, "▸ platform/route-service"), " "), "platform/route-service") {
+		t.Fatalf("without the overview only the path: %q", lineWith(t, d, "▸ platform/route-service"))
+	}
+}
+
+func TestExpandAsksOnlyThatGroupAndIsRemembered(t *testing.T) {
+	client := newFake()
+	env := newEnv(client)
+	statePath := withState(t, env, nil, nil)
+	scr := New(env, source, testScope())
+	d := uitest.New(t, app.New(env, scr, app.Options{}))
+	d.Key("2", "space") // route-service
+	d.RequireView("▾ platform/route-service  4 open · 2 waiting for you")
+	if next := lineAfter(t, d, "▾ platform/route-service"); strings.TrimSpace(next) != "◐ loading…" {
+		t.Fatalf("loading line: %q", next)
+	}
+	if client.CallCount("Workspace.MergeRequests") != 0 {
+		t.Fatal("the request waits for the expand delay")
+	}
+	d.Key("J", "J", "space") // and frontend/route-planner-ui within the delay
+	d.Send(scr.ExpandMsg())
+	calls := client.CallsOf("Workspace.MergeRequests")
+	if len(calls) != 1 {
+		t.Fatalf("one request for both groups: %d", len(calls))
+	}
+	if paths := calls[0][0].([]string); strings.Join(paths, ",") != "platform/route-service,frontend/route-planner-ui" {
+		t.Fatalf("asked %v", paths)
+	}
+	d.RequireView("▾ platform/route-service  4 open · 2 waiting for you · showing 3", "!482", "!311", "▸ platform/routing-engine")
+	if line := lineWith(t, d, "frontend/route-planner-ui"); !strings.HasPrefix(line, "› ▾") {
+		t.Fatalf("the cursor stays on the toggled header: %q", line)
+	}
+	// enter on a header collapses it, without a request.
+	d.Key("enter")
+	d.RequireView("▸ frontend/route-planner-ui  1 open")
+	d.RequireNoView("!311")
+	if client.CallCount("Workspace.MergeRequests") != 1 {
+		t.Fatal("collapsing asks nothing")
+	}
+	// space on a record collapses its group.
+	d.Key("g", "j", "space")
+	d.RequireView("▸ platform/route-service  4 open")
+	d.Key("space")
+	d.Send(scr.ExpandMsg())
+	if got := cache.LoadState(statePath).Expanded(env.Host, source, "mrs"); strings.Join(got, ",") != "platform/route-service" {
+		t.Fatalf("state = %v", got)
+	}
+
+	// Next start: the group is expanded again in MRs, not in Pipelines.
+	client2 := newFake()
+	env2 := newEnv(client2)
+	env2.Catalog = app.NewCatalog(nil, statePath, func() string { return env2.Host })
+	d2 := uitest.New(t, app.New(env2, New(env2, source, testScope()), app.Options{}))
+	d2.Key("2")
+	if paths := lastCall(t, client2, "Workspace.MergeRequests")[0].([]string); strings.Join(paths, ",") != "platform/route-service" {
+		t.Fatalf("restored: %v", paths)
+	}
+	d2.RequireView("▾ platform/route-service", "!482", "▸ frontend/route-planner-ui")
+	d2.Key("3")
+	if client2.CallCount("Workspace.Pipelines") != 0 {
+		t.Fatal("Pipelines keep their own set")
+	}
+	d2.RequireView("▸ platform/route-service  ► main")
+}
+
+func TestPollAndRefreshAskOnlyExpanded(t *testing.T) {
+	client := newFake()
+	d, _, scr := openExpanded(t, client, testScope(), []string{"platform/routing-engine"}, nil)
+	d.Key("2")
+	mrs := scr.tabs[TabMRs].(*mrsTab)
+	overviews := client.CallCount("Workspace.ProjectsOverview")
+	check := func(what string) {
+		t.Helper()
+		if paths := lastCall(t, client, "Workspace.MergeRequests")[0].([]string); strings.Join(paths, ",") != "platform/routing-engine" {
+			t.Fatalf("%s asks %v", what, paths)
+		}
+		overviews++
+		if n := client.CallCount("Workspace.ProjectsOverview"); n != overviews {
+			t.Fatalf("%s: overview calls = %d, want %d", what, n, overviews)
+		}
+		if o := lastCall(t, client, "Workspace.ProjectsOverview")[1].(gitlab.OverviewOptions); !o.SkipTags {
+			t.Fatalf("%s: the headers need no tags", what)
+		}
+	}
+	if paths := lastCall(t, client, "Workspace.MergeRequests")[0].([]string); strings.Join(paths, ",") != "platform/routing-engine" {
+		t.Fatalf("first open asks %v", paths)
+	}
+	d.Send(common.PollTickMsg{Token: mrs.poll.Current()})
+	check("poll")
+	d.Key("r")
+	check("r")
+	if n := client.CallCount("Workspace.MergeRequests"); n != 3 {
+		t.Fatalf("calls = %d", n)
+	}
+}
 func TestBatchesInReverseOrderKeepGroups(t *testing.T) {
 	client := newFake()
-	d, _, scr := open(t, client, testScope())
+	d, _, scr := openExpanded(t, client, testScope(), allPaths, nil)
 	mrs := scr.tabs[TabMRs].(*mrsTab)
 	for _, p := range projects {
 		client.SetProjectDelay(p.path, time.Second) // the real answers never come in this test
@@ -58,17 +184,19 @@ func TestBatchesInReverseOrderKeepGroups(t *testing.T) {
 		t.Helper()
 		prev := -1
 		for _, p := range order {
-			i := lineIndex(d, " "+p+"  ")
+			i := lineIndex(d, "▾ "+p)
 			if i <= prev {
 				t.Fatalf("%s out of order:\n%s", p, d.View())
 			}
 			prev = i
 		}
 	}
-	d.RequireView("◐ platform/route-service  loading…")
+	if next := lineAfter(t, d, "▾ platform/route-service"); strings.TrimSpace(next) != "◐ loading…" {
+		t.Fatalf("loading line: %q", next)
+	}
 	requireOrder()
 
-	tok := mrs.gen.Current()
+	tok := mrs.full
 	group := func(path string, items ...gitlab.MergeRequest) gitlab.ProjectGroup[gitlab.MergeRequest] {
 		return gitlab.ProjectGroup[gitlab.MergeRequest]{Project: gitlab.ProjectRef{FullPath: path}, Items: items, Total: len(items)}
 	}
@@ -79,7 +207,13 @@ func TestBatchesInReverseOrderKeepGroups(t *testing.T) {
 	d.Send(batchMsg[gitlab.MergeRequest]{tok: tok, res: gitlab.BatchResult[gitlab.MergeRequest]{Groups: []gitlab.ProjectGroup[gitlab.MergeRequest]{
 		group("infra/router-configs"), group("qa/e2e-routes", mr(9, "e2e flake")),
 	}}})
-	d.RequireView("◐ platform/route-service  loading…", "e2e flake", "▸ infra/router-configs  no open")
+	d.RequireView("e2e flake", "▾ infra/router-configs")
+	if next := lineAfter(t, d, "▾ platform/route-service"); strings.TrimSpace(next) != "◐ loading…" {
+		t.Fatalf("loading line: %q", next)
+	}
+	if next := lineAfter(t, d, "▾ infra/router-configs"); strings.TrimSpace(next) != "no open" {
+		t.Fatalf("empty line: %q", next)
+	}
 	requireOrder()
 	d.Send(batchMsg[gitlab.MergeRequest]{tok: tok, res: gitlab.BatchResult[gitlab.MergeRequest]{Groups: []gitlab.ProjectGroup[gitlab.MergeRequest]{
 		group("platform/route-service", mr(479, "Fix race")), group("platform/routing-engine"),
@@ -92,22 +226,28 @@ func TestBatchesInReverseOrderKeepGroups(t *testing.T) {
 func TestNullProjectGroupNoAccess(t *testing.T) {
 	client := newFake()
 	rows := append([]workspace.Project{localRow("/src/gone", "gone", "platform/gone", "main")}, testScope().Rows...)
-	d, _, _ := open(t, client, workspace.NewScope(source, rows))
+	d, _, _ := openExpanded(t, client, workspace.NewScope(source, rows), []string{"platform/gone", "platform/route-service"}, nil)
 	d.Key("2")
 	d.RequireView("✗ platform/gone  no access", "▾ platform/route-service")
+	if paths := lastCall(t, client, "Workspace.MergeRequests")[0].([]string); len(paths) != 2 {
+		t.Fatalf("asked %v", paths)
+	}
 	d.Key("3")
 	d.RequireView("✗ platform/gone  no access", "#91790")
 }
 
 func TestMineFilter(t *testing.T) {
 	client := newFake()
-	d, _, _ := open(t, client, testScope())
+	d, _, _ := openExpanded(t, client, testScope(), allPaths, nil)
 	d.Key("2", "m")
 	f := lastCall(t, client, "Workspace.MergeRequests")[1].(gitlab.MRFilter)
 	if !f.Mine || f.State != gitlab.MRStateOpened {
 		t.Fatalf("filter = %+v", f)
 	}
-	d.RequireView("me: author/assignee/reviewer", "▾ platform/route-service  ≥3 open", "▸ infra/router-configs  no open MRs of yours")
+	d.RequireView("me: author/assignee/reviewer", "▾ platform/route-service  ≥3 open")
+	if next := lineAfter(t, d, "▾ infra/router-configs"); strings.TrimSpace(next) != "no open MRs of yours" {
+		t.Fatalf("empty line: %q", next)
+	}
 	row := lineWith(t, d, "!479")
 	if !strings.Contains(row, "author") {
 		t.Fatalf("role: %q", row)
@@ -125,7 +265,7 @@ func TestMineFilter(t *testing.T) {
 
 func TestApproveInRowProject(t *testing.T) {
 	client := newFake()
-	d, _, _ := open(t, client, testScope())
+	d, _, _ := openExpanded(t, client, testScope(), []string{"platform/route-service"}, nil)
 	d.Key("2", "j", "j") // header, !482, !479
 	d.Key("a")
 	args := lastCall(t, client, "MergeRequests.Approve")
@@ -148,7 +288,7 @@ func TestApproveInRowProject(t *testing.T) {
 
 func TestPipelinesFastTickOnlyRunning(t *testing.T) {
 	client := newFake()
-	d, _, scr := open(t, client, testScope())
+	d, _, scr := openExpanded(t, client, testScope(), nil, allPaths)
 	d.Key("3")
 	d.RequireView("▾ frontend/route-planner-ui", "◐ running", "#7001")
 	if n := len(lastCall(t, client, "Workspace.Pipelines")[0].([]string)); n != 5 {
@@ -164,7 +304,7 @@ func TestPipelinesFastTickOnlyRunning(t *testing.T) {
 
 func TestFilterByProjectAndBack(t *testing.T) {
 	client := newFake()
-	d, root, scr := open(t, client, testScope())
+	d, root, scr := openExpanded(t, client, testScope(), allPaths, nil)
 	d.Key("2")
 	// Collapse routing-engine, put the cursor on !311 of route-planner-ui.
 	d.Key("J")      // routing-engine header
@@ -191,7 +331,7 @@ func TestFilterByProjectAndBack(t *testing.T) {
 	if !strings.HasPrefix(lineWith(t, d, "!311"), "›") {
 		t.Fatalf("cursor on !311:\n%s", d.View())
 	}
-	if !mrs.tbl.Collapsed("platform/routing-engine") || strings.Contains(d.View(), "Contraction hierarchies") {
+	if mrs.expanded["platform/routing-engine"] || strings.Contains(d.View(), "Contraction hierarchies") {
 		t.Fatal("collapsed group stays collapsed")
 	}
 
@@ -213,9 +353,16 @@ func TestFilterByProjectAndBack(t *testing.T) {
 func TestGoldenGroupTabs(t *testing.T) {
 	d, _, _ := open(t, newFake(), testScope())
 	d.Key("2")
-	d.RequireGoldenSizes("mrs")
+	d.RequireGoldenSizes("mrs-collapsed")
 	d.Key("3")
-	d.RequireGoldenSizes("pipelines")
+	d.RequireGoldenSizes("pipelines-collapsed")
+
+	d, _, _ = openExpanded(t, newFake(), testScope(), []string{"platform/route-service", "infra/router-configs"},
+		[]string{"platform/routing-engine", "frontend/route-planner-ui"})
+	d.Key("2")
+	d.RequireGoldenSizes("mrs-expanded")
+	d.Key("3")
+	d.RequireGoldenSizes("pipelines-expanded")
 }
 
 func openGroup(t *testing.T, client *fake.Client, limit int) (*uitest.Driver, *Screen) {

@@ -2,11 +2,13 @@ package workspace
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/gitremote"
@@ -127,6 +129,34 @@ func testScope() workspace.Scope {
 	return workspace.NewScope(source, rows)
 }
 
+// allPaths are the paths of the five projects.
+var allPaths = []string{"qa/e2e-routes", "platform/route-service", "infra/router-configs", "platform/routing-engine", "frontend/route-planner-ui"}
+
+// withState gives env a catalog over a state file in which the groups of
+// the test workspace are expanded; it returns the file path.
+func withState(t *testing.T, env *app.Env, mrs, pipes []string) string {
+	t.Helper()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	var st cache.State
+	st.SetExpanded(env.Host, source, "mrs", mrs, now)
+	st.SetExpanded(env.Host, source, "pipelines", pipes, now)
+	if err := cache.SaveState(statePath, st); err != nil {
+		t.Fatal(err)
+	}
+	env.Catalog = app.NewCatalog(nil, statePath, func() string { return env.Host })
+	return statePath
+}
+
+// openExpanded opens the test workspace with the given groups expanded.
+func openExpanded(t *testing.T, client *fake.Client, scope workspace.Scope, mrs, pipes []string) (*uitest.Driver, *app.Model, *Screen) {
+	t.Helper()
+	env := newEnv(client)
+	withState(t, env, mrs, pipes)
+	scr := New(env, source, scope)
+	root := app.New(env, scr, app.Options{})
+	return uitest.New(t, root), root, scr
+}
+
 func open(t *testing.T, client *fake.Client, scope workspace.Scope) (*uitest.Driver, *app.Model, *Screen) {
 	t.Helper()
 	env := newEnv(client)
@@ -155,4 +185,17 @@ func lineIndex(d *uitest.Driver, sub string) int {
 		}
 	}
 	return -1
+}
+
+// lineAfter returns the view line below the first one containing sub.
+func lineAfter(t *testing.T, d *uitest.Driver, sub string) string {
+	t.Helper()
+	lines := strings.Split(d.View(), "\n")
+	for i, l := range lines {
+		if strings.Contains(l, sub) && i+1 < len(lines) {
+			return lines[i+1]
+		}
+	}
+	t.Fatalf("no line with %q:\n%s", sub, d.View())
+	return ""
 }

@@ -57,7 +57,7 @@ func fillM2EN(m *Messages) {
 	w.MeMRs = "me: author/assignee/reviewer"
 	w.MePipes = "me: mine"
 	w.StatusGroups = "groups by latest activity"
-	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "next/prev project", "collapse", "filter by project", "open project"
+	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "next/prev project", "expand/collapse", "filter by project", "open project"
 
 	s := &m.Search
 	s.PickerTitle, s.GlobalTitle = "Switch project", "Search GitLab"

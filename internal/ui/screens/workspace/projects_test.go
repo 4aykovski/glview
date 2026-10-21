@@ -277,7 +277,7 @@ func TestOverviewReportsRebuildOnlyProjects(t *testing.T) {
 	asked := client.CallCount("MergeRequests.List")
 
 	// A running overview reports the latest tag of every project, many times.
-	scr.loadOverview(false) // its own reports are never listened to
+	scr.loadOverview(false, false) // its own reports are never listened to
 	t.Cleanup(scr.cancel)
 	tok := scr.ovGen.Current()
 	for i := range 100 {

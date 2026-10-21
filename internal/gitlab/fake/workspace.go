@@ -148,7 +148,9 @@ func (w workspace) ProjectsOverview(ctx context.Context, ps []gitlab.ProjectRef,
 			}
 		}
 		ov.DefaultPipeline = best
-		if tags := c.data.tags[p.FullPath]; len(tags) > 0 {
+		if o.SkipTags {
+			ov.TagKnown = false
+		} else if tags := c.data.tags[p.FullPath]; len(tags) > 0 {
 			ov.LastTag = tags[0].Name
 		}
 		return gitlab.ProjectGroup[gitlab.ProjectOverview]{Project: pr.ProjectRef, Items: []gitlab.ProjectOverview{ov}, Total: 1}

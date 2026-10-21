@@ -42,10 +42,11 @@ func (w workspace) Pipelines(ctx context.Context, ps []gitlab.ProjectRef, f gitl
 // overviewRun is one ProjectsOverview call: it merges the phases and tags
 // of every project and reports the merged row after each change.
 type overviewRun struct {
-	c     *Client
-	ctx   context.Context
-	out   chan gitlab.BatchResult[gitlab.ProjectOverview]
-	force bool
+	c      *Client
+	ctx    context.Context
+	out    chan gitlab.BatchResult[gitlab.ProjectOverview]
+	force  bool
+	noTags bool // OverviewOptions.SkipTags
 
 	mu     sync.Mutex
 	state  map[string]gitlab.ProjectOverview
@@ -61,7 +62,7 @@ type overviewRun struct {
 // project, at most four at a time, cached for 10 minutes.
 func (w workspace) ProjectsOverview(ctx context.Context, ps []gitlab.ProjectRef, o gitlab.OverviewOptions) <-chan gitlab.BatchResult[gitlab.ProjectOverview] {
 	run := &overviewRun{
-		c: w.c, ctx: ctx, force: o.ForceTags,
+		c: w.c, ctx: ctx, force: o.ForceTags, noTags: o.SkipTags,
 		out:    make(chan gitlab.BatchResult[gitlab.ProjectOverview]),
 		state:  map[string]gitlab.ProjectOverview{},
 		tagged: map[string]bool{},
@@ -209,7 +210,7 @@ func (r *overviewRun) phase2(refs map[string]string) {
 
 // startTag fetches the latest tag of p once per run (the caller holds mu).
 func (r *overviewRun) startTag(p gitlab.ProjectRef) {
-	if r.tagged[p.FullPath] {
+	if r.noTags || r.tagged[p.FullPath] {
 		return
 	}
 	r.tagged[p.FullPath] = true

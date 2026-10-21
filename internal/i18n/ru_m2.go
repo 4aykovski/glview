@@ -64,7 +64,7 @@ func fillM2RU(m *Messages) {
 	w.MeMRs = "я: author/assignee/reviewer"
 	w.MePipes = "я: мои"
 	w.StatusGroups = "группы по последней активности"
-	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "между проектами", "свернуть", "фильтр по проекту", "открыть проект"
+	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "между проектами", "развернуть/свернуть", "фильтр по проекту", "открыть проект"
 
 	s := &m.Search
 	s.PickerTitle, s.GlobalTitle = "Сменить проект", "Поиск по GitLab"

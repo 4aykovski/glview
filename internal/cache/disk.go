@@ -85,6 +85,10 @@ func writeFileAtomic(path string, data []byte) error {
 // RecentLimit is how many recently opened projects are remembered.
 const RecentLimit = 20
 
+// WorkspaceLimit is how many workspaces per host keep their expanded
+// groups; the ones not opened for the longest time are dropped first.
+const WorkspaceLimit = 50
+
 // State is persisted user state ($XDG_STATE_HOME/gitlab-tui/state.json),
 // kept per host. The old host-less "recent" field is ignored and dropped
 // on the next save.
@@ -95,6 +99,15 @@ type State struct {
 // HostState is the state of one GitLab host.
 type HostState struct {
 	Recent []string `json:"recent"` // project full paths, most recent first
+	// Workspaces are the expanded groups of the workspace tabs, by
+	// workspace source (a folder or a group, as in the snapshot key).
+	Workspaces map[string]WorkspaceState `json:"workspaces,omitempty"`
+}
+
+// WorkspaceState is what one workspace remembers.
+type WorkspaceState struct {
+	At       time.Time           `json:"at"`                 // last opened
+	Expanded map[string][]string `json:"expanded,omitempty"` // project paths by tab ("mrs", "pipelines")
 }
 
 // Recent returns the recent projects of host, most recent first.
@@ -102,12 +115,14 @@ func (s State) Recent(host string) []string { return s.Hosts[host].Recent }
 
 // LoadState reads the state file; a missing or corrupt file yields empty state.
 func LoadState(path string) State {
-	var s State
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) || err != nil {
-		return s
+		return State{}
 	}
-	_ = json.Unmarshal(data, &s)
+	var s State
+	if json.Unmarshal(data, &s) != nil {
+		return State{}
+	}
 	return s
 }
 
@@ -120,6 +135,15 @@ func SaveState(path string, s State) error {
 	return writeFileAtomic(path, data)
 }
 
+// host returns the state of host for changing (it is stored back by the
+// caller).
+func (s *State) host(host string) HostState {
+	if s.Hosts == nil {
+		s.Hosts = map[string]HostState{}
+	}
+	return s.Hosts[host]
+}
+
 // Touch moves project to the front of the recent list of host, keeping
 // RecentLimit entries.
 func (s *State) Touch(host, project string) {
@@ -129,19 +153,98 @@ func (s *State) Touch(host, project string) {
 			out = append(out, p)
 		}
 	}
-	if s.Hosts == nil {
-		s.Hosts = map[string]HostState{}
-	}
-	h := s.Hosts[host]
+	h := s.host(host)
 	h.Recent = out
 	s.Hosts[host] = h
+}
+
+// Expanded returns the expanded groups of tab in workspace source of host.
+func (s State) Expanded(host, source, tab string) []string {
+	return s.Hosts[host].Workspaces[source].Expanded[tab]
+}
+
+// HasWorkspace reports whether workspace source of host has a record.
+func (s State) HasWorkspace(host, source string) bool {
+	_, ok := s.Hosts[host].Workspaces[source]
+	return ok
+}
+
+// SetExpanded stores the expanded groups of tab in workspace source of
+// host and marks the workspace opened at at. An empty list removes the
+// tab; a workspace without tabs keeps its record (and its time).
+func (s *State) SetExpanded(host, source, tab string, paths []string, at time.Time) {
+	h := s.host(host)
+	ws := h.Workspaces[source]
+	exp := make(map[string][]string, len(ws.Expanded)+1)
+	for k, v := range ws.Expanded {
+		if k != tab {
+			exp[k] = v
+		}
+	}
+	if len(paths) > 0 {
+		exp[tab] = append([]string(nil), paths...)
+	}
+	ws.Expanded, ws.At = exp, at
+	h.Workspaces = withWorkspace(h.Workspaces, source, ws)
+	s.Hosts[host] = h
+}
+
+// TouchWorkspace marks workspace source of host opened at at, if it has a
+// record. It reports whether it had one.
+func (s *State) TouchWorkspace(host, source string, at time.Time) bool {
+	if !s.HasWorkspace(host, source) {
+		return false
+	}
+	h := s.host(host)
+	ws := h.Workspaces[source]
+	ws.At = at
+	h.Workspaces = withWorkspace(h.Workspaces, source, ws)
+	s.Hosts[host] = h
+	return true
+}
+
+// withWorkspace returns a copy of all with source set to ws, keeping the
+// WorkspaceLimit most recently opened workspaces.
+func withWorkspace(all map[string]WorkspaceState, source string, ws WorkspaceState) map[string]WorkspaceState {
+	out := make(map[string]WorkspaceState, len(all)+1)
+	for k, v := range all {
+		out[k] = v
+	}
+	out[source] = ws
+	for len(out) > WorkspaceLimit {
+		oldest, found := "", false
+		for k, v := range out {
+			if k == source {
+				continue
+			}
+			if o := out[oldest]; !found || v.At.Before(o.At) || (v.At.Equal(o.At) && k < oldest) {
+				oldest, found = k, true
+			}
+		}
+		delete(out, oldest)
+	}
+	return out
 }
 
 // Clone returns a deep copy (to save it off the UI goroutine).
 func (s State) Clone() State {
 	out := State{Hosts: make(map[string]HostState, len(s.Hosts))}
 	for h, st := range s.Hosts {
-		out.Hosts[h] = HostState{Recent: append([]string(nil), st.Recent...)}
+		c := HostState{Recent: append([]string(nil), st.Recent...)}
+		if st.Workspaces != nil {
+			c.Workspaces = make(map[string]WorkspaceState, len(st.Workspaces))
+			for src, ws := range st.Workspaces {
+				w := WorkspaceState{At: ws.At}
+				if ws.Expanded != nil {
+					w.Expanded = make(map[string][]string, len(ws.Expanded))
+					for tab, ps := range ws.Expanded {
+						w.Expanded[tab] = append([]string(nil), ps...)
+					}
+				}
+				c.Workspaces[src] = w
+			}
+		}
+		out.Hosts[h] = c
 	}
 	return out
 }

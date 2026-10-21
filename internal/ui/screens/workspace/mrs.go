@@ -24,7 +24,8 @@ import (
 
 var mrStates = []gitlab.MRState{gitlab.MRStateOpened, gitlab.MRStateMerged, gitlab.MRStateClosed, gitlab.MRStateAll}
 
-// mrsTab is the MRs tab: the first per_project MRs of every project.
+// mrsTab is the MRs tab: the first per_project MRs of every expanded
+// project.
 type mrsTab struct {
 	*groupBase[gitlab.MergeRequest]
 	filter gitlab.MRFilter // State, Search, Mine
@@ -38,7 +39,7 @@ func defaultMRFilter() gitlab.MRFilter {
 
 func newMRsTab(sh *shared) *mrsTab {
 	t := &mrsTab{filter: defaultMRFilter()}
-	t.groupBase = newGroupBase[gitlab.MergeRequest](sh, mrFilterKeys(sh.env))
+	t.groupBase = newGroupBase[gitlab.MergeRequest](sh, "mrs", mrFilterKeys(sh.env))
 	t.fetch = func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[gitlab.MergeRequest] {
 		return sh.env.Client.Workspace().MergeRequests(ctx, ps, t.filter, perProject(sh.env))
 	}
@@ -56,6 +57,13 @@ func perProject(env *app.Env) int {
 	return app.DefaultPerProject
 }
 
+// narrowed reports a filter that narrows the list: text, "me" or a state
+// other than opened.
+func (t *mrsTab) narrowed() bool {
+	f := t.filter
+	return f.State != gitlab.MRStateOpened || f.Search != "" || f.Mine
+}
+
 func (t *mrsTab) filterKeys() []filterline.Key { return mrFilterKeys(t.env()) }
 
 func mrFilterKeys(env *app.Env) []filterline.Key {
@@ -63,7 +71,23 @@ func mrFilterKeys(env *app.Env) []filterline.Key {
 	return []filterline.Key{{Name: "state", Desc: m.KeyState, Values: []string{"opened", "merged", "closed", "all"}}}
 }
 
-func (t *mrsTab) Count() int { return t.count() }
+// Count is the number of open MRs from the overview; with other filters
+// it is the number of records found.
+func (t *mrsTab) Count() int {
+	if t.narrowed() {
+		return t.count()
+	}
+	n, known := 0, false
+	for _, p := range t.sh.order {
+		if ov, ok := t.sh.overview(p); ok {
+			n, known = n+ov.OpenMRs, true
+		}
+	}
+	if !known {
+		return -1
+	}
+	return n
+}
 
 func (t *mrsTab) Status() string { return t.env().Msg.WS.StatusGroups }
 
@@ -74,7 +98,7 @@ func (t *mrsTab) Deactivate() {
 	t.act.Stop()
 }
 
-func (t *mrsTab) Refresh() tea.Cmd { return t.load(false) }
+func (t *mrsTab) Refresh() tea.Cmd { return t.refresh() }
 
 func (t *mrsTab) Rebuild() {
 	env := t.env()
@@ -91,7 +115,7 @@ func (t *mrsTab) Rebuild() {
 		{Title: m.MR.ColAppr, Min: 4, Priority: 70, AlignRight: true},
 		{Title: m.MR.ColUpd, Min: 4, Priority: 60, AlignRight: true},
 	})
-	t.setGroups(t.groups(t.row, t.summary, m.WS.EmptyMRs(string(t.filter.State), t.filter.Mine)))
+	t.setGroups(t.groups(t.row, t.summary, t.head, m.WS.EmptyMRs(string(t.filter.State), t.filter.Mine)))
 	t.layout()
 }
 
@@ -145,6 +169,31 @@ func (t *mrsTab) summary(path string, g gitlab.ProjectGroup[gitlab.MergeRequest]
 	return strings.Join(parts, " · ")
 }
 
+// head is the header of a collapsed group: the open MRs from the overview.
+func (t *mrsTab) head(path string) string {
+	m := t.env().Msg.WS
+	ov, ok := t.sh.overview(path)
+	switch {
+	case !ok:
+		return ""
+	case ov.OpenMRs == 0:
+		return m.EmptyMRs(string(gitlab.MRStateOpened), false)
+	}
+	parts := []string{m.GroupCount(ov.OpenMRs, string(gitlab.MRStateOpened), false)}
+	if ov.ReviewMRs > 0 {
+		parts = append(parts, m.GroupWaiting(ov.ReviewMRs))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// toggle collapses or expands the group under the cursor.
+func (t *mrsTab) toggle() tea.Cmd {
+	path, cmd := t.groupBase.toggle()
+	t.Rebuild()
+	t.onToggled(path)
+	return cmd
+}
+
 // selected returns the MR under the cursor (nil on headers and "more").
 func (t *mrsTab) selected() *gitlab.MergeRequest {
 	g, r, kind := t.tbl.Cursor()
@@ -190,11 +239,15 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 			return t, t.schedulePoll()
 		}
 		return t, cmd
+	case expandMsg:
+		cmd := t.onExpand(msg)
+		t.Rebuild()
+		return t, cmd
 	case common.PollTickMsg:
 		if !t.poll.Valid(msg.Token) || !t.active || env.AuthLost {
 			return t, nil
 		}
-		return t, t.load(false)
+		return t, t.refresh()
 	case app.AuthLostMsg:
 		t.poll.Next()
 	case app.AuthRestoredMsg:
@@ -225,6 +278,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	path := t.cursorGroup()
 	switch k.String() {
+	case "space":
+		return t.toggle()
 	case "/":
 		vals := map[string]string{}
 		if t.filter.State != gitlab.MRStateOpened {
@@ -255,6 +310,9 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if path != "" {
 			return app.OpenURL(env, t.listURL(path))
 		}
+	}
+	if _, _, kind := t.tbl.Cursor(); kind == grouped.KindHeader && k.String() == "enter" {
+		return t.toggle()
 	}
 	mr := t.selected()
 	if mr == nil {

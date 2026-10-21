@@ -47,6 +47,10 @@ type shared struct {
 	order   []string                          // project paths, most active first
 	updated time.Time
 	loading bool // an overview run is in flight
+
+	// headers refreshes the overview for the headers of collapsed groups
+	// (the poll and r of the group tabs); nil while it is running.
+	headers func() tea.Cmd
 }
 
 // overview returns the overview of path and whether it is known.
@@ -197,6 +201,7 @@ type Screen struct {
 	active bool
 	failed bool // the running overview already toasted an error
 	gitOn  bool // ahead/behind counted (and fetch_on_start done) once
+	opened bool // the state file knows this workspace was opened
 	w, h   int
 }
 
@@ -225,6 +230,12 @@ func NewGroup(env *app.Env, g gitlab.Group) *Screen {
 func newScreen(env *app.Env, source string) *Screen {
 	sh := &shared{env: env, source: source, over: map[string]gitlab.ProjectOverview{}, errs: map[string]error{}}
 	s := &Screen{sh: sh, gen: common.NewGen(), ovGen: common.NewGen(), poll: common.NewGen()}
+	sh.headers = func() tea.Cmd {
+		if sh.loading {
+			return nil // the running overview updates the headers
+		}
+		return s.loadOverview(false, true)
+	}
 	s.tabs = []tab{newProjectsTab(sh), newMRsTab(sh), newPipelinesTab(sh), newPlaceholder(sh, TabTags)}
 	return s
 }
@@ -347,7 +358,7 @@ func (s *Screen) overviewOnActivate() tea.Cmd {
 	case !s.sh.ready || s.sh.loading || env.AuthLost:
 		return nil
 	case s.sh.updated.IsZero() || env.Now().Sub(s.sh.updated) >= env.WorkspacePoll():
-		return s.loadOverview(false)
+		return s.loadOverview(false, false)
 	}
 	return s.schedulePoll()
 }
@@ -361,8 +372,9 @@ func (s *Screen) schedulePoll() tea.Cmd {
 	return common.PollAfter(env.WorkspacePoll(), s.poll.Next())
 }
 
-// loadOverview starts an overview run over every project of the scope.
-func (s *Screen) loadOverview(force bool) tea.Cmd {
+// loadOverview starts an overview run over every project of the scope;
+// force asks the tags again, skipTags leaves them out (group tabs).
+func (s *Screen) loadOverview(force, skipTags bool) tea.Cmd {
 	sh := s.sh
 	if !sh.ready || len(sh.scope.Refs()) == 0 {
 		return nil
@@ -379,7 +391,7 @@ func (s *Screen) loadOverview(force bool) tea.Cmd {
 			roots[p] = ov.DefaultBranch
 		}
 	}
-	ch := sh.env.Client.Workspace().ProjectsOverview(ctx, sh.refsInOrder(), gitlab.OverviewOptions{RootRefs: roots, ForceTags: force})
+	ch := sh.env.Client.Workspace().ProjectsOverview(ctx, sh.refsInOrder(), gitlab.OverviewOptions{RootRefs: roots, ForceTags: force, SkipTags: skipTags})
 	s.tabs[TabProjects].Rebuild()
 	return listen(tok, ch)
 }
@@ -401,7 +413,12 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case app.ActivatedMsg:
 		s.active = true
-		return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate(), s.gitOnStart())
+		var touch tea.Cmd
+		if !s.opened {
+			s.opened = true
+			touch = env.Catalog.OpenWorkspace(s.sh.source)
+		}
+		return s, tea.Batch(s.overviewOnActivate(), s.tabs[s.cur].Activate(), s.gitOnStart(), touch)
 	case app.DeactivatedMsg:
 		s.active = false
 		s.tabs[s.cur].Deactivate()
@@ -443,14 +460,14 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			if !s.active || s.cur != TabProjects || env.AuthLost {
 				return s, nil
 			}
-			return s, s.loadOverview(false)
+			return s, s.loadOverview(false, false)
 		}
 	case app.AuthLostMsg:
 		s.poll.Next()
 	case app.AuthRestoredMsg:
 		var cmd tea.Cmd
 		if s.active {
-			cmd = s.loadOverview(false)
+			cmd = s.loadOverview(false, false)
 		}
 		return s, tea.Batch(cmd, s.broadcast(msg))
 
@@ -463,7 +480,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 // onOverview merges one overview batch; at the end of the run it fixes
 // the order, saves the snapshot and schedules the next poll. Only the tabs
 // whose data changed are rebuilt: the group tabs read from the overview
-// just the order, "no access" and the review count. The MR of the local
+// the order, "no access" and the headers of collapsed groups. The MR of the local
 // branch is asked only when the selected row or its branch changed.
 func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 	if !s.ovGen.Valid(msg.tok) {
@@ -501,9 +518,9 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 			}
 		case len(g.Items) > 0:
 			delete(sh.errs, path)
-			old := sh.over[path]
+			old, had := sh.over[path]
 			nw := mergeOverview(old, g.Items[0])
-			groups = groups || old.ReviewMRs != nw.ReviewMRs
+			groups = groups || !had || headerChanged(old, nw)
 			sh.over[path] = nw
 		}
 		groups = groups || noAccess != sh.noAccess(path)
@@ -520,6 +537,21 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 		local = pt.loadLocalMR()
 	}
 	return tea.Batch(fail, msg.next, local)
+}
+
+// headerChanged reports whether the group tabs show something else for
+// the project: the counts of the MRs headers or the default branch
+// pipeline of the Pipelines headers (a new tag changes neither).
+func headerChanged(old, nw gitlab.ProjectOverview) bool {
+	if old.OpenMRs != nw.OpenMRs || old.ReviewMRs != nw.ReviewMRs || old.DefaultBranch != nw.DefaultBranch {
+		return true
+	}
+	op, np := old.DefaultPipeline, nw.DefaultPipeline
+	switch {
+	case op == nil || np == nil:
+		return (op == nil) != (np == nil)
+	}
+	return op.ID != np.ID || op.Status != np.Status || !op.CreatedAt.Equal(np.CreatedAt)
 }
 
 // mergeOverview keeps what the old row knew and the new report does not
@@ -579,7 +611,7 @@ func (s *Screen) key(k tea.KeyPressMsg) tea.Cmd {
 			s.refreshRepos()
 			cmds := []tea.Cmd{cur.Refresh()}
 			if s.cur == TabProjects {
-				cmds = append(cmds, s.loadOverview(true))
+				cmds = append(cmds, s.loadOverview(true, false))
 			}
 			return tea.Batch(cmds...)
 		}
@@ -639,6 +671,15 @@ func (s *Screen) View() string {
 
 // StatusHint is shown in the footer when there is no toast.
 func (s *Screen) StatusHint() string { return s.tabs[s.cur].Status() }
+
+// ExpandMsg returns the expand tick of the current group tab (for tests:
+// the uitest driver drops timers).
+func (s *Screen) ExpandMsg() tea.Msg {
+	if e, ok := s.tabs[s.cur].(interface{ ExpandMsg() tea.Msg }); ok {
+		return e.ExpandMsg()
+	}
+	return nil
+}
 
 // PollMsg returns the overview poll tick that is due next (for tests).
 func (s *Screen) PollMsg() tea.Msg { return common.PollTickMsg{Token: s.poll.Current()} }

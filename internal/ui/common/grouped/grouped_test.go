@@ -53,6 +53,8 @@ func groups() []Group {
 		{Key: "qa/e2e-routes", Title: "qa/e2e-routes", State: Empty, Note: "no open"},
 		{Key: "platform/gone", Title: "platform/gone", State: Failed, Note: "no access"},
 		{Key: "infra/x", Title: "infra/x", State: Loading, Note: "loading…"},
+		{Key: "infra/y", Title: "infra/y", Summary: "3 open", Collapsed: true, Rows: rows("y", 1)},
+		{Key: "infra/z", Title: "infra/z", Summary: "1 open", State: Expanding, Note: "loading…"},
 	}
 }
 
@@ -70,7 +72,8 @@ func TestViewWidths(t *testing.T) {
 		m := newModel(w)
 		v := ansi.Strip(m.View())
 		for _, want := range []string{"▾ platform/route-service  6 open · showing 3", "↳ 3 more · f filter by project",
-			"▸ qa/e2e-routes  no open", "✗ platform/gone  no access", "◐ infra/x  loading…", "!1"} {
+			"▾ qa/e2e-routes\n    no open\n", "✗ platform/gone  no access", "◐ infra/x  loading…", "!1",
+			"▸ infra/y  3 open\n", "▾ infra/z  1 open\n    ◐ loading…"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("w=%d: no %q:\n%s", w, want, v)
 			}
@@ -103,24 +106,27 @@ func TestCursorAndCollapsedSurviveSetGroups(t *testing.T) {
 	if k != KindHeader || g.Key != "frontend/route-planner-ui" {
 		t.Fatalf("J → %s %v", g.Key, k)
 	}
-	m.HandleKey(key("space"))
-	if !m.Collapsed("frontend/route-planner-ui") {
-		t.Fatal("space collapses")
+	// The caller collapses a group: its records are gone, the cursor
+	// stays on the header.
+	gs := groups()
+	gs[1].Collapsed = true
+	m.SetGroups(gs)
+	if g, _, k := m.Cursor(); k != KindHeader || g.Key != "frontend/route-planner-ui" {
+		t.Fatalf("cursor after collapse = %v %v", g.Key, k)
+	}
+	if strings.Contains(ansi.Strip(m.View()), "ui merge request") {
+		t.Fatal("a collapsed group shows only its header")
 	}
 	m.HandleKey(key("K"))
 	m.HandleKey(key("j"))
 	m.HandleKey(key("j")) // route-service !2
 	// New data in another order, route-service lost !1: cursor stays on !2.
-	gs := groups()
 	gs[0], gs[1] = gs[1], gs[0]
 	gs[1].Rows = gs[1].Rows[1:]
 	m.SetGroups(gs)
 	g, r, _ = m.Cursor()
 	if g.Key != "platform/route-service" || r == nil || r.ID != "2" {
 		t.Fatalf("cursor after update = %v %v", g.Key, r)
-	}
-	if !m.Collapsed("frontend/route-planner-ui") || strings.Contains(ansi.Strip(m.View()), "ui merge request") {
-		t.Fatal("collapsed group stays collapsed")
 	}
 	// The record disappears: the cursor goes to its group's header.
 	gs[1].Rows = gs[1].Rows[1:]
@@ -129,10 +135,23 @@ func TestCursorAndCollapsedSurviveSetGroups(t *testing.T) {
 	if g.Key != "platform/route-service" || k != KindHeader {
 		t.Fatalf("cursor = %v %v", g.Key, k)
 	}
-	// Space on an empty group does nothing.
-	m.HandleKey(key("G"))
-	m.HandleKey(key("space"))
-	if m.Collapsed("infra/x") {
-		t.Fatal("a loading group cannot be collapsed")
+	// The note line of an empty group is a line of its own.
+	m.HandleKey(key("J"))
+	m.HandleKey(key("j"))
+	if g, _, k := m.Cursor(); k != KindNote || g.Key != "qa/e2e-routes" {
+		t.Fatalf("note line = %v %v", g.Key, k)
+	}
+	if m.HandleKey(key("space")) {
+		t.Fatal("space is the caller's")
+	}
+}
+
+func TestEmptyText(t *testing.T) {
+	m := New(common.NewStyles(common.TerminalTheme(true)))
+	m.SetColumns(cols())
+	m.SetSize(80, 10)
+	m.SetEmptyText("nothing found")
+	if !strings.Contains(ansi.Strip(m.View()), "  nothing found") {
+		t.Fatal(ansi.Strip(m.View()))
 	}
 }

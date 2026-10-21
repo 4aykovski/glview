@@ -1,8 +1,9 @@
 // Package grouped is the table of the workspace MRs and Pipelines tabs:
 // records grouped by project under header lines, a "N more" line per
-// group, collapsible groups and placeholder lines for groups that are
-// still loading, empty or failed (SPEC §3.3). Columns are laid out by the
-// same rules as the project-mode table (table.Layout).
+// group, collapsed groups (one header line) and placeholder lines for
+// groups that are still loading, empty or failed (SPEC §3.3). Which group
+// is collapsed is decided by the caller. Columns are laid out by the same
+// rules as the project-mode table (table.Layout).
 package grouped
 
 import (
@@ -26,10 +27,11 @@ const (
 type State int
 
 const (
-	Ready   State = iota // records loaded (Rows may still be empty: see Empty)
-	Loading              // the batch with this project has not arrived yet
-	Empty                // no records: one collapsed line
-	Failed               // the project failed (no access…)
+	Ready     State = iota // records loaded
+	Loading                // the batch with this project has not arrived yet: one "◐" line
+	Empty                  // no records: the header and a Note line under it
+	Failed                 // the project failed (no access…): one "✗" line
+	Expanding              // the list of an expanded group is loading: the header and a "◐ Note" line
 )
 
 // Group is one project of the table.
@@ -40,7 +42,10 @@ type Group struct {
 	Rows    []table.Row // records; IDs unique within the group
 	More    int         // records not shown ("N more")
 	State   State
-	Note    string // text of the Loading, Empty and Failed lines
+	Note    string // text of the Loading, Empty, Failed and Expanding lines
+	// Collapsed groups show only the header "▸ Title  Summary" (a failed
+	// or loading group is one line anyway).
+	Collapsed bool
 }
 
 // Kind is the kind of a line.
@@ -51,6 +56,7 @@ const (
 	KindHeader
 	KindRow
 	KindMore
+	KindNote // the "no open" or "◐ loading…" line under an expanded header
 )
 
 type line struct {
@@ -62,11 +68,11 @@ type line struct {
 
 // Model is the grouped table.
 type Model struct {
-	styles    *common.Styles
-	cols      []table.Column
-	groups    []Group
-	collapsed map[string]bool
-	moreText  func(n int) string
+	styles   *common.Styles
+	cols     []table.Column
+	groups   []Group
+	moreText func(n int) string
+	empty    string // text shown when there are no groups
 
 	lines  []line
 	cursor int
@@ -77,7 +83,7 @@ type Model struct {
 
 // New creates an empty table.
 func New(s *common.Styles) *Model {
-	return &Model{styles: s, collapsed: map[string]bool{}, moreText: func(int) string { return "" }}
+	return &Model{styles: s, moreText: func(int) string { return "" }}
 }
 
 // SetStyles switches the theme.
@@ -92,6 +98,9 @@ func (m *Model) SetColumns(cols []table.Column) {
 // SetMoreText sets the text of the "N more" lines.
 func (m *Model) SetMoreText(f func(n int) string) { m.moreText = f }
 
+// SetEmptyText sets the line shown when there are no groups.
+func (m *Model) SetEmptyText(s string) { m.empty = s }
+
 // SetSize sets the total area, the column header included.
 func (m *Model) SetSize(w, h int) {
 	m.w, m.h = w, h
@@ -104,7 +113,7 @@ func (m *Model) Groups() []Group { return m.groups }
 
 // SetGroups replaces the groups. The cursor stays on the same line ID;
 // when that line is gone it moves to its group's header, and to the first
-// line when the group is gone too. Collapsed groups stay collapsed.
+// line when the group is gone too.
 func (m *Model) SetGroups(groups []Group) {
 	id := m.CursorID()
 	m.groups = groups
@@ -115,6 +124,7 @@ func (m *Model) SetGroups(groups []Group) {
 
 func headerID(key string) string { return "group/" + key }
 func moreID(key string) string   { return "more/" + key }
+func noteID(key string) string   { return "note/" + key }
 func rowID(key, id string) string {
 	return "row/" + key + "/" + id
 }
@@ -133,16 +143,20 @@ func groupOf(id string) string {
 	return rest
 }
 
-// expanded reports whether the group shows its records.
-func (m *Model) expanded(g Group) bool {
-	return g.State == Ready && len(g.Rows) > 0 && !m.collapsed[g.Key]
+// open reports whether the group shows lines under its header.
+func open(g Group) bool {
+	return !g.Collapsed && (g.State == Ready || g.State == Empty || g.State == Expanding)
 }
 
 func (m *Model) rebuild() {
 	m.lines = m.lines[:0]
 	for gi, g := range m.groups {
 		m.lines = append(m.lines, line{kind: KindHeader, group: gi, row: -1, id: headerID(g.Key)})
-		if !m.expanded(g) {
+		if !open(g) {
+			continue
+		}
+		if g.State != Ready {
+			m.lines = append(m.lines, line{kind: KindNote, group: gi, row: -1, id: noteID(g.Key)})
 			continue
 		}
 		for ri, r := range g.Rows {
@@ -206,8 +220,8 @@ func RowID(key, id string) string { return rowID(key, id) }
 // HeaderID returns the line ID of the header of group key.
 func HeaderID(key string) string { return headerID(key) }
 
-// Cursor returns the group under the cursor, the record (nil on a header
-// or a "more" line) and the kind of the line.
+// Cursor returns the group under the cursor, the record (nil on a header,
+// a note or a "more" line) and the kind of the line.
 func (m *Model) Cursor() (*Group, *table.Row, Kind) {
 	if m.cursor < 0 || m.cursor >= len(m.lines) {
 		return nil, nil, KindNone
@@ -220,25 +234,8 @@ func (m *Model) Cursor() (*Group, *table.Row, Kind) {
 	return g, nil, l.kind
 }
 
-// Collapsed reports whether the group is collapsed by the user.
-func (m *Model) Collapsed(key string) bool { return m.collapsed[key] }
-
-// Toggle collapses or expands the group under the cursor; the cursor moves
-// to its header.
-func (m *Model) Toggle() {
-	g, _, _ := m.Cursor()
-	if g == nil || g.State != Ready || len(g.Rows) == 0 {
-		return
-	}
-	m.collapsed[g.Key] = !m.collapsed[g.Key]
-	key := g.Key
-	m.rebuild()
-	m.SetCursorID(headerID(key))
-}
-
 // HandleKey moves the cursor (j/k/g/G/pgup/pgdown, J/K between group
-// headers) and toggles the group on space. It reports whether the key was
-// handled.
+// headers). It reports whether the key was handled.
 func (m *Model) HandleKey(k tea.KeyPressMsg) bool {
 	last := max(0, len(m.lines)-1)
 	switch k.String() {
@@ -268,8 +265,6 @@ func (m *Model) HandleKey(k tea.KeyPressMsg) bool {
 				break
 			}
 		}
-	case "space":
-		m.Toggle()
 	default:
 		return false
 	}
@@ -335,6 +330,9 @@ func (m *Model) View() string {
 	for i := m.offset; i < end; i++ {
 		out = append(out, m.renderLine(i, widths))
 	}
+	if len(m.lines) == 0 && m.empty != "" {
+		out = append(out, noMarker+s.Muted.Render(m.empty))
+	}
 	return common.FitHeight(strings.Join(out, "\n"), m.h)
 }
 
@@ -361,6 +359,12 @@ func (m *Model) renderLine(i int, widths []int) string {
 		if !sel {
 			text = s.MoreRow.Render(text)
 		}
+	case KindNote: // indented under the group title
+		text = s.Muted.Render(g.Note)
+		if g.State == Expanding {
+			text = s.StatusStyle("running").Render("◐") + " " + text
+		}
+		text = "  " + text
 	}
 	if sel {
 		return s.RowSelected.Render(ansi.Truncate(marker+ansi.Strip(text), m.w, "…"))
@@ -376,11 +380,9 @@ func (m *Model) header(g Group, plain bool) string {
 		glyph, note = s.StatusStyle("running").Render("◐"), s.Muted.Render(g.Note)
 	case Failed:
 		glyph, note = s.Error.Render("✗"), s.Error.Render(g.Note)
-	case Empty:
-		glyph, note = "▸", s.Muted.Render(g.Note)
 	default:
 		glyph = "▾"
-		if len(g.Rows) == 0 || m.collapsed[g.Key] {
+		if g.Collapsed {
 			glyph = "▸"
 		}
 		note = s.Muted.Render(g.Summary)
@@ -389,7 +391,7 @@ func (m *Model) header(g Group, plain bool) string {
 		}
 	}
 	text := glyph + " " + s.GroupHeader.Render(g.Title)
-	if note != "" {
+	if ansi.Strip(note) != "" {
 		text += "  " + note
 	}
 	return text

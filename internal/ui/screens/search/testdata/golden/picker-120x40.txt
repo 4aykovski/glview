@@ -1,5 +1,5 @@
 gitlab-tui  ~/src · workspace · 2 GitLab projects                                                          @egor · ⟳ <1m
- 1 Projects 2   2 MRs   3 Pipelines   4 Tags
+ 1 Projects 2   2 MRs 2   3 Pipelines   4 Tags
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /  search
   Folder          GitLab                                              Local branch  ↑↓   MRs   Default branch  Tag   Act

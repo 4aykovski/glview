@@ -114,6 +114,9 @@ type OverviewOptions struct {
 	RootRefs map[string]string
 	// ForceTags bypasses the 10-minute cache of the latest tag (r).
 	ForceTags bool
+	// SkipTags leaves the latest tag out (the headers of collapsed
+	// workspace groups need phases 1 and 2 only); TagKnown stays false.
+	SkipTags bool
 }
 
 // SearchService searches the instance (global search F).

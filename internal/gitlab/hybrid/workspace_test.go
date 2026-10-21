@@ -193,6 +193,14 @@ func TestOverviewPhasesAndRootRefCache(t *testing.T) {
 	if s.tags != 20 {
 		t.Fatalf("r must refetch every tag: %d", s.tags)
 	}
+
+	got = final(c.Workspace().ProjectsOverview(ctx, refs(10), gitlab.OverviewOptions{ForceTags: true, SkipTags: true}))
+	if s.tags != 20 {
+		t.Fatalf("SkipTags asks no tags: %d", s.tags)
+	}
+	if ov := got["g/p3"]; ov.TagKnown || ov.Phase != 2 || ov.DefaultPipeline == nil {
+		t.Fatalf("overview without tags = %+v", ov)
+	}
 }
 
 func TestOverviewKnownRootRefsFromSnapshot(t *testing.T) {

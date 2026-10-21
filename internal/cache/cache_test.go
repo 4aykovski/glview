@@ -269,3 +269,85 @@ func TestStateOldFormatIsEmpty(t *testing.T) {
 		t.Fatalf("the old field is dropped on save:\n%s", data)
 	}
 }
+
+func TestStateWorkspaces(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	var s State
+	s.Touch(hostA, "qa/e2e-routes")
+	s.SetExpanded(hostA, "~/src", "mrs", []string{"platform/route-service", "qa/e2e-routes"}, at)
+	s.SetExpanded(hostA, "~/src", "pipelines", []string{"infra/router-configs"}, at)
+	s.SetExpanded(hostA, "group: platform", "mrs", []string{"platform/routing-engine"}, at)
+	s.SetExpanded(hostB, "~/src", "mrs", []string{"other/project"}, at)
+	if err := SaveState(path, s); err != nil {
+		t.Fatal(err)
+	}
+	got := LoadState(path)
+	if e := got.Expanded(hostA, "~/src", "mrs"); len(e) != 2 || e[0] != "platform/route-service" {
+		t.Fatalf("mrs = %v", e)
+	}
+	if e := got.Expanded(hostA, "~/src", "pipelines"); len(e) != 1 || e[0] != "infra/router-configs" {
+		t.Fatalf("pipelines = %v", e)
+	}
+	if e := got.Expanded(hostA, "group: platform", "pipelines"); len(e) != 0 {
+		t.Fatalf("group pipelines = %v", e)
+	}
+	if e := got.Expanded(hostB, "~/src", "mrs"); len(e) != 1 || e[0] != "other/project" {
+		t.Fatalf("host B = %v", e)
+	}
+	if r := got.Recent(hostA); len(r) != 1 {
+		t.Fatalf("recent survives: %v", r)
+	}
+	// Collapsing everything keeps the record.
+	got.SetExpanded(hostA, "~/src", "mrs", nil, at.Add(time.Hour))
+	if e := got.Expanded(hostA, "~/src", "mrs"); len(e) != 0 || !got.HasWorkspace(hostA, "~/src") {
+		t.Fatalf("mrs after collapse = %v", e)
+	}
+	if !got.TouchWorkspace(hostA, "~/src", at.Add(2*time.Hour)) || got.TouchWorkspace(hostA, "~/other", at) {
+		t.Fatal("touch marks only known workspaces")
+	}
+	// A clone does not share the lists.
+	c := got.Clone()
+	c.Hosts[hostA].Workspaces["~/src"].Expanded["pipelines"][0] = "changed"
+	if got.Expanded(hostA, "~/src", "pipelines")[0] != "infra/router-configs" {
+		t.Fatal("clone is deep")
+	}
+}
+
+func TestStateWorkspaceLimit(t *testing.T) {
+	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	var s State
+	for i := range WorkspaceLimit + 5 {
+		s.SetExpanded(hostA, fmt.Sprintf("~/ws%d", i), "mrs", []string{"g/p"}, at.Add(time.Duration(i)*time.Minute))
+	}
+	// ws5 is opened again: it is now the most recent one.
+	s.TouchWorkspace(hostA, "~/ws5", at.Add(time.Hour))
+	s.SetExpanded(hostA, "~/new", "mrs", []string{"g/p"}, at.Add(2*time.Hour))
+	ws := s.Hosts[hostA].Workspaces
+	if len(ws) != WorkspaceLimit {
+		t.Fatalf("workspaces = %d", len(ws))
+	}
+	for _, gone := range []string{"~/ws0", "~/ws4", "~/ws6"} {
+		if _, ok := ws[gone]; ok {
+			t.Fatalf("%s should be dropped", gone)
+		}
+	}
+	for _, kept := range []string{"~/ws5", "~/new", "~/ws54"} {
+		if _, ok := ws[kept]; !ok {
+			t.Fatalf("%s should be kept", kept)
+		}
+	}
+}
+
+func TestStateCorruptIsEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	for _, data := range []string{`{"hosts":`, `{"hosts":{"x":{"workspaces":{"~/src":{"expanded":{"mrs":"not a list"}}}}}}`, `[]`} {
+		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		s := LoadState(path)
+		if len(s.Hosts) != 0 {
+			t.Fatalf("%s: state = %+v", data, s)
+		}
+	}
+}
