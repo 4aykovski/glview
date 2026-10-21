@@ -91,7 +91,7 @@ func TestEnterOpensProjectAndEscReturns(t *testing.T) {
 	client := newFake()
 	env := newEnv(client)
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	env.Catalog = app.NewCatalog(nil, statePath)
+	env.Catalog = app.NewCatalog(nil, statePath, func() string { return env.Host })
 	scr := New(env, source, testScope())
 	root := app.New(env, scr, app.Options{})
 	d := uitest.New(t, root)
@@ -105,7 +105,7 @@ func TestEnterOpensProjectAndEscReturns(t *testing.T) {
 		t.Fatalf("top = %T", root.Top())
 	}
 	d.RequireView("~/src › frontend/route-planner-ui · gitlab.example.com", "feat/map-layers", "Map layers: courier heatmap toggle")
-	if st := cache.LoadState(statePath); len(st.Recent) != 1 || st.Recent[0] != "frontend/route-planner-ui" {
+	if st := cache.LoadState(statePath).Recent(env.Host); len(st) != 1 || st[0] != "frontend/route-planner-ui" {
 		t.Fatalf("state = %+v", st)
 	}
 	d.Key("esc")

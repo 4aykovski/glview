@@ -46,34 +46,63 @@ type WorkspaceRoot interface {
 }
 
 // Catalog implements ProjectCatalog over the disk snapshots (starred) and
-// the state file (recent projects). Methods are safe on a nil *Catalog.
+// the state file (recent projects), both kept per host: the catalog shows
+// the projects of the current host only. Methods are safe on a nil
+// *Catalog.
 type Catalog struct {
 	mu        sync.Mutex
 	disk      *cache.Disk
 	statePath string
 	state     cache.State
+	host      func() string // the current host (it is known after connecting)
 	current   *CatalogEntry
 	ws        WorkspaceRoot
-	starred   []gitlab.Project
-	starredAt time.Time
+	starred   map[string]*starredSnap // by host, read from disk on first use
 	stats     map[string]CatalogEntry
+}
+
+// starredSnap is the starred list of one host.
+type starredSnap struct {
+	projects []gitlab.Project
+	at       time.Time
 }
 
 var _ ProjectCatalog = (*Catalog)(nil)
 
-// NewCatalog loads the starred snapshot from disk (may be nil) and the
-// recent projects from statePath ("" keeps them in memory only).
-func NewCatalog(disk *cache.Disk, statePath string) *Catalog {
-	c := &Catalog{disk: disk, statePath: statePath, stats: map[string]CatalogEntry{}}
+// NewCatalog reads the recent projects from statePath ("" keeps them in
+// memory only); starred snapshots come from disk (may be nil). host returns
+// the current GitLab host (nil: one unnamed host).
+func NewCatalog(disk *cache.Disk, statePath string, host func() string) *Catalog {
+	c := &Catalog{disk: disk, statePath: statePath, host: host,
+		starred: map[string]*starredSnap{}, stats: map[string]CatalogEntry{}}
 	if statePath != "" {
 		c.state = cache.LoadState(statePath)
 	}
-	if disk != nil {
-		if ps, at, ok := disk.LoadStarred(); ok {
-			c.starred, c.starredAt = ps, at
+	return c
+}
+
+// curHost is the current host (the caller holds mu).
+func (c *Catalog) curHost() string {
+	if c.host == nil {
+		return ""
+	}
+	return c.host()
+}
+
+// starredOf returns the starred snapshot of host, reading it from disk
+// the first time (the caller holds mu).
+func (c *Catalog) starredOf(host string) *starredSnap {
+	if s, ok := c.starred[host]; ok {
+		return s
+	}
+	s := &starredSnap{}
+	if c.disk != nil {
+		if ps, at, ok := c.disk.LoadStarred(host); ok {
+			s.projects, s.at = ps, at
 		}
 	}
-	return c
+	c.starred[host] = s
+	return s
 }
 
 // SetCurrent records the project of the start folder.
@@ -142,8 +171,9 @@ func (c *Catalog) Starred() []CatalogEntry {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]CatalogEntry, 0, len(c.starred))
-	for _, p := range c.starred {
+	starred := c.starredOf(c.curHost()).projects
+	out := make([]CatalogEntry, 0, len(starred))
+	for _, p := range starred {
 		e := c.withStats(CatalogEntry{Path: p.FullPath, Starred: true, OpenMRs: -1, Activity: p.LastActivityAt})
 		e.Starred = true
 		out = append(out, e)
@@ -157,8 +187,9 @@ func (c *Catalog) Recent() []CatalogEntry {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]CatalogEntry, 0, len(c.state.Recent))
-	for _, p := range c.state.Recent {
+	recent := c.state.Recent(c.curHost())
+	out := make([]CatalogEntry, 0, len(recent))
+	for _, p := range recent {
 		out = append(out, c.withStats(CatalogEntry{Path: p, OpenMRs: -1}))
 	}
 	return out
@@ -175,7 +206,7 @@ func (c *Catalog) withStats(e CatalogEntry) CatalogEntry {
 			e.Activity = s.Activity
 		}
 	}
-	for _, p := range c.starred {
+	for _, p := range c.starredOf(c.curHost()).projects {
 		if p.FullPath == e.Path {
 			e.Starred = true
 			if e.Activity.IsZero() {
@@ -209,8 +240,8 @@ func (c *Catalog) Touch(path string) tea.Cmd {
 		return nil
 	}
 	c.mu.Lock()
-	c.state.Touch(path)
-	st := cache.State{Recent: append([]string(nil), c.state.Recent...)}
+	c.state.Touch(c.curHost(), path)
+	st := c.state.Clone()
 	file := c.statePath
 	c.mu.Unlock()
 	if file == "" {
@@ -224,18 +255,19 @@ func (c *Catalog) Touch(path string) tea.Cmd {
 	}
 }
 
-// StarredStale reports whether the starred snapshot is missing or older
-// than an hour.
+// StarredStale reports whether the starred snapshot of the current host is
+// missing or older than an hour.
 func (c *Catalog) StarredStale() bool {
 	if c == nil || c.disk == nil {
 		return false
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return !c.disk.Fresh(c.starredAt, cache.StarredMaxAge)
+	return !c.disk.Fresh(c.starredOf(c.curHost()).at, cache.StarredMaxAge)
 }
 
 type starredLoadedMsg struct {
+	host     string
 	projects []gitlab.Project
 	err      error
 }
@@ -247,16 +279,19 @@ func (c *Catalog) refreshStarred(client gitlab.Client) tea.Cmd {
 		return nil
 	}
 	disk := c.disk
+	c.mu.Lock()
+	host := c.curHost()
+	c.mu.Unlock()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		ps, err := client.Projects().Starred(ctx)
 		if err == nil && disk != nil {
-			if err := disk.SaveStarred(ps); err != nil {
+			if err := disk.SaveStarred(host, ps); err != nil {
 				debuglog.L().Debug("save starred", "err", err)
 			}
 		}
-		return starredLoadedMsg{projects: ps, err: err}
+		return starredLoadedMsg{host: host, projects: ps, err: err}
 	}
 }
 
@@ -270,5 +305,5 @@ func (c *Catalog) onStarred(msg starredLoadedMsg) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.starred, c.starredAt = msg.projects, time.Now()
+	c.starred[msg.host] = &starredSnap{projects: msg.projects, at: time.Now()}
 }

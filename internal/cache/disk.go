@@ -85,10 +85,20 @@ func writeFileAtomic(path string, data []byte) error {
 // RecentLimit is how many recently opened projects are remembered.
 const RecentLimit = 20
 
-// State is persisted user state ($XDG_STATE_HOME/gitlab-tui/state.json).
+// State is persisted user state ($XDG_STATE_HOME/gitlab-tui/state.json),
+// kept per host. The old host-less "recent" field is ignored and dropped
+// on the next save.
 type State struct {
+	Hosts map[string]HostState `json:"hosts,omitempty"`
+}
+
+// HostState is the state of one GitLab host.
+type HostState struct {
 	Recent []string `json:"recent"` // project full paths, most recent first
 }
+
+// Recent returns the recent projects of host, most recent first.
+func (s State) Recent(host string) []string { return s.Hosts[host].Recent }
 
 // LoadState reads the state file; a missing or corrupt file yields empty state.
 func LoadState(path string) State {
@@ -110,13 +120,28 @@ func SaveState(path string, s State) error {
 	return writeFileAtomic(path, data)
 }
 
-// Touch moves project to the front of the recent list, keeping RecentLimit entries.
-func (s *State) Touch(project string) {
+// Touch moves project to the front of the recent list of host, keeping
+// RecentLimit entries.
+func (s *State) Touch(host, project string) {
 	out := []string{project}
-	for _, p := range s.Recent {
+	for _, p := range s.Recent(host) {
 		if p != project && len(out) < RecentLimit {
 			out = append(out, p)
 		}
 	}
-	s.Recent = out
+	if s.Hosts == nil {
+		s.Hosts = map[string]HostState{}
+	}
+	h := s.Hosts[host]
+	h.Recent = out
+	s.Hosts[host] = h
+}
+
+// Clone returns a deep copy (to save it off the UI goroutine).
+func (s State) Clone() State {
+	out := State{Hosts: make(map[string]HostState, len(s.Hosts))}
+	for h, st := range s.Hosts {
+		out.Hosts[h] = HostState{Recent: append([]string(nil), st.Recent...)}
+	}
+	return out
 }

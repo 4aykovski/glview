@@ -53,16 +53,45 @@ func TestWorkspaceSnapshot(t *testing.T) {
 func TestStarredSnapshot(t *testing.T) {
 	clk := &clock{t: time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)}
 	d := Disk{Dir: t.TempDir(), now: clk.now}
-	if _, _, ok := d.LoadStarred(); ok {
+	if _, _, ok := d.LoadStarred(hostA); ok {
 		t.Fatal("no snapshot yet")
 	}
-	_ = d.SaveStarred([]gitlab.Project{{ProjectRef: gitlab.ProjectRef{FullPath: "qa/e2e-routes"}, Starred: true}})
-	ps, at, ok := d.LoadStarred()
+	_ = d.SaveStarred(hostA, []gitlab.Project{{ProjectRef: gitlab.ProjectRef{FullPath: "qa/e2e-routes"}, Starred: true}})
+	ps, at, ok := d.LoadStarred(hostA)
 	if !ok || len(ps) != 1 || !d.Fresh(at, StarredMaxAge) {
 		t.Fatalf("starred = %+v", ps)
 	}
 	clk.add(2 * time.Hour)
 	if d.Fresh(at, StarredMaxAge) {
 		t.Fatal("older than an hour")
+	}
+}
+
+func TestStarredPerHost(t *testing.T) {
+	d := Disk{Dir: t.TempDir()}
+	_ = d.SaveStarred(hostA, []gitlab.Project{{ProjectRef: gitlab.ProjectRef{FullPath: "platform/route-service"}}})
+	_ = d.SaveStarred(hostB, []gitlab.Project{{ProjectRef: gitlab.ProjectRef{FullPath: "qa/e2e-routes"}}, {ProjectRef: gitlab.ProjectRef{FullPath: "infra/router-configs"}}})
+	if ps, _, ok := d.LoadStarred(hostA); !ok || len(ps) != 1 || ps[0].FullPath != "platform/route-service" {
+		t.Fatalf("host A = %+v", ps)
+	}
+	if ps, _, ok := d.LoadStarred(hostB); !ok || len(ps) != 2 {
+		t.Fatalf("host B = %+v", ps)
+	}
+	if _, _, ok := d.LoadStarred("https://gitlab.example.net"); ok {
+		t.Fatal("another host sees no snapshot")
+	}
+	if !strings.HasPrefix(starredName(hostA), filepath.Join("starred", "")) || starredName(hostA) == starredName(hostB) {
+		t.Fatalf("names = %s %s", starredName(hostA), starredName(hostB))
+	}
+}
+
+func TestStarredOldFileIsIgnored(t *testing.T) {
+	d := Disk{Dir: t.TempDir()}
+	// The host-less file of the old format.
+	if err := d.Save("starred.json", []gitlab.Project{{ProjectRef: gitlab.ProjectRef{FullPath: "platform/route-service"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if ps, _, ok := d.LoadStarred(hostA); ok || len(ps) != 0 {
+		t.Fatalf("old snapshot = %+v", ps)
 	}
 }

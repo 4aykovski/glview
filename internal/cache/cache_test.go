@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -207,20 +208,64 @@ func TestDiskRoundTripAndAge(t *testing.T) {
 	}
 }
 
+const (
+	hostA = "https://gitlab.example.com"
+	hostB = "https://gitlab.example.org"
+)
+
 func TestStateRecent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state", "state.json")
 	s := LoadState(path)
 	for i := range 25 {
-		s.Touch(fmt.Sprintf("g/p%d", i))
+		s.Touch(hostA, fmt.Sprintf("g/p%d", i))
 	}
-	s.Touch("g/p20")
-	if len(s.Recent) != RecentLimit || s.Recent[0] != "g/p20" || s.Recent[1] != "g/p24" {
-		t.Fatalf("recent = %v", s.Recent)
+	s.Touch(hostA, "g/p20")
+	if r := s.Recent(hostA); len(r) != RecentLimit || r[0] != "g/p20" || r[1] != "g/p24" {
+		t.Fatalf("recent = %v", r)
 	}
 	if err := SaveState(path, s); err != nil {
 		t.Fatal(err)
 	}
-	if got := LoadState(path); len(got.Recent) != RecentLimit || got.Recent[0] != "g/p20" {
-		t.Fatalf("reload = %v", got.Recent)
+	if r := LoadState(path).Recent(hostA); len(r) != RecentLimit || r[0] != "g/p20" {
+		t.Fatalf("reload = %v", r)
+	}
+}
+
+func TestStateRecentPerHost(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	var s State
+	s.Touch(hostA, "platform/route-service")
+	s.Touch(hostB, "qa/e2e-routes")
+	if err := SaveState(path, s); err != nil {
+		t.Fatal(err)
+	}
+	got := LoadState(path)
+	if r := got.Recent(hostA); len(r) != 1 || r[0] != "platform/route-service" {
+		t.Fatalf("host A = %v", r)
+	}
+	if r := got.Recent(hostB); len(r) != 1 || r[0] != "qa/e2e-routes" {
+		t.Fatalf("host B = %v", r)
+	}
+	if r := got.Recent("https://gitlab.example.net"); len(r) != 0 {
+		t.Fatalf("unknown host = %v", r)
+	}
+}
+
+func TestStateOldFormatIsEmpty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"recent":["platform/route-service","qa/e2e-routes"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := LoadState(path)
+	if r := s.Recent(hostA); len(r) != 0 {
+		t.Fatalf("a host-less list is not shown for a host: %v", r)
+	}
+	s.Touch(hostA, "infra/router-configs")
+	if err := SaveState(path, s); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "qa/e2e-routes") {
+		t.Fatalf("the old field is dropped on save:\n%s", data)
 	}
 }

@@ -14,7 +14,12 @@ import (
 // StarredMaxAge is how long the starred snapshot is fresh (SPEC §5.8).
 const StarredMaxAge = time.Hour
 
-const starredFile = "starred.json"
+// starredName is the starred snapshot file of a host: projects of one
+// instance are never shown for another.
+func starredName(host string) string {
+	sum := sha256.Sum256([]byte(host))
+	return filepath.Join("starred", hex.EncodeToString(sum[:])[:16]+".json")
+}
 
 // LoadAt is Load without an age limit that also returns when the snapshot
 // was saved.
@@ -68,15 +73,17 @@ func (d Disk) SaveWorkspace(host, source string, rows []gitlab.ProjectOverview) 
 	return d.Save(workspaceName(host, source), WorkspaceSnapshot{Projects: out})
 }
 
-// LoadStarred returns the starred snapshot and its age.
-func (d Disk) LoadStarred() ([]gitlab.Project, time.Time, bool) {
+// LoadStarred returns the starred snapshot of host and its age.
+func (d Disk) LoadStarred(host string) ([]gitlab.Project, time.Time, bool) {
 	var ps []gitlab.Project
-	at, ok := d.LoadAt(starredFile, &ps)
+	at, ok := d.LoadAt(starredName(host), &ps)
 	return ps, at, ok
 }
 
-// SaveStarred writes the starred snapshot.
-func (d Disk) SaveStarred(ps []gitlab.Project) error { return d.Save(starredFile, ps) }
+// SaveStarred writes the starred snapshot of host.
+func (d Disk) SaveStarred(host string, ps []gitlab.Project) error {
+	return d.Save(starredName(host), ps)
+}
 
 // Fresh reports whether a snapshot saved at was younger than maxAge.
 func (d Disk) Fresh(at time.Time, maxAge time.Duration) bool {

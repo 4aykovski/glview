@@ -45,14 +45,17 @@ func setup(t *testing.T, client *fake.Client) (*app.Env, **Overlay) {
 	env.Client, env.User, env.Host = client, client.User, "https://gitlab.example.com"
 	env.Now = func() time.Time { return now }
 	disk := &cache.Disk{Dir: t.TempDir()}
-	_ = disk.SaveStarred([]gitlab.Project{
+	_ = disk.SaveStarred(env.Host, []gitlab.Project{
 		{ProjectRef: gitlab.ProjectRef{FullPath: "platform/routing-engine"}, LastActivityAt: now.Add(-time.Hour)},
 		{ProjectRef: gitlab.ProjectRef{FullPath: "platform/route-service"}},
 	})
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	_ = cache.SaveState(statePath, cache.State{Recent: []string{"qa/e2e-routes", "infra/router-configs"}})
+	var st cache.State
+	st.Touch(env.Host, "infra/router-configs")
+	st.Touch(env.Host, "qa/e2e-routes")
+	_ = cache.SaveState(statePath, st)
 	env.Disk = disk
-	env.Catalog = app.NewCatalog(disk, statePath)
+	env.Catalog = app.NewCatalog(disk, statePath, func() string { return env.Host })
 	last := new(*Overlay)
 	env.Search = func(global bool) app.Overlay {
 		o := New(env, global)
@@ -102,6 +105,22 @@ func TestPickerWithoutNetwork(t *testing.T) {
 	d.RequireView("nothing found — F search GitLab")
 	d.Key("esc")
 	d.RequireNoView("Switch project")
+}
+
+func TestPickerOtherHost(t *testing.T) {
+	client := newFake()
+	env, _ := setup(t, client)
+	env.Host = "https://gitlab.example.org" // the same disk and state, another instance
+	root := app.New(env, project.New(env, project.Options{Path: "platform/route-service"}), app.Options{})
+	d := uitest.New(t, root)
+	d.Key("p")
+	d.RequireView("Switch project", "RECENT", "platform/route-service") // just opened on this host
+	d.RequireNoView("STARRED", "platform/routing-engine", "qa/e2e-routes", "infra/router-configs")
+
+	d.Key("esc")
+	env.Host = "https://gitlab.example.com"
+	d.Key("p")
+	d.RequireView("STARRED", "platform/routing-engine", "RECENT", "qa/e2e-routes", "infra/router-configs")
 }
 
 func TestPickerFromProjectModeReplacesRoot(t *testing.T) {

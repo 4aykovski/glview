@@ -46,7 +46,7 @@ func buildRoot(opts options) (*app.Model, error) {
 	env := app.NewEnv(i18n.Parse(cfg.Language))
 	env.Cache = cache.New()
 	env.Disk = &cache.Disk{Dir: xdg.CacheDir()}
-	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"))
+	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"), func() string { return env.Host })
 	env.Search = func(global bool) app.Overlay { return search.New(env, global) }
 	var runner gitexec.Runner
 	if g := gitexec.Detect(cfg.Git.Path, cfg.Git.Disabled(), cfg.Git.Timeout.D(), cfg.Git.Parallel); g != nil {
