@@ -57,6 +57,7 @@ func pipeFilterKeys(env *app.Env) []filterline.Key {
 func newPipelinesTab(sh *shared) *pipelinesTab {
 	t := &pipelinesTab{fast: common.NewGen(), stG: common.NewGen(), stages: map[int64][]gitlab.StageSummary{}}
 	t.groupBase = newGroupBase[gitlab.PipelineSummary](sh, "pipelines", pipeFilterKeys(sh.env))
+	t.narrow = t.narrowed
 	t.fetch = func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[gitlab.PipelineSummary] {
 		return sh.env.Client.Workspace().Pipelines(ctx, ps, t.filter, perProject(sh.env))
 	}
@@ -140,6 +141,7 @@ func (t *pipelinesTab) Rebuild() {
 	s, m := env.Styles, env.Msg
 	t.tbl.SetStyles(s)
 	t.fl.SetStyles(s)
+	t.pin.SetStyles(s.Input)
 	t.tbl.SetMoreText(m.WS.More)
 	t.tbl.SetColumns([]table.Column{
 		{Title: m.MR.ColStatus, Min: 10, Max: 14, Priority: 100},
@@ -323,6 +325,11 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	}
+	if t.pOn {
+		cmd := t.pKey(k)
+		t.Rebuild()
+		return tea.Batch(cmd, t.loadStages(false))
+	}
 	if t.handleKey(k) {
 		return t.loadStages(false)
 	}
@@ -330,6 +337,8 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "space":
 		return t.toggle()
+	case "P":
+		return t.openP()
 	case "/":
 		vals := map[string]string{}
 		if t.filter.Status != "" {
@@ -356,6 +365,7 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return t.refilter()
 	case "backspace":
 		t.filter = gitlab.PipelineFilter{}
+		t.setP("")
 		return t.refilter()
 	case "f":
 		if path == "" {
@@ -404,6 +414,7 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 
 func (t *pipelinesTab) refilter() tea.Cmd {
 	t.fast.Next()
+	t.refilterMode()
 	cmd := t.load(true)
 	t.Rebuild()
 	return cmd
@@ -501,6 +512,7 @@ func (t *pipelinesTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"c"}, "", k.Cancel, common.PriorityNormal),
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
 		common.NewBinding([]string{"s"}, "", k.Status, common.PriorityNormal),
+		common.NewBinding([]string{"P"}, "", w.KeyProjects, common.PriorityLow),
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserOne, common.PriorityLow),

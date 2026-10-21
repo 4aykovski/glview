@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/sahilm/fuzzy"
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/ui/app"
@@ -32,6 +34,10 @@ type expandMsg struct{ tok common.Token }
 // them, expanding asks the new ones, reloads ask some of them (after an
 // action, the fast tick). Every request owns the projects it asks: a batch
 // is taken only for the projects whose latest request it is.
+//
+// With a narrowing filter (filter mode) a full load asks every project
+// that passes P instead; groups without records are hidden and collapsing
+// is not saved. P itself is a local fuzzy filter over project paths.
 type groupBase[T any] struct {
 	sh   *shared
 	name string     // the tab in the state file: "mrs" or "pipelines"
@@ -41,7 +47,13 @@ type groupBase[T any] struct {
 	tbl  *grouped.Model
 	fl   *filterline.Model
 
-	fetch func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[T]
+	fetch  func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[T]
+	narrow func() bool // a narrowing filter is set: filter mode
+
+	pin    textinput.Model // the P input
+	pOn    bool            // the P input is focused
+	ptext  string          // the P filter
+	pmatch map[string]bool // projects passing P; nil without P
 
 	data     map[string]gitlab.ProjectGroup[T]
 	owner    map[string]common.Token             // the latest request of each project
@@ -49,6 +61,7 @@ type groupBase[T any] struct {
 	full     common.Token                        // the running full load
 	expanded map[string]bool                     // saved in the state file
 	want     map[string]bool                     // expanded, waiting for expandDelay
+	folded   map[string]bool                     // collapsed in filter mode (not saved)
 
 	loaded  bool
 	loading bool
@@ -80,13 +93,15 @@ func (b *groupBase[T]) handleKey(k tea.KeyPressMsg) bool {
 func newGroupBase[T any](sh *shared, name string, keys []filterline.Key) *groupBase[T] {
 	b := &groupBase[T]{sh: sh, name: name, seq: common.NewGen(), poll: common.NewGen(), expG: common.NewGen(),
 		data: map[string]gitlab.ProjectGroup[T]{}, owner: map[string]common.Token{},
-		runs: map[common.Token]context.CancelFunc{}, expanded: map[string]bool{}, want: map[string]bool{}}
+		runs: map[common.Token]context.CancelFunc{}, expanded: map[string]bool{}, want: map[string]bool{},
+		folded: map[string]bool{}, narrow: func() bool { return false }}
 	for _, p := range sh.env.Catalog.Expanded(sh.source, name) {
 		b.expanded[p] = true
 	}
 	b.tbl = grouped.New(sh.env.Styles)
 	b.fl = filterline.New(sh.env.Styles, keys)
 	b.tbl.SetMoreText(sh.env.Msg.WS.More)
+	b.pin = common.NewInput(sh.env.Styles)
 	return b
 }
 
@@ -101,7 +116,7 @@ func (b *groupBase[T]) UpdatedAt() time.Time {
 	return b.updated
 }
 
-func (b *groupBase[T]) CapturesInput() bool { return b.fl.Focused() }
+func (b *groupBase[T]) CapturesInput() bool { return b.fl.Focused() || b.pOn }
 
 func (b *groupBase[T]) SetSize(w, h int) {
 	b.w, b.h = w, h
@@ -128,16 +143,96 @@ func (b *groupBase[T]) layout() {
 	b.tbl.SetSize(b.w, max(1, body))
 }
 
-// targets are the projects a full load asks: the expanded groups in
-// display order.
+// targets are the projects a full load asks, in display order: the
+// expanded groups, in filter mode every project that passes P.
 func (b *groupBase[T]) targets() []gitlab.ProjectRef {
+	narrow := b.narrow()
 	var out []gitlab.ProjectRef
 	for _, p := range b.sh.order {
-		if b.expanded[p] {
+		if (narrow && b.passP(p)) || (!narrow && b.expanded[p]) {
 			out = append(out, b.ref(p))
 		}
 	}
 	return out
+}
+
+// passP reports whether path passes the P filter.
+func (b *groupBase[T]) passP(path string) bool { return b.pmatch == nil || b.pmatch[path] }
+
+// setP applies the P filter: a fuzzy match over project paths.
+func (b *groupBase[T]) setP(text string) {
+	b.ptext = strings.TrimSpace(text)
+	if b.ptext == "" {
+		b.pmatch = nil
+		return
+	}
+	b.pmatch = map[string]bool{}
+	for _, m := range fuzzy.Find(b.ptext, b.sh.order) {
+		b.pmatch[b.sh.order[m.Index]] = true
+	}
+}
+
+// shownCount is the number of projects that pass P.
+func (b *groupBase[T]) shownCount() int {
+	if b.pmatch == nil {
+		return len(b.sh.order)
+	}
+	n := 0
+	for _, p := range b.sh.order {
+		if b.pmatch[p] {
+			n++
+		}
+	}
+	return n
+}
+
+// refilterMode is called after the tab filters changed: leaving filter
+// mode forgets the groups collapsed in it.
+func (b *groupBase[T]) refilterMode() {
+	if !b.narrow() {
+		b.folded = map[string]bool{}
+	}
+}
+
+// openP focuses the P input.
+func (b *groupBase[T]) openP() tea.Cmd {
+	b.pOn = true
+	b.pin.SetValue(b.ptext)
+	b.pin.CursorEnd()
+	b.layout()
+	return b.pin.Focus()
+}
+
+// pKey handles a key in the P input; the caller rebuilds the table. esc
+// leaves the input with the filter, enter too (an empty input resets it).
+// In filter mode a wider P asks the projects not asked yet.
+func (b *groupBase[T]) pKey(k tea.KeyPressMsg) tea.Cmd {
+	switch k.String() {
+	case "esc", "enter":
+		b.pOn = false
+		b.pin.Blur()
+		if k.String() == "enter" && strings.TrimSpace(b.pin.Value()) == "" {
+			b.setP("")
+		}
+		b.layout()
+		return b.afterP()
+	}
+	var cmd tea.Cmd
+	b.pin, cmd = b.pin.Update(k)
+	if strings.TrimSpace(b.pin.Value()) != b.ptext {
+		b.setP(b.pin.Value())
+		return tea.Batch(cmd, b.afterP())
+	}
+	return cmd
+}
+
+// afterP asks, in filter mode, the projects that now pass P and have not
+// been asked.
+func (b *groupBase[T]) afterP() tea.Cmd {
+	if !b.narrow() || (!b.loaded && !b.loading) {
+		return nil
+	}
+	return b.fill()
 }
 
 // request asks refs; the request owns them until a newer one asks them.
@@ -262,12 +357,18 @@ func (b *groupBase[T]) onBatch(msg batchMsg[T]) (ours, done, full bool, cmd tea.
 
 // toggle collapses or expands the group under the cursor and saves the
 // expanded set. An expanded group is asked after expandDelay, together
-// with the groups expanded meanwhile. The caller rebuilds the table and
+// with the groups expanded meanwhile. In filter mode only the view
+// changes, until the filters are reset. The caller rebuilds the table and
 // calls onToggled.
 func (b *groupBase[T]) toggle() (string, tea.Cmd) {
 	path := b.cursorGroup()
 	if path == "" || b.sh.noAccess(path) {
 		return "", nil
+	}
+	b.moved = true
+	if b.narrow() {
+		b.folded[path] = !b.folded[path]
+		return path, nil
 	}
 	delete(b.data, path)
 	delete(b.owner, path)
@@ -283,7 +384,6 @@ func (b *groupBase[T]) toggle() (string, tea.Cmd) {
 			cmd = tea.Tick(expandDelay, func(time.Time) tea.Msg { return expandMsg{tok: tok} })
 		}
 	}
-	b.moved = true
 	return path, tea.Batch(cmd, b.save())
 }
 
@@ -306,7 +406,7 @@ func (b *groupBase[T]) onExpand(msg expandMsg) tea.Cmd {
 		}
 	}
 	b.want = map[string]bool{}
-	if !b.active || len(refs) == 0 {
+	if !b.active || len(refs) == 0 || b.narrow() {
 		return nil // fill asks them when the tab is shown again
 	}
 	_, cmd := b.request(refs)
@@ -336,23 +436,37 @@ func (b *groupBase[T]) refresh() tea.Cmd {
 // groups builds the grouped rows in project order. row maps a record to
 // its table row, summary describes a loaded group, head a collapsed one
 // (from the overview), empty is the text of a group without records.
+// Projects that do not pass P are left out; in filter mode groups without
+// records too.
 func (b *groupBase[T]) groups(row func(T) table.Row, summary func(path string, g gitlab.ProjectGroup[T]) string,
 	head func(path string) string, empty string) []grouped.Group {
 	env := b.env()
 	m := env.Msg
+	narrow := b.narrow()
+	b.tbl.SetEmptyText("")
+	if narrow || b.pmatch != nil {
+		b.tbl.SetEmptyText(m.WS.NothingFound)
+	}
 	out := make([]grouped.Group, 0, len(b.sh.order))
 	for _, path := range b.sh.order {
+		if !b.passP(path) {
+			continue
+		}
 		g := grouped.Group{Key: path, Title: path}
 		pg, ok := b.data[path]
 		switch {
 		case b.sh.noAccess(path) || (ok && errors.Is(pg.Err, gitlab.ErrNotFound)):
 			g.State, g.Note = grouped.Failed, m.WS.NoAccess
-		case !b.expanded[path]:
+		case !narrow && !b.expanded[path]:
 			g.Collapsed, g.Summary = true, head(path)
 		case ok && pg.Err != nil:
 			g.State, g.Note = grouped.Failed, app.ErrorText(env, pg.Err)
+		case !ok && narrow:
+			g.State, g.Note = grouped.Loading, m.WS.Loading
 		case !ok:
 			g.State, g.Note, g.Summary = grouped.Expanding, m.WS.Loading, head(path)
+		case len(pg.Items) == 0 && narrow:
+			continue
 		case len(pg.Items) == 0:
 			g.State, g.Note = grouped.Empty, empty
 		default:
@@ -363,20 +477,35 @@ func (b *groupBase[T]) groups(row func(T) table.Row, summary func(path string, g
 				g.More = pg.Total - len(pg.Items)
 			}
 			g.Summary = summary(path, pg)
+			g.Collapsed = narrow && b.folded[path]
 		}
 		out = append(out, g)
 	}
 	return out
 }
 
-// count is the number of records over all projects (-1 until loaded).
+// found is the number of projects passing P with records.
+func (b *groupBase[T]) found() int {
+	n := 0
+	for _, p := range b.sh.order {
+		if g, ok := b.data[p]; ok && b.passP(p) && len(g.Items) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// count is the number of records over the projects passing P (-1 until
+// loaded).
 func (b *groupBase[T]) count() int {
 	if !b.loaded {
 		return -1
 	}
 	n := 0
-	for _, g := range b.data {
-		n += max(g.Total, len(g.Items))
+	for p, g := range b.data {
+		if b.passP(p) {
+			n += max(g.Total, len(g.Items))
+		}
 	}
 	return n
 }
@@ -430,10 +559,12 @@ func (b *groupBase[T]) deactivate() {
 	}
 }
 
-// filterBar renders the filter line (or the open input).
+// filterBar renders the filter line (or the open input): the tab's pairs
+// and extra, the P chip ("project: route ✕") or input, and on the right
+// how many projects are shown (P) or have records (filter mode).
 func (b *groupBase[T]) filterBar(pairs [][2]string, extra string, errText func(error) string) string {
 	env := b.env()
-	s := env.Styles
+	s, w := env.Styles, env.Msg.WS
 	if b.fl.Focused() {
 		lines := strings.Split(b.fl.View(), "\n")
 		if err := b.fl.Err(); err != nil {
@@ -442,7 +573,25 @@ func (b *groupBase[T]) filterBar(pairs [][2]string, extra string, errText func(e
 		lines[0] += "  " + s.Muted.Render(env.Msg.Project.FilterHint)
 		return strings.Join(lines, "\n")
 	}
-	return common.FilterBar(s, pairs, extra, "", b.w)
+	chip := ""
+	switch {
+	case b.pOn:
+		b.pin.SetWidth(max(8, min(30, b.w/4)))
+		chip = s.FilterKey.Render(w.ProjectKey+": ") + b.pin.View() + "  " + s.Muted.Render(w.ProjectHint)
+	case b.ptext != "":
+		chip = s.FilterKey.Render(w.ProjectKey+": ") + s.FilterValue.Render(b.ptext) + " " + s.Muted.Render("✕")
+	}
+	if chip != "" {
+		extra = strings.TrimSpace(extra + "  " + chip)
+	}
+	right := ""
+	switch {
+	case b.narrow():
+		right = w.FoundIn(b.found(), b.shownCount())
+	case b.pmatch != nil:
+		right = w.ShownProjects(b.shownCount(), len(b.sh.order))
+	}
+	return common.FilterBar(s, pairs, extra, right, b.w)
 }
 
 // frame draws the preview box.

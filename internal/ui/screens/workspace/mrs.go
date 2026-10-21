@@ -40,6 +40,7 @@ func defaultMRFilter() gitlab.MRFilter {
 func newMRsTab(sh *shared) *mrsTab {
 	t := &mrsTab{filter: defaultMRFilter()}
 	t.groupBase = newGroupBase[gitlab.MergeRequest](sh, "mrs", mrFilterKeys(sh.env))
+	t.narrow = t.narrowed
 	t.fetch = func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[gitlab.MergeRequest] {
 		return sh.env.Client.Workspace().MergeRequests(ctx, ps, t.filter, perProject(sh.env))
 	}
@@ -71,15 +72,15 @@ func mrFilterKeys(env *app.Env) []filterline.Key {
 	return []filterline.Key{{Name: "state", Desc: m.KeyState, Values: []string{"opened", "merged", "closed", "all"}}}
 }
 
-// Count is the number of open MRs from the overview; with other filters
-// it is the number of records found.
+// Count is the number of open MRs from the overview (of the projects
+// passing P); in filter mode it is the number of records found.
 func (t *mrsTab) Count() int {
 	if t.narrowed() {
 		return t.count()
 	}
 	n, known := 0, false
 	for _, p := range t.sh.order {
-		if ov, ok := t.sh.overview(p); ok {
+		if ov, ok := t.sh.overview(p); ok && t.passP(p) {
 			n, known = n+ov.OpenMRs, true
 		}
 	}
@@ -105,6 +106,7 @@ func (t *mrsTab) Rebuild() {
 	s, m := env.Styles, env.Msg
 	t.tbl.SetStyles(s)
 	t.fl.SetStyles(s)
+	t.pin.SetStyles(s.Input)
 	t.tbl.SetMoreText(m.WS.More)
 	t.tbl.SetColumns([]table.Column{
 		{Title: m.MR.ColIID, Min: 5, Priority: 100},
@@ -273,6 +275,11 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	}
+	if t.pOn {
+		cmd := t.pKey(k)
+		t.Rebuild()
+		return cmd
+	}
 	if t.handleKey(k) {
 		return nil
 	}
@@ -280,6 +287,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "space":
 		return t.toggle()
+	case "P":
+		return t.openP()
 	case "/":
 		vals := map[string]string{}
 		if t.filter.State != gitlab.MRStateOpened {
@@ -299,6 +308,7 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return t.refilter()
 	case "backspace":
 		t.filter = defaultMRFilter()
+		t.setP("")
 		return t.refilter()
 	case "f":
 		if path == "" {
@@ -338,6 +348,7 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 }
 
 func (t *mrsTab) refilter() tea.Cmd {
+	t.refilterMode()
 	cmd := t.load(true)
 	t.Rebuild()
 	return cmd
@@ -414,6 +425,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 	short = append(short,
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
 		common.NewBinding([]string{"s"}, "", k.State, common.PriorityNormal),
+		common.NewBinding([]string{"P"}, "", w.KeyProjects, common.PriorityLow),
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),

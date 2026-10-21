@@ -57,7 +57,17 @@ func fillM2EN(m *Messages) {
 	w.MeMRs = "me: author/assignee/reviewer"
 	w.MePipes = "me: mine"
 	w.StatusGroups = "groups by latest activity"
+	w.ProjectKey = "project"
+	w.ProjectHint = "fuzzy by project path · enter apply · esc close"
+	w.ShownProjects = func(shown, total int) string {
+		return fmt.Sprintf("showing %d of %d %s", shown, total, Plural(EN, total, PluralForms{"project", "", "projects"}))
+	}
+	w.FoundIn = func(found, total int) string {
+		return fmt.Sprintf("found in %d of %d %s", found, total, Plural(EN, total, PluralForms{"project", "", "projects"}))
+	}
+	w.NothingFound = "nothing found"
 	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "next/prev project", "expand/collapse", "filter by project", "open project"
+	w.KeyProjects = "filter projects"
 
 	s := &m.Search
 	s.PickerTitle, s.GlobalTitle = "Switch project", "Search GitLab"

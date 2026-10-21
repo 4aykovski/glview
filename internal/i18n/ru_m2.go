@@ -64,7 +64,17 @@ func fillM2RU(m *Messages) {
 	w.MeMRs = "я: author/assignee/reviewer"
 	w.MePipes = "я: мои"
 	w.StatusGroups = "группы по последней активности"
+	w.ProjectKey = "проект"
+	w.ProjectHint = "fuzzy по пути проекта · enter применить · esc закрыть"
+	w.ShownProjects = func(shown, total int) string {
+		return fmt.Sprintf("показаны %d из %d %s", shown, total, Plural(RU, total, PluralForms{"проекта", "проектов", "проектов"}))
+	}
+	w.FoundIn = func(found, total int) string {
+		return fmt.Sprintf("найдено в %d %s из %d", found, Plural(RU, found, PluralForms{"проекте", "проектах", "проектах"}), total)
+	}
+	w.NothingFound = "ничего не найдено"
 	w.KeyGroups, w.KeyCollapse, w.KeyProject, w.KeyOpenProject = "между проектами", "развернуть/свернуть", "фильтр по проекту", "открыть проект"
+	w.KeyProjects = "фильтр проектов"
 
 	s := &m.Search
 	s.PickerTitle, s.GlobalTitle = "Сменить проект", "Поиск по GitLab"

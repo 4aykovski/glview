@@ -244,10 +244,11 @@ func TestMineFilter(t *testing.T) {
 	if !f.Mine || f.State != gitlab.MRStateOpened {
 		t.Fatalf("filter = %+v", f)
 	}
-	d.RequireView("me: author/assignee/reviewer", "▾ platform/route-service  ≥3 open")
-	if next := lineAfter(t, d, "▾ infra/router-configs"); strings.TrimSpace(next) != "no open MRs of yours" {
-		t.Fatalf("empty line: %q", next)
+	if paths := lastCall(t, client, "Workspace.MergeRequests")[0].([]string); len(paths) != 5 {
+		t.Fatalf("filter mode asks every project: %v", paths)
 	}
+	d.RequireView("me: author/assignee/reviewer", "▾ platform/route-service  ≥3 open", "found in 2 of 5 projects")
+	d.RequireNoView("infra/router-configs", "qa/e2e-routes", "frontend/route-planner-ui")
 	row := lineWith(t, d, "!479")
 	if !strings.Contains(row, "author") {
 		t.Fatalf("role: %q", row)
@@ -335,13 +336,19 @@ func TestFilterByProjectAndBack(t *testing.T) {
 		t.Fatal("collapsed group stays collapsed")
 	}
 
-	// m and state:merged are carried into the project.
-	d.Key("m", "s", "f")
-	d.RequireView("state:merged", "me")
+	// m is carried into the project.
+	d.Key("m", "f")
+	if _, ok := root.Top().(*project.Project); !ok {
+		t.Fatalf("f in filter mode opens the project: %T", root.Top())
+	}
+	d.RequireView("me")
 	d.Key("esc")
 
 	// Pipelines with "mine": the project opens on Pipelines with the filter.
+	client.AddPipeline("frontend/route-planner-ui", gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{
+		ID: 7002, IID: 2, Status: gitlab.StatusSuccess, Ref: "feat/map-layers", User: &gitlab.User{Username: "egor"}, CreatedAt: now}})
 	d.Key("3", "m")
+	d.RequireView("▾ frontend/route-planner-ui", "#7002")
 	d.Key("f")
 	p = root.Top().(*project.Project)
 	if p.Current() != project.TabPipelines {

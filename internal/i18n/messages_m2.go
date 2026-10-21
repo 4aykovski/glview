@@ -36,8 +36,15 @@ type WorkspaceMessages struct {
 	MePipes      string // filter bar: "me: mine"
 	StatusGroups string // footer status: "groups by latest activity"
 
+	// Project filter P and filter mode
+	ProjectKey    string                        // chip label: "project"
+	ProjectHint   string                        // hint next to the P input
+	ShownProjects func(shown, total int) string // "showing 3 of 13 projects"
+	FoundIn       func(found, total int) string // "found in 4 of 13 projects"
+	NothingFound  string                        // no group passes the filters
+
 	// Keys
-	KeyGroups, KeyCollapse, KeyProject, KeyOpenProject string
+	KeyGroups, KeyCollapse, KeyProject, KeyOpenProject, KeyProjects string
 }
 
 // SearchMessages are the strings of the project picker (p) and the global
