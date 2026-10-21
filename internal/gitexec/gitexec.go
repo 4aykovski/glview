@@ -205,10 +205,12 @@ func (g *Git) one(ctx context.Context, op Op, repo gitremote.Repo) Result {
 	ctx, cancel := context.WithTimeout(ctx, g.timeout())
 	defer cancel()
 
-	out, err := g.git(ctx, repo.Root, "fetch", "--prune", repo.Remote)
-	res.Output = out
-	if err != nil {
-		return g.fail(ctx, res, err)
+	for _, remote := range fetchRemotes(repo) {
+		out, err := g.git(ctx, repo.Root, "fetch", "--prune", remote)
+		res.Output = lastLines(append(res.Output, out...))
+		if err != nil {
+			return g.fail(ctx, res, err)
+		}
 	}
 	ahead, behind, abErr := g.AheadBehind(ctx, repo)
 	if abErr == nil {
@@ -228,7 +230,7 @@ func (g *Git) one(ctx context.Context, op Op, repo gitremote.Repo) Result {
 		res.Status, res.Reason = StatusSkipped, ReasonDiverged
 		return res
 	}
-	out, err = g.git(ctx, repo.Root, "merge", "--ff-only", "@{u}")
+	out, err := g.git(ctx, repo.Root, "merge", "--ff-only", "@{u}")
 	res.Output = lastLines(append(res.Output, out...))
 	if err != nil {
 		return g.fail(ctx, res, err)
@@ -238,6 +240,18 @@ func (g *Git) one(ctx context.Context, op Op, repo gitremote.Repo) Result {
 		res.Ahead, res.Behind = a, b
 	}
 	return res
+}
+
+// fetchRemotes returns the remotes a fetch downloads: the GitLab remote
+// of the project and, when the current branch tracks another remote, that
+// one too, so ahead/behind and the fast-forward see fresh refs. A local
+// upstream (".") needs no fetch.
+func fetchRemotes(repo gitremote.Repo) []string {
+	remotes := []string{repo.Remote}
+	if up, _, ok := repo.Upstream(); ok && up != "." && up != repo.Remote {
+		remotes = append(remotes, up)
+	}
+	return remotes
 }
 
 // fail classifies a failed git call; diverged branches and local changes

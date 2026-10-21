@@ -117,6 +117,63 @@ func TestFetchAndPullNewCommits(t *testing.T) {
 	}
 }
 
+func TestFetchUpstreamOnAnotherRemote(t *testing.T) {
+	t.Parallel()
+	g := gitBin(t)
+	work, _ := fixture(t)
+	root := filepath.Dir(work)
+	// A second remote ("upstream") that the branch tracks; origin stays
+	// the GitLab remote of the project.
+	up := filepath.Join(root, "upstream.git")
+	run(t, root, "clone", "-q", "--bare", filepath.Join(root, "remote.git"), up)
+	run(t, work, "remote", "add", "upstream", "file://"+up)
+	run(t, work, "fetch", "-q", "upstream")
+	run(t, work, "branch", "-q", "--set-upstream-to=upstream/main", "main")
+	pusher := filepath.Join(root, "pusher")
+	run(t, root, "clone", "-q", "file://"+up, pusher)
+	commit(t, pusher, "up.txt", "one")
+	commit(t, pusher, "up.txt", "two")
+	run(t, pusher, "push", "-q", "origin", "main")
+	want := run(t, pusher, "rev-parse", "HEAD")
+
+	repo := open(t, work)
+	if repo.Remote != "origin" {
+		t.Fatalf("remote = %q", repo.Remote)
+	}
+	if got := fetchRemotes(repo); len(got) != 2 || got[0] != "origin" || got[1] != "upstream" {
+		t.Fatalf("fetchRemotes = %v", got)
+	}
+	res := one(t, g, OpFetch, repo)
+	if res.Status != StatusUpdated || res.Behind != 2 || res.Ahead != 0 {
+		t.Fatalf("fetch = %+v", res)
+	}
+	res = one(t, g, OpPullFF, repo)
+	if res.Status != StatusUpdated || res.Moved != 2 || res.Behind != 0 {
+		t.Fatalf("pull = %+v", res)
+	}
+	if got := run(t, work, "rev-parse", "HEAD"); got != want {
+		t.Fatalf("HEAD = %s, want %s", got, want)
+	}
+}
+
+func TestFetchLocalUpstream(t *testing.T) {
+	t.Parallel()
+	g := gitBin(t)
+	work, _ := fixture(t)
+	run(t, work, "checkout", "-q", "-b", "feat/local")
+	run(t, work, "branch", "-q", "--set-upstream-to=main")
+	repo := open(t, work)
+	if up, _, ok := repo.Upstream(); !ok || up != "." {
+		t.Fatalf("upstream = %q %v", up, ok)
+	}
+	if got := fetchRemotes(repo); len(got) != 1 || got[0] != "origin" {
+		t.Fatalf("fetchRemotes = %v", got)
+	}
+	if res := one(t, g, OpFetch, repo); res.Status != StatusUpdated || !res.HasUpstream {
+		t.Fatalf("fetch = %+v", res)
+	}
+}
+
 func TestPullDiverged(t *testing.T) {
 	t.Parallel()
 	g := gitBin(t)
