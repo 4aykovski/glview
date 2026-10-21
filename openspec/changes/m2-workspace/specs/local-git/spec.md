@@ -18,6 +18,10 @@
 - **WHEN** в workspace с 13 репозиториями нажат `u`
 - **THEN** запускается fetch во всех 13, рабочие копии не меняются
 
+#### Scenario: Upstream на другом remote
+- **WHEN** проект определён по `origin`, а у текущей ветки `branch.main.remote = upstream`, нажат `u` или `U`
+- **THEN** скачиваются оба remote (`origin` и `upstream`), ↑↓ и fast-forward считаются по свежему `upstream/main`
+
 ### Requirement: Pull только fast-forward
 `U` SHALL после confirm-модалки выполнять fetch, затем fast-forward текущей ветки до upstream, никогда не создавая merge-коммит и не оставляя репозиторий в состоянии конфликта. Перед запуском репозиторий SHALL пропускаться с причиной, если: detached HEAD; у ветки нет upstream; идёт merge или rebase. Confirm SHALL показывать, сколько репозиториев будет обновлено и сколько пропущено с причинами («обновить 11 репозиториев, пропустить 2 (detached, нет upstream)»). Разошедшаяся ветка и мешающие локальные изменения SHALL давать пропуск с причиной, а не ошибку посреди merge.
 
