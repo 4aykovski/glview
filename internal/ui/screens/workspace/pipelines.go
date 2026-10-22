@@ -141,7 +141,6 @@ func (t *pipelinesTab) Rebuild() {
 	s, m := env.Styles, env.Msg
 	t.tbl.SetStyles(s)
 	t.fl.SetStyles(s)
-	t.pin.SetStyles(s.Input)
 	t.tbl.SetMoreText(m.WS.More)
 	t.tbl.SetColumns([]table.Column{
 		{Title: m.MR.ColStatus, Min: 10, Max: 14, Priority: 100},
@@ -272,6 +271,13 @@ func (t *pipelinesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		cmd := t.onExpand(msg)
 		t.Rebuild()
 		return t, cmd
+	case pickedMsg:
+		ours, cmd := t.onPicked(msg)
+		if !ours {
+			return t, nil
+		}
+		t.Rebuild()
+		return t, tea.Batch(cmd, t.loadStages(false))
 	case stagesMsg:
 		if t.stG.Valid(msg.tok) && msg.err == nil {
 			t.stages[msg.id] = msg.stages
@@ -325,11 +331,6 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	}
-	if t.pOn {
-		cmd := t.pKey(k)
-		t.Rebuild()
-		return tea.Batch(cmd, t.loadStages(false))
-	}
 	if t.handleKey(k) {
 		return t.loadStages(false)
 	}
@@ -365,8 +366,8 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return t.refilter()
 	case "backspace":
 		t.filter = gitlab.PipelineFilter{}
-		t.setP("")
-		return t.refilter()
+		save := t.resetP()
+		return tea.Batch(save, t.refilter())
 	case "f":
 		if path == "" {
 			return nil

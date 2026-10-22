@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -272,6 +273,33 @@ func (c *Catalog) SetExpanded(source, tab string, paths []string) tea.Cmd {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.state.SetExpanded(c.curHost(), source, tab, paths, c.now())
+	return c.saveLocked()
+}
+
+// Selected returns the projects marked in the P filter of tab ("mrs",
+// "pipelines") of workspace source on the current host.
+func (c *Catalog) Selected(source, tab string) []string {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.state.Selected(c.curHost(), source, tab)...)
+}
+
+// SetSelected remembers the projects marked in the P filter of tab of
+// workspace source (an empty list erases them) and saves the state file in
+// the background. An unchanged list writes nothing.
+func (c *Catalog) SetSelected(source, tab string, paths []string) tea.Cmd {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if slices.Equal(c.state.Selected(c.curHost(), source, tab), paths) {
+		return nil
+	}
+	c.state.SetSelected(c.curHost(), source, tab, paths, c.now())
 	return c.saveLocked()
 }
 

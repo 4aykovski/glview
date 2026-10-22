@@ -314,6 +314,56 @@ func TestStateWorkspaces(t *testing.T) {
 	}
 }
 
+func TestStateSelected(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	var s State
+	s.SetExpanded(hostA, "~/src", "pipelines", []string{"infra/router-configs"}, at)
+	s.SetSelected(hostA, "~/src", "pipelines", []string{"platform/route-service", "qa/e2e-routes"}, at)
+	s.SetSelected(hostB, "~/src", "pipelines", []string{"other/project"}, at)
+	if err := SaveState(path, s); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `"selected"`) {
+		t.Fatalf("selected is saved next to expanded:\n%s", data)
+	}
+	got := LoadState(path)
+	if e := got.Selected(hostA, "~/src", "pipelines"); strings.Join(e, ",") != "platform/route-service,qa/e2e-routes" {
+		t.Fatalf("pipelines = %v", e)
+	}
+	if e := got.Selected(hostA, "~/src", "mrs"); len(e) != 0 {
+		t.Fatalf("mrs has its own = %v", e)
+	}
+	if e := got.Selected(hostB, "~/src", "pipelines"); strings.Join(e, ",") != "other/project" {
+		t.Fatalf("host B = %v", e)
+	}
+	if e := got.Expanded(hostA, "~/src", "pipelines"); len(e) != 1 {
+		t.Fatalf("expanded survives: %v", e)
+	}
+	// A clone does not share the lists.
+	c := got.Clone()
+	c.Hosts[hostA].Workspaces["~/src"].Selected["pipelines"][0] = "changed"
+	if got.Selected(hostA, "~/src", "pipelines")[0] != "platform/route-service" {
+		t.Fatal("clone is deep")
+	}
+	// Erasing the marks keeps the expanded groups and drops the field.
+	got.SetSelected(hostA, "~/src", "pipelines", nil, at.Add(time.Hour))
+	if e := got.Selected(hostA, "~/src", "pipelines"); len(e) != 0 {
+		t.Fatalf("after erase = %v", e)
+	}
+	if e := got.Expanded(hostA, "~/src", "pipelines"); len(e) != 1 {
+		t.Fatalf("expanded after erase = %v", e)
+	}
+	if err := SaveState(path, got); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	if strings.Contains(string(data), "qa/e2e-routes") {
+		t.Fatalf("erased marks are not saved:\n%s", data)
+	}
+}
+
 func TestStateWorkspaceLimit(t *testing.T) {
 	at := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 	var s State

@@ -108,6 +108,7 @@ type HostState struct {
 type WorkspaceState struct {
 	At       time.Time           `json:"at"`                 // last opened
 	Expanded map[string][]string `json:"expanded,omitempty"` // project paths by tab ("mrs", "pipelines")
+	Selected map[string][]string `json:"selected,omitempty"` // projects marked in P, by tab
 }
 
 // Recent returns the recent projects of host, most recent first.
@@ -173,20 +174,48 @@ func (s State) HasWorkspace(host, source string) bool {
 // host and marks the workspace opened at at. An empty list removes the
 // tab; a workspace without tabs keeps its record (and its time).
 func (s *State) SetExpanded(host, source, tab string, paths []string, at time.Time) {
+	s.setTab(host, source, at, func(ws *WorkspaceState) { ws.Expanded = withTab(ws.Expanded, tab, paths) })
+}
+
+// Selected returns the projects marked in the P filter of tab in workspace
+// source of host.
+func (s State) Selected(host, source, tab string) []string {
+	return s.Hosts[host].Workspaces[source].Selected[tab]
+}
+
+// SetSelected stores the projects marked in the P filter of tab in
+// workspace source of host, like SetExpanded.
+func (s *State) SetSelected(host, source, tab string, paths []string, at time.Time) {
+	s.setTab(host, source, at, func(ws *WorkspaceState) { ws.Selected = withTab(ws.Selected, tab, paths) })
+}
+
+// setTab changes the record of workspace source of host with set and marks
+// it opened at at.
+func (s *State) setTab(host, source string, at time.Time, set func(*WorkspaceState)) {
 	h := s.host(host)
 	ws := h.Workspaces[source]
-	exp := make(map[string][]string, len(ws.Expanded)+1)
-	for k, v := range ws.Expanded {
+	set(&ws)
+	ws.At = at
+	h.Workspaces = withWorkspace(h.Workspaces, source, ws)
+	s.Hosts[host] = h
+}
+
+// withTab returns a copy of byTab with tab set to paths (removed when
+// paths is empty); nil if no tab is left.
+func withTab(byTab map[string][]string, tab string, paths []string) map[string][]string {
+	out := make(map[string][]string, len(byTab)+1)
+	for k, v := range byTab {
 		if k != tab {
-			exp[k] = v
+			out[k] = v
 		}
 	}
 	if len(paths) > 0 {
-		exp[tab] = append([]string(nil), paths...)
+		out[tab] = append([]string(nil), paths...)
 	}
-	ws.Expanded, ws.At = exp, at
-	h.Workspaces = withWorkspace(h.Workspaces, source, ws)
-	s.Hosts[host] = h
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // TouchWorkspace marks workspace source of host opened at at, if it has a
@@ -234,17 +263,21 @@ func (s State) Clone() State {
 		if st.Workspaces != nil {
 			c.Workspaces = make(map[string]WorkspaceState, len(st.Workspaces))
 			for src, ws := range st.Workspaces {
-				w := WorkspaceState{At: ws.At}
-				if ws.Expanded != nil {
-					w.Expanded = make(map[string][]string, len(ws.Expanded))
-					for tab, ps := range ws.Expanded {
-						w.Expanded[tab] = append([]string(nil), ps...)
-					}
-				}
-				c.Workspaces[src] = w
+				c.Workspaces[src] = WorkspaceState{At: ws.At, Expanded: cloneTabs(ws.Expanded), Selected: cloneTabs(ws.Selected)}
 			}
 		}
 		out.Hosts[h] = c
+	}
+	return out
+}
+
+func cloneTabs(byTab map[string][]string) map[string][]string {
+	if byTab == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(byTab))
+	for tab, ps := range byTab {
+		out[tab] = append([]string(nil), ps...)
 	}
 	return out
 }

@@ -65,7 +65,10 @@ func fillM2RU(m *Messages) {
 	w.MePipes = "я: мои"
 	w.StatusGroups = "группы по последней активности"
 	w.ProjectKey = "проект"
-	w.ProjectHint = "fuzzy по пути проекта · enter применить · esc закрыть"
+	w.ProjectsKey = "проекты"
+	w.PickTitle = "Проекты"
+	w.PickMarked = func(n int) string { return fmt.Sprintf("%d отмечено", n) }
+	w.PickHints = "space отметить  ctrl+a все  enter применить  esc закрыть"
 	w.ShownProjects = func(shown, total int) string {
 		return fmt.Sprintf("показаны %d из %d %s", shown, total, Plural(RU, total, PluralForms{"проекта", "проектов", "проектов"}))
 	}

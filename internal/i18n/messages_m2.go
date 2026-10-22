@@ -38,7 +38,10 @@ type WorkspaceMessages struct {
 
 	// Project filter P and filter mode
 	ProjectKey    string                        // chip label: "project"
-	ProjectHint   string                        // hint next to the P input
+	ProjectsKey   string                        // chip label of several marked projects: "projects"
+	PickTitle     string                        // title of the P overlay: "Projects"
+	PickMarked    func(n int) string            // "2 marked"
+	PickHints     string                        // footer of the P overlay
 	ShownProjects func(shown, total int) string // "showing 3 of 13 projects"
 	FoundIn       func(found, total int) string // "found in 4 of 13 projects"
 	NothingFound  string                        // no group passes the filters

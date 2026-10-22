@@ -106,7 +106,6 @@ func (t *mrsTab) Rebuild() {
 	s, m := env.Styles, env.Msg
 	t.tbl.SetStyles(s)
 	t.fl.SetStyles(s)
-	t.pin.SetStyles(s.Input)
 	t.tbl.SetMoreText(m.WS.More)
 	t.tbl.SetColumns([]table.Column{
 		{Title: m.MR.ColIID, Min: 5, Priority: 100},
@@ -245,6 +244,12 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		cmd := t.onExpand(msg)
 		t.Rebuild()
 		return t, cmd
+	case pickedMsg:
+		ours, cmd := t.onPicked(msg)
+		if ours {
+			t.Rebuild()
+		}
+		return t, cmd
 	case common.PollTickMsg:
 		if !t.poll.Valid(msg.Token) || !t.active || env.AuthLost {
 			return t, nil
@@ -275,11 +280,6 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	}
-	if t.pOn {
-		cmd := t.pKey(k)
-		t.Rebuild()
-		return cmd
-	}
 	if t.handleKey(k) {
 		return nil
 	}
@@ -308,8 +308,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return t.refilter()
 	case "backspace":
 		t.filter = defaultMRFilter()
-		t.setP("")
-		return t.refilter()
+		save := t.resetP()
+		return tea.Batch(save, t.refilter())
 	case "f":
 		if path == "" {
 			return nil

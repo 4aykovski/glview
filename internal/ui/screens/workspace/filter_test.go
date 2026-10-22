@@ -17,17 +17,18 @@ func typeText(d *uitest.Driver, s string) {
 	}
 }
 
-func TestProjectFilterIsLocal(t *testing.T) {
+func TestProjectFilterText(t *testing.T) {
 	client := newFake()
 	d, _, _ := open(t, client, testScope())
 	d.Key("2")
 	before := len(client.Calls())
 	d.Key("P")
+	d.RequireView("Projects · MRs", "[ ] platform/route-service", "5 / 5")
 	typeText(d, "planner")
-	d.RequireView("project: planner", "▸ frontend/route-planner-ui  1 open")
+	d.RequireView("› planner", "[ ] frontend/route-planner-ui", "1 / 5")
+	d.Key("enter") // no marks: the text filters
+	d.RequireView("project: planner ✕", "showing 1 of 5 projects", "▸ frontend/route-planner-ui  1 open", "2 MRs 1")
 	d.RequireNoView("platform/route-service", "qa/e2e-routes")
-	d.Key("esc") // leaves the input, keeps the filter
-	d.RequireView("project: planner ✕", "showing 1 of 5 projects", "▸ frontend/route-planner-ui", "2 MRs 1")
 	if n := len(client.Calls()); n != before {
 		t.Fatalf("P asks nothing: %v", client.Calls()[before:])
 	}
@@ -36,6 +37,11 @@ func TestProjectFilterIsLocal(t *testing.T) {
 	d.RequireView("▸ platform/route-service")
 	d.RequireNoView("project: planner")
 	d.Key("2")
+	// P opens with the text; esc changes nothing.
+	d.Key("P")
+	d.RequireView("› planner")
+	d.Key("backspace", "space", "esc")
+	d.RequireView("project: planner ✕", "showing 1 of 5 projects")
 	// An empty input and enter reset it.
 	d.Key("P")
 	for range "planner" {
@@ -44,7 +50,7 @@ func TestProjectFilterIsLocal(t *testing.T) {
 	d.Key("enter")
 	d.RequireView("▸ platform/route-service", "▸ qa/e2e-routes")
 	d.RequireNoView("project:")
-	// backspace outside the input resets it with the other filters.
+	// backspace outside the overlay resets it with the other filters.
 	d.Key("P")
 	typeText(d, "e2e")
 	d.Key("enter", "backspace")
@@ -54,9 +60,129 @@ func TestProjectFilterIsLocal(t *testing.T) {
 	}
 	d.Key("ctrl+l")
 	d.Key("P")
+	d.RequireView("Проекты · MRs")
 	typeText(d, "planner")
 	d.Key("enter")
 	d.RequireView("проект: planner ✕", "показаны 1 из 5 проектов")
+}
+
+func TestProjectFilterMarks(t *testing.T) {
+	client := newFake()
+	env := newEnv(client)
+	statePath := withState(t, env, nil, nil)
+	d := uitest.New(t, app.New(env, New(env, source, testScope()), app.Options{}))
+	d.Key("3")
+	before := len(client.Calls())
+	d.Key("P")
+	d.RequireView("Projects · Pipelines")
+	// By activity: route-service, routing-engine, route-planner-ui…
+	d.Key("space", "down", "down", "space")
+	d.RequireView("Projects · Pipelines  2 marked", "[x] platform/route-service", "[ ] platform/routing-engine", "[x] frontend/route-planner-ui")
+	d.Key("enter")
+	d.RequireView("projects: 2 ✕", "showing 2 of 5 projects", "▸ platform/route-service", "▸ frontend/route-planner-ui")
+	d.RequireNoView("platform/routing-engine", "qa/e2e-routes", "infra/router-configs")
+	if n := len(client.Calls()); n != before {
+		t.Fatalf("the overlay asks nothing: %v", client.Calls()[before:])
+	}
+	st := cache.LoadState(statePath)
+	if got := st.Selected(env.Host, source, "pipelines"); strings.Join(got, ",") != "platform/route-service,frontend/route-planner-ui" {
+		t.Fatalf("saved = %v", got)
+	}
+	if got := st.Selected(env.Host, source, "mrs"); len(got) != 0 {
+		t.Fatalf("MRs has its own = %v", got)
+	}
+
+	// P opens with the marks on top; esc changes nothing.
+	d.Key("P")
+	if a, b := lineIndex(d, "[x] frontend/route-planner-ui"), lineIndex(d, "[ ] platform/routing-engine"); a < 0 || b < 0 || a > b {
+		t.Fatalf("marked first:\n%s", d.View())
+	}
+	d.Key("space", "esc")
+	d.RequireView("projects: 2 ✕")
+
+	// Marks win over the text; one mark shows its path.
+	d.Key("P")
+	typeText(d, "planner")
+	d.Key("space", "enter")
+	d.RequireView("project: platform/route-service ✕", "showing 1 of 5 projects")
+	if got := cache.LoadState(statePath).Selected(env.Host, source, "pipelines"); strings.Join(got, ",") != "platform/route-service" {
+		t.Fatalf("saved = %v", got)
+	}
+
+	// backspace drops P and erases the saved marks.
+	d.Key("backspace")
+	d.RequireNoView("project:")
+	d.RequireView("▸ qa/e2e-routes")
+	if got := cache.LoadState(statePath).Selected(env.Host, source, "pipelines"); len(got) != 0 {
+		t.Fatalf("backspace erases the marks: %v", got)
+	}
+	d.Key("P")
+	d.RequireNoView("[x]", "› planner")
+}
+
+func TestProjectFilterRestored(t *testing.T) {
+	client := newFake()
+	env := newEnv(client)
+	statePath := withState(t, env, nil, nil)
+	var st cache.State
+	st.SetSelected(env.Host, source, "pipelines", []string{"platform/route-service", "frontend/route-planner-ui"}, now)
+	st.SetSelected(env.Host, source, "mrs", []string{"gone/project", "qa/e2e-routes"}, now)
+	if err := cache.SaveState(statePath, st); err != nil {
+		t.Fatal(err)
+	}
+	env.Catalog = app.NewCatalog(nil, statePath, func() string { return env.Host })
+	d := uitest.New(t, app.New(env, New(env, source, testScope()), app.Options{}))
+	d.Key("3")
+	d.RequireView("projects: 2 ✕", "showing 2 of 5 projects", "▸ platform/route-service", "▸ frontend/route-planner-ui")
+	d.RequireNoView("platform/routing-engine")
+	// A project that left the workspace is dropped.
+	d.Key("2")
+	d.RequireView("project: qa/e2e-routes ✕", "showing 1 of 5 projects")
+	d.Key("P")
+	d.RequireView("1 marked", "[x] qa/e2e-routes")
+	d.RequireNoView("gone/project")
+	d.Key("esc")
+
+	// Only missing projects left: no filter.
+	st.SetSelected(env.Host, source, "mrs", []string{"gone/project"}, now)
+	if err := cache.SaveState(statePath, st); err != nil {
+		t.Fatal(err)
+	}
+	env.Catalog = app.NewCatalog(nil, statePath, func() string { return env.Host })
+	d = uitest.New(t, app.New(env, New(env, source, testScope()), app.Options{}))
+	d.Key("2")
+	d.RequireNoView("project:", "projects:")
+	d.RequireView("▸ qa/e2e-routes", "▸ platform/route-service")
+}
+
+func TestProjectPickerKeys(t *testing.T) {
+	d, _, _ := open(t, newFake(), testScope())
+	d.Key("2", "P")
+	typeText(d, "platform")
+	d.RequireView("2 / 5")
+	d.Key("ctrl+a") // every visible line
+	d.RequireView("2 marked", "[x] platform/route-service", "[x] platform/routing-engine")
+	d.Key("ctrl+a") // all marked: unmark them
+	d.RequireNoView("[x]", "marked")
+	d.Key("ctrl+u", "ctrl+d", "pgdown", "pgup") // never edit the input
+	d.RequireView("› platform")
+	d.Key("space")
+	for range "platform" {
+		d.Key("backspace")
+	}
+	d.RequireView("1 marked", "5 / 5")
+	d.Key("ctrl+a")
+	d.RequireView("5 marked")
+	d.Key("enter")
+	d.RequireView("projects: 5 ✕", "showing 5 of 5 projects")
+}
+
+func TestGoldenProjectPicker(t *testing.T) {
+	d, _, _ := open(t, newFake(), testScope())
+	d.Key("3", "P", "space", "down", "down", "space", "down")
+	d.RequireGoldenSizes("pipelines-picker")
+	d.Key("enter")
+	d.RequireGoldenSizes("pipelines-pmarks")
 }
 
 func TestGoldenProjectFilter(t *testing.T) {
@@ -109,6 +235,7 @@ func TestFilterModeAsksEveryProjectPassingP(t *testing.T) {
 	for range "platform" {
 		d.Key("backspace")
 	}
+	d.Key("enter")
 	asked := map[string]int{}
 	for _, c := range client.CallsOf("Workspace.MergeRequests")[before:] {
 		for _, p := range c[0].([]string) {
@@ -118,7 +245,12 @@ func TestFilterModeAsksEveryProjectPassingP(t *testing.T) {
 	if len(asked) != 3 || asked["platform/route-service"] != 0 || asked["qa/e2e-routes"] != 1 {
 		t.Fatalf("wider P asks %v", asked)
 	}
-	d.Key("esc")
+	// Marking two of them asks nothing.
+	before = len(client.CallsOf("Workspace.MergeRequests"))
+	d.Key("P", "space", "down", "space", "enter")
+	if n := len(client.CallsOf("Workspace.MergeRequests")); n != before {
+		t.Fatalf("a narrower P asks nothing: %d calls", n-before)
+	}
 
 	// backspace: back to the saved groups; only the expanded one is asked.
 	d.Key("backspace")

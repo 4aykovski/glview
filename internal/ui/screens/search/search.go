@@ -25,13 +25,9 @@ import (
 )
 
 const (
-	debounce  = 300 * time.Millisecond
-	minQuery  = 3 // GitLab does not search shorter strings
-	timeout   = 15 * time.Second
-	maxWidth  = 84
-	maxHeight = 24
-
-	defaultHalfPage = 5 // before the first View
+	debounce = 300 * time.Millisecond
+	minQuery = 3 // GitLab does not search shorter strings
+	timeout  = 15 * time.Second
 )
 
 type kind int
@@ -215,38 +211,15 @@ func (o *Overlay) stop() {
 	o.gen.Next()
 }
 
-func (o *Overlay) move(d int) {
-	n := len(o.lines)
-	for i := o.sel + d; i >= 0 && i < n; i += d {
-		if o.lines[i].selectable() {
-			o.sel = i
-			return
-		}
-	}
-}
+func (o *Overlay) move(d int) { o.sel = common.ListMove(len(o.lines), o.sel, d, o.selectableAt) }
 
 // page moves the selection half a visible list down (d > 0) or up; section
-// and message lines count. It lands on the nearest selectable line in the
-// direction of the move, or before it at the end of the list.
+// and message lines count.
 func (o *Overlay) page(d int) {
-	n := len(o.lines)
-	if n == 0 {
-		return
-	}
-	step := max(1, o.listH/2)
-	if o.listH == 0 {
-		step = defaultHalfPage
-	}
-	target := min(max(o.sel+d*step, 0), n-1)
-	for _, dir := range []int{d, -d} {
-		for i := target; i >= 0 && i < n; i += dir {
-			if o.lines[i].selectable() {
-				o.sel = i
-				return
-			}
-		}
-	}
+	o.sel = common.ListPage(len(o.lines), o.sel, d, o.listH, o.selectableAt)
 }
+
+func (o *Overlay) selectableAt(i int) bool { return o.lines[i].selectable() }
 
 // Selected returns the path of the selected line ("" if none, for tests).
 func (o *Overlay) Selected() string {
@@ -428,7 +401,7 @@ func matchIdx(q, s string) []int {
 func (o *Overlay) View(width, height int) string {
 	env := o.env
 	s, m := env.Styles, env.Msg.Search
-	w := min(maxWidth, width-4)
+	w := common.ListModalWidth(width)
 	inner := w - 4
 	o.input.SetWidth(max(1, inner-2))
 	title := m.PickerTitle
@@ -439,14 +412,10 @@ func (o *Overlay) View(width, height int) string {
 	host := strings.TrimPrefix(strings.TrimPrefix(env.Host, "https://"), "http://")
 	head := lipgloss.PlaceHorizontal(inner, lipgloss.Left, s.ModalTitle.Render(title)+"   "+s.Muted.Render(host))
 
-	listH := max(3, min(maxHeight, height-4)-6)
+	listH := common.ListModalRows(height)
 	o.listH = listH
-	start := 0
-	if o.sel >= listH {
-		start = o.sel - listH + 1
-	}
 	var rows []string
-	for i := start; i < len(o.lines) && len(rows) < listH; i++ {
+	for i := common.ListStart(o.sel, listH); i < len(o.lines) && len(rows) < listH; i++ {
 		rows = append(rows, o.renderLine(i, inner))
 	}
 	for len(rows) < listH {
@@ -462,13 +431,7 @@ func (o *Overlay) View(width, height int) string {
 		}
 		counter = m.Counter(shown, o.total)
 	}
-	foot := s.Muted.Render(hints)
-	if counter != "" {
-		gap := max(1, inner-lipgloss.Width(foot)-lipgloss.Width(counter))
-		foot += strings.Repeat(" ", gap) + s.Muted.Render(counter)
-	}
-	body := head + "\n" + o.input.View() + "\n" + common.Rule(s, inner) + "\n" + strings.Join(rows, "\n") + "\n" + common.Rule(s, inner) + "\n" + foot
-	return s.Modal.Width(w).Render(body)
+	return common.ListModal(s, w, head, o.input.View(), rows, hints, counter)
 }
 
 func (o *Overlay) renderLine(i, w int) string {
@@ -489,7 +452,7 @@ func (o *Overlay) renderLine(i, w int) string {
 	if sel {
 		marker = s.Cursor.Render("› ")
 	}
-	name := highlight(s, l.path, l.matched)
+	name := common.Highlight(s, l.path, l.matched)
 	meta := o.meta(l)
 	text := marker + name
 	if meta != "" {
@@ -523,25 +486,4 @@ func (o *Overlay) meta(l line) string {
 		parts = append(parts, i18n.RelTimeShort(env.Lang, env.Now().Sub(l.entry.Activity)))
 	}
 	return strings.Join(parts, " · ")
-}
-
-// highlight renders path with the matched characters in Accent+Bold.
-func highlight(s *common.Styles, path string, matched []int) string {
-	if len(matched) == 0 {
-		return path
-	}
-	hit := make(map[int]bool, len(matched))
-	for _, i := range matched {
-		hit[i] = true
-	}
-	style := s.Accent.Bold(true)
-	var b strings.Builder
-	for i, r := range path {
-		if hit[i] {
-			b.WriteString(style.Render(string(r)))
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }

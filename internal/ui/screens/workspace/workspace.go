@@ -252,6 +252,11 @@ func (s *Screen) setScope(scope workspace.Scope) {
 		}
 	}
 	sh.reorder()
+	for _, t := range s.tabs {
+		if g, ok := t.(interface{ onScope() }); ok {
+			g.onScope()
+		}
+	}
 	s.rebuild()
 }
 

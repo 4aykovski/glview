@@ -187,3 +187,33 @@ func TestRootRegistersWorkspaceAndRefreshesStarred(t *testing.T) {
 		t.Fatal("no workspace root")
 	}
 }
+
+func TestCatalogSelectedProjects(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	c := NewCatalog(nil, statePath, func() string { return testHost })
+	if c.SetSelected("~/src", "pipelines", nil) != nil {
+		t.Fatal("nothing to erase writes nothing")
+	}
+	save := c.SetSelected("~/src", "pipelines", []string{"platform/route-service", "qa/e2e-routes"})
+	if save == nil {
+		t.Fatal("new marks are saved")
+	}
+	save()
+	if got := cache.LoadState(statePath).Selected(testHost, "~/src", "pipelines"); len(got) != 2 {
+		t.Fatalf("state = %v", got)
+	}
+	if c.SetSelected("~/src", "pipelines", []string{"platform/route-service", "qa/e2e-routes"}) != nil {
+		t.Fatal("the same marks write nothing")
+	}
+	if got := c.Selected("~/src", "pipelines"); len(got) != 2 || len(c.Selected("~/src", "mrs")) != 0 {
+		t.Fatalf("selected = %v", got)
+	}
+	c.SetSelected("~/src", "pipelines", nil)()
+	if got := cache.LoadState(statePath).Selected(testHost, "~/src", "pipelines"); len(got) != 0 {
+		t.Fatalf("erased = %v", got)
+	}
+	var nilCat *Catalog
+	if nilCat.Selected("~/src", "mrs") != nil || nilCat.SetSelected("~/src", "mrs", []string{"g/p"}) != nil {
+		t.Fatal("a nil catalog keeps nothing")
+	}
+}

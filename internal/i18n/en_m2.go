@@ -58,7 +58,10 @@ func fillM2EN(m *Messages) {
 	w.MePipes = "me: mine"
 	w.StatusGroups = "groups by latest activity"
 	w.ProjectKey = "project"
-	w.ProjectHint = "fuzzy by project path · enter apply · esc close"
+	w.ProjectsKey = "projects"
+	w.PickTitle = "Projects"
+	w.PickMarked = func(n int) string { return fmt.Sprintf("%d marked", n) }
+	w.PickHints = "space mark  ctrl+a all  enter apply  esc close"
 	w.ShownProjects = func(shown, total int) string {
 		return fmt.Sprintf("showing %d of %d %s", shown, total, Plural(EN, total, PluralForms{"project", "", "projects"}))
 	}
