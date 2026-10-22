@@ -10,10 +10,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/4aykovski/glview/internal/gitexec"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 	"github.com/4aykovski/glview/internal/ui/screens/start"
 )
 
@@ -24,16 +26,13 @@ type shared struct {
 	repo          *gitremote.Repo // nil without a local folder (-p)
 	defaultBranch string
 	webURL        string // project page, set when the project is loaded
+	crumb         string // workspace source when opened from a workspace
 }
 
 // projectURL is the project page in the web UI without a trailing slash:
 // webURL, or the instance URL and the full path until the project loads.
 func (sh *shared) projectURL() string {
-	base := sh.webURL
-	if base == "" {
-		base = strings.TrimRight(sh.env.Host, "/") + "/" + sh.ref.FullPath
-	}
-	return strings.TrimRight(base, "/")
+	return sh.env.ProjectURL(sh.webURL, sh.ref.FullPath)
 }
 
 // tab is one tab of the project screen.
@@ -71,17 +70,66 @@ type Project struct {
 	active bool
 	w, h   int
 	loaded bool
+	abDone bool // ahead/behind of the local folder counted once
 }
 
-// New creates the screen for path; repo may be nil.
-func New(env *app.Env, path string, repo *gitremote.Repo) *Project {
-	sh := &shared{env: env, ref: gitlab.ProjectRef{FullPath: path}, repo: repo}
+// pullStartMsg starts a confirmed pull on the screen's goroutine.
+type pullStartMsg struct{ p *Project }
+
+// Tabs of the project screen.
+const (
+	TabMRs = iota
+	TabPipelines
+	TabIssues
+	TabTags
+)
+
+// Options open the project screen: from the start folder, -p, search or a
+// workspace.
+type Options struct {
+	Path string
+	Repo *gitremote.Repo // local folder of the project, nil if none
+	Tab  int             // TabMRs (default) or TabPipelines
+	// MRFilter and PipelineFilter carry the filters of the workspace tab
+	// (state or status, "me", text); nil keeps the defaults.
+	MRFilter       *gitlab.MRFilter
+	PipelineFilter *gitlab.PipelineFilter
+	// Crumb is the workspace source shown before the path
+	// ("~/src › platform/route-service").
+	Crumb string
+}
+
+// New creates the screen.
+func New(env *app.Env, o Options) *Project {
+	sh := &shared{env: env, ref: gitlab.ProjectRef{FullPath: o.Path}, repo: o.Repo, crumb: o.Crumb}
 	p := &Project{sh: sh, gen: common.NewGen()}
-	p.tabs = []tab{newMRsTab(sh), newPipelinesTab(sh), newPlaceholder(sh, 2), newPlaceholder(sh, 3)}
+	mrs, pipes := newMRsTab(sh), newPipelinesTab(sh)
+	if f := o.MRFilter; f != nil {
+		mrs.filter = *f
+		if mrs.filter.Scope == "" {
+			mrs.filter.Scope = gitlab.MRScopeAll
+		}
+		if mrs.filter.State == "" {
+			mrs.filter.State = gitlab.MRStateOpened
+		}
+	}
+	if f := o.PipelineFilter; f != nil {
+		pipes.filter = *f
+	}
+	p.tabs = []tab{mrs, pipes, newPlaceholder(sh, 2), newPlaceholder(sh, 3)}
+	if o.Tab > 0 && o.Tab < len(p.tabs) {
+		p.cur = o.Tab
+	}
 	return p
 }
 
-func (p *Project) Init() tea.Cmd { return p.loadProject() }
+// Path returns the project path (for tests and the stack logic).
+func (p *Project) Path() string { return p.sh.ref.FullPath }
+
+// Init loads the project and records it among the recent projects.
+func (p *Project) Init() tea.Cmd {
+	return tea.Batch(p.loadProject(), p.sh.env.Catalog.Touch(p.sh.ref.FullPath))
+}
 
 func (p *Project) loadProject() tea.Cmd {
 	tok := p.gen.Next()
@@ -107,7 +155,11 @@ func (p *Project) KeyMap() common.KeyMap {
 	k := p.sh.env.Msg.Keys
 	km := p.tabs[p.cur].KeyMap()
 	short := append([]common.Binding{}, km.Short...)
-	short = append(short,
+	g := p.sh.env.Msg.Git
+	fetch := common.NewBinding([]string{"u"}, "", g.KeyFetch, common.PriorityLow)
+	pull := common.NewBinding([]string{"U"}, "", g.KeyPull, common.PriorityLow)
+	fetch.Hidden, pull.Hidden = !p.gitAvailable(), !p.gitAvailable()
+	short = append(short, fetch, pull,
 		common.NewBinding([]string{"1", "2", "3", "4"}, "1-4", k.Tabs, common.PriorityNormal),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"q"}, "", k.Quit, common.PriorityLow),
@@ -144,7 +196,19 @@ func (p *Project) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		if p.loaded && p.sh.repo != nil {
 			_ = p.sh.repo.RefreshHEAD()
 		}
-		return p, p.tabs[p.cur].Activate()
+		var ab tea.Cmd
+		if !p.abDone && p.gitAvailable() {
+			p.abDone = true
+			if !env.Git.AheadBehind(p.sh.repo.Root).Known {
+				ab = env.Git.CountAheadBehind([]*gitremote.Repo{p.sh.repo})
+			}
+		}
+		return p, tea.Batch(p.tabs[p.cur].Activate(), ab)
+	case pullStartMsg:
+		if msg.p == p {
+			return p, env.Git.Start(gitexec.OpPullFF, []*gitremote.Repo{p.sh.repo})
+		}
+		return p, nil
 	case app.DeactivatedMsg:
 		p.active = false
 		p.tabs[p.cur].Deactivate()
@@ -197,6 +261,22 @@ func (p *Project) key(k tea.KeyPressMsg) tea.Cmd {
 			return p.switchTo(p.cur + 1)
 		case "shift+tab":
 			return p.switchTo(p.cur - 1)
+		case "u":
+			if p.gitAvailable() {
+				if env := p.sh.env; env.Git.Busy() {
+					return app.Toast(common.ToastInfo, env.Msg.Git.Busy(env.Git.Op().String()), "")
+				}
+				return p.sh.env.Git.Start(gitexec.OpFetch, []*gitremote.Repo{p.sh.repo})
+			}
+		case "U":
+			if p.gitAvailable() {
+				env := p.sh.env
+				if env.Git.Busy() {
+					return app.Toast(common.ToastInfo, env.Msg.Git.Busy(env.Git.Op().String()), "")
+				}
+				body := localgit.PullBody(env.Msg, []*gitremote.Repo{p.sh.repo})
+				return app.OpenOverlay(app.NewConfirm(env, env.Msg.Git.PullTitle, body, func() tea.Msg { return pullStartMsg{p: p} }))
+			}
 		case "r":
 			if p.sh.repo != nil {
 				_ = p.sh.repo.RefreshHEAD()
@@ -214,12 +294,18 @@ func (p *Project) View() string {
 	s, m := env.Styles, env.Msg
 	host := strings.TrimPrefix(strings.TrimPrefix(env.Host, "https://"), "http://")
 	ctx := p.sh.ref.FullPath + " " + s.Muted.Render("· "+host)
+	if p.sh.crumb != "" {
+		ctx = s.Breadcrumb.Render(p.sh.crumb+" › ") + ctx
+	}
 	if r := p.sh.repo; r != nil && r.Branch != "" {
 		branch := r.Branch
 		if r.Detached {
 			branch += " (" + m.Fields.Detached + ")"
 		}
 		ctx += " " + s.Muted.Render("· ⎇ ") + branch
+		if cell := env.Git.Cell(s, r.Root); cell != "" {
+			ctx += " " + cell
+		}
 	}
 	header := common.Header(s, ctx, env.HeaderRight(p.tabs[p.cur].UpdatedAt()), p.w)
 	bar := common.Tabs(s, []common.Tab{
@@ -230,6 +316,9 @@ func (p *Project) View() string {
 	}, p.cur)
 	return header + "\n" + bar + "\n" + common.Rule(s, p.w) + "\n" + p.tabs[p.cur].View()
 }
+
+// gitAvailable reports whether u/U work: git found and a local folder.
+func (p *Project) gitAvailable() bool { return p.sh.repo != nil && p.sh.env.Git.Available() }
 
 // StatusHint is shown in the footer when there is no toast.
 func (p *Project) StatusHint() string { return p.tabs[p.cur].Status() }

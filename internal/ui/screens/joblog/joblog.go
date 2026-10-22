@@ -603,6 +603,9 @@ func (s *Screen) View() string {
 	if !s.updated.IsZero() {
 		right += " · " + m.Log.Updated(render.Ago(env.Lang, env.Now(), s.updated))
 	}
+	if p := env.Git.Header(m); p != "" {
+		right = st.Accent.Render(p) + " · " + right
+	}
 	out := []string{common.Header(st, ctx, right, s.w), common.Rule(st, s.w)}
 	if s.p.Dropped > 0 {
 		out = append(out, st.Warning.Render(m.Log.Truncated))

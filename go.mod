@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20261018003744-cb897cb4ed72
 	github.com/hashicorp/go-retryablehttp v0.7.8
+	github.com/sahilm/fuzzy v0.1.3
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.39.0

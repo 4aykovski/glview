@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -26,6 +27,16 @@ func (e *Env) PollInterval(active bool) time.Duration {
 		if active {
 			base = DefaultPollActive
 		}
+	}
+	return common.PollInterval(base, e.Focused)
+}
+
+// WorkspacePoll is the workspace poll interval (polling.workspace), slowed
+// down while the terminal is not focused.
+func (e *Env) WorkspacePoll() time.Duration {
+	base := e.Settings.PollWorkspace
+	if base <= 0 {
+		base = DefaultPollWorkspace
 	}
 	return common.PollInterval(base, e.Focused)
 }
@@ -143,6 +154,17 @@ func OpenURL(env *Env, url string) tea.Cmd {
 	}
 }
 
+// ProjectURL is the project page in the web UI without a trailing slash:
+// webURL when known, else the instance URL and the full path (the project
+// is not loaded yet). Both modes build links to a project with it.
+func (e *Env) ProjectURL(webURL, path string) string {
+	base := webURL
+	if base == "" {
+		base = strings.TrimRight(e.Host, "/") + "/" + path
+	}
+	return strings.TrimRight(base, "/")
+}
+
 // Copy puts text on the terminal clipboard (OSC 52) and confirms with a
 // toast naming what was copied.
 func Copy(env *Env, text, what string) tea.Cmd {
@@ -154,6 +176,9 @@ func Copy(env *Env, text, what string) tea.Cmd {
 // time of the last successful load (zero hides the age).
 func (e *Env) HeaderRight(updated time.Time) string {
 	s := "@" + e.User.Username
+	if p := e.Git.Header(e.Msg); p != "" {
+		s = e.Styles.Accent.Render(p) + " · " + s
+	}
 	if !updated.IsZero() {
 		s += " · " + e.Msg.Header.Updated(i18n.RelTimeShort(e.Lang, e.Now().Sub(updated)))
 	}

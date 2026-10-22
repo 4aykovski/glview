@@ -26,6 +26,7 @@ type Cache struct {
 	mu      sync.Mutex
 	entries map[string]entry
 	epochs  map[string]uint64 // bumped on invalidation; stale fetches are discarded
+	busy    map[string]bool   // keys with a background refresh started and not finished
 	sf      singleflight.Group
 	updates chan string
 
@@ -37,6 +38,7 @@ func New() *Cache {
 	return &Cache{
 		entries: map[string]entry{},
 		epochs:  map[string]uint64{},
+		busy:    map[string]bool{},
 		updates: make(chan string, 64),
 		now:     time.Now,
 	}
@@ -64,14 +66,24 @@ func Get[T any](ctx context.Context, c *Cache, key string, ttl time.Duration, fe
 	if !known {
 		c.epochs[key] = 0 // register so Invalidate can see in-flight fetches
 	}
+	fresh := ok && c.now().Sub(e.at) < ttl
+	// One background refresh per stale value: a goroutine started late must
+	// not fetch again after the first one finished (singleflight only joins
+	// calls that overlap).
+	refresh := ok && !fresh && !c.busy[key]
+	if refresh {
+		c.busy[key] = true
+	}
 	c.mu.Unlock()
 
 	if ok {
 		v, _ := e.value.(T)
-		if c.now().Sub(e.at) < ttl {
+		if fresh {
 			return v, false, nil
 		}
-		go c.revalidate(key, epoch, func(ctx context.Context) (any, error) { return fetch(ctx) })
+		if refresh {
+			go c.revalidate(key, epoch, func(ctx context.Context) (any, error) { return fetch(ctx) })
+		}
 		return v, true, nil
 	}
 
@@ -92,6 +104,11 @@ func Get[T any](ctx context.Context, c *Cache, key string, ttl time.Duration, fe
 }
 
 func (c *Cache) revalidate(key string, epoch uint64, fetch func(context.Context) (any, error)) {
+	defer func() {
+		c.mu.Lock()
+		delete(c.busy, key)
+		c.mu.Unlock()
+	}()
 	_, _, _ = c.sf.Do(key, func() (any, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), BackgroundTimeout)
 		defer cancel()
@@ -142,4 +159,21 @@ func (c *Cache) Invalidate(prefix string) {
 			c.epochs[k]++
 		}
 	}
+}
+
+// Lookup returns the cached value of key if it is younger than ttl,
+// without fetching or revalidating.
+func Lookup[T any](c *Cache, key string, ttl time.Duration) (T, bool) {
+	var zero T
+	if c == nil {
+		return zero, false
+	}
+	c.mu.Lock()
+	e, ok := c.entries[key]
+	c.mu.Unlock()
+	if !ok || c.now().Sub(e.at) >= ttl {
+		return zero, false
+	}
+	v, ok := e.value.(T)
+	return v, ok
 }

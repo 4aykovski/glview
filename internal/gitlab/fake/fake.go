@@ -31,6 +31,14 @@ type Client struct {
 	calls  []Call
 	hooks  map[string][]func(n int)
 	data   data
+
+	// Workspace and search data (workspace.go).
+	projDelay     map[string]time.Duration
+	batchSize     int
+	starred       []string
+	groups        []gitlab.Group
+	groupProjects map[int64][]string
+	unknownTotal  map[int64]bool // ListGroupProjects reports total -1
 }
 
 var _ gitlab.Client = (*Client)(nil)
@@ -46,6 +54,9 @@ func New() *Client {
 		errs:           map[string][]error{},
 		hooks:          map[string][]func(n int){},
 		data:           newData(),
+		projDelay:      map[string]time.Duration{},
+		groupProjects:  map[int64][]string{},
+		unknownTotal:   map[int64]bool{},
 	}
 }
 
@@ -183,4 +194,15 @@ func (s instance) Version(ctx context.Context) (gitlab.Version, error) {
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
 	return s.c.Ver, nil
+}
+
+// CallsOf returns the arguments of every call of method, in order.
+func (c *Client) CallsOf(method string) [][]any {
+	var out [][]any
+	for _, call := range c.Calls() {
+		if call.Method == method {
+			out = append(out, call.Args)
+		}
+	}
+	return out
 }

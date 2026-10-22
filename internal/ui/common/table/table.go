@@ -202,15 +202,29 @@ func (m *Model) compute() []int {
 	if m.layout != nil {
 		return m.layout
 	}
-	n := len(m.cols)
+	cells := make([][]string, len(m.rows))
+	for i, r := range m.rows {
+		cells[i] = r.Cells
+	}
+	m.layout = Layout(m.cols, cells, m.w)
+	return m.layout
+}
+
+// Layout computes the widths of the columns for rows of cells in width
+// cells (the row marker included): -1 marks a hidden column. Columns of the
+// lowest priority disappear first when even their minimum widths do not
+// fit; then flex columns, and after them the others, shrink to their
+// minimum; spare width goes to the flex columns.
+func Layout(cols []Column, rows [][]string, width int) []int {
+	n := len(cols)
 	widths := make([]int, n)
 	visible := make([]bool, n)
-	for i, c := range m.cols {
+	for i, c := range cols {
 		visible[i] = true
 		w := ansi.StringWidth(c.Title)
-		for _, r := range m.rows {
-			if i < len(r.Cells) {
-				w = max(w, ansi.StringWidth(r.Cells[i]))
+		for _, r := range rows {
+			if i < len(r) {
+				w = max(w, ansi.StringWidth(r[i]))
 			}
 		}
 		w = max(w, c.Min)
@@ -220,10 +234,10 @@ func (m *Model) compute() []int {
 		widths[i] = w
 	}
 
-	avail := m.w - markerW
+	avail := width - markerW
 	minTotal := func() int {
 		total, cnt := 0, 0
-		for i, c := range m.cols {
+		for i, c := range cols {
 			if visible[i] {
 				total += max(1, c.Min)
 				cnt++
@@ -236,11 +250,11 @@ func (m *Model) compute() []int {
 	}
 	for minTotal() > avail {
 		drop := -1
-		for i, c := range m.cols {
+		for i, c := range cols {
 			if !visible[i] {
 				continue
 			}
-			if drop < 0 || c.Priority <= m.cols[drop].Priority {
+			if drop < 0 || c.Priority <= cols[drop].Priority {
 				drop = i
 			}
 		}
@@ -255,7 +269,7 @@ func (m *Model) compute() []int {
 
 	total := func() int {
 		t, cnt := 0, 0
-		for i := range m.cols {
+		for i := range cols {
 			if visible[i] {
 				t += widths[i]
 				cnt++
@@ -270,7 +284,7 @@ func (m *Model) compute() []int {
 	for pass := 0; pass < 2 && total() > avail; pass++ {
 		for total() > avail {
 			pick := -1
-			for i, c := range m.cols {
+			for i, c := range cols {
 				if !visible[i] || widths[i] <= max(1, c.Min) || (pass == 0 && !c.Flex) {
 					continue
 				}
@@ -287,7 +301,7 @@ func (m *Model) compute() []int {
 	// Too narrow: hand the rest to the flex columns.
 	if extra := avail - total(); extra > 0 {
 		var flex []int
-		for i, c := range m.cols {
+		for i, c := range cols {
 			if visible[i] && c.Flex {
 				flex = append(flex, i)
 			}
@@ -298,15 +312,15 @@ func (m *Model) compute() []int {
 		}
 	}
 
-	m.layout = make([]int, n)
-	for i := range m.cols {
+	out := make([]int, n)
+	for i := range cols {
 		if visible[i] {
-			m.layout[i] = widths[i]
+			out[i] = widths[i]
 		} else {
-			m.layout[i] = -1
+			out[i] = -1
 		}
 	}
-	return m.layout
+	return out
 }
 
 func countTrue(b []bool) int {
@@ -343,7 +357,12 @@ func fit(cell string, w int, right bool) string {
 }
 
 func (m *Model) line(cells []string, plain bool) string {
-	widths := m.compute()
+	return FormatLine(m.cols, m.compute(), cells, plain)
+}
+
+// FormatLine lays cells out in the widths from Layout (without the row
+// marker); plain strips the cells' styles (selected and muted rows).
+func FormatLine(cols []Column, widths []int, cells []string, plain bool) string {
 	parts := make([]string, 0, len(widths))
 	for i, w := range widths {
 		if w < 0 {
@@ -356,7 +375,7 @@ func (m *Model) line(cells []string, plain bool) string {
 		if plain {
 			cell = ansi.Strip(cell)
 		}
-		parts = append(parts, fit(cell, w, m.cols[i].AlignRight))
+		parts = append(parts, fit(cell, w, cols[i].AlignRight))
 	}
 	return strings.Join(parts, strings.Repeat(" ", gap))
 }

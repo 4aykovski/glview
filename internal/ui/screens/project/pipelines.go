@@ -15,10 +15,9 @@ import (
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/filterline"
 	"github.com/4aykovski/glview/internal/ui/common/table"
-	"github.com/4aykovski/glview/internal/ui/screens/joblog"
+	"github.com/4aykovski/glview/internal/ui/screens/pipeactions"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
-	"github.com/4aykovski/glview/internal/ui/screens/runpipeline"
 )
 
 const (
@@ -39,16 +38,6 @@ type (
 		id     int64
 		stages []gitlab.StageSummary
 		err    error
-	}
-	pipeActionMsg struct {
-		retry bool
-		id    int64
-		err   error
-	}
-	pipeJobMsg struct {
-		pipe gitlab.PipelineSummary
-		job  *gitlab.Job
-		err  error
 	}
 )
 
@@ -361,34 +350,20 @@ func (t *pipelinesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if t.stG.Valid(msg.tok) && msg.err == nil {
 			t.stages[msg.id] = msg.stages
 		}
-	case pipeActionMsg:
+	case pipeactions.DoneMsg:
 		if !t.active {
 			return t, nil
 		}
-		if env.Cache != nil {
-			env.Cache.Invalidate("pipes:" + t.sh.ref.FullPath + ":")
-			env.Cache.Invalidate("stages:" + t.sh.ref.FullPath + ":")
-			env.Cache.Invalidate(fmt.Sprintf("pipe:%s:%d", t.sh.ref.Key(), msg.id))
+		cmd := pipeactions.Done(env, msg)
+		if msg.Err != nil {
+			return t, cmd
 		}
-		if msg.err != nil {
-			return t, env.Fail(msg.err)
-		}
-		toast := env.Msg.Pipe.ToastCanceled(msg.id)
-		if msg.retry {
-			toast = env.Msg.Pipe.ToastRetried(msg.id)
-		}
-		return t, tea.Batch(app.Toast(common.ToastSuccess, toast, ""), t.loadFirst(false, true))
-	case pipeJobMsg:
+		return t, tea.Batch(cmd, t.loadFirst(false, true))
+	case pipeactions.LogJobMsg:
 		if !t.active {
 			return t, nil
 		}
-		if msg.err != nil {
-			return t, env.Fail(msg.err)
-		}
-		if msg.job == nil {
-			return t, app.Toast(common.ToastInfo, env.Msg.Pipe.NoLogJobs, "")
-		}
-		return t, app.Push(joblog.New(env, t.sh.ref, msg.pipe.ID, *msg.job))
+		return t, pipeactions.OpenLog(env, msg)
 
 	case common.PollTickMsg:
 		if !t.poll.Valid(msg.Token) || !t.active || env.AuthLost {
@@ -538,7 +513,7 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		t.filter = gitlab.PipelineFilter{}
 		return t.loadFirst(true, false)
 	case "n":
-		return t.runForm()
+		return pipeactions.RunForm(env, t.sh.ref, t.sh.repo, t.sh.defaultBranch)
 	}
 	if p == nil {
 		return nil
@@ -555,60 +530,11 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		return app.Push(pipeline.New(env, t.sh.ref, p.ID, p))
 	case "R":
-		m := env.Msg.Pipe
-		return app.OpenOverlay(app.NewConfirm(env, m.RetryTitle(p.ID), m.RetryBody, t.mutate(*p, true)))
+		return pipeactions.Retry(env, t.sh.ref, *p)
 	case "c":
-		m := env.Msg.Pipe
-		return app.OpenOverlay(app.NewConfirm(env, m.CancelTitle(p.ID), m.CancelBody, t.mutate(*p, false)))
+		return pipeactions.Cancel(env, t.sh.ref, *p)
 	case "l":
-		return t.findLogJob(*p)
-	}
-	return nil
-}
-
-func (t *pipelinesTab) mutate(p gitlab.PipelineSummary, retry bool) tea.Cmd {
-	client, ref := t.env().Client, t.sh.ref
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		defer cancel()
-		var err error
-		if retry {
-			err = client.Pipelines().Retry(ctx, ref, p.ID)
-		} else {
-			err = client.Pipelines().Cancel(ctx, ref, p.ID)
-		}
-		return pipeActionMsg{retry: retry, id: p.ID, err: err}
-	}
-}
-
-// findLogJob looks for the first failed job of the pipeline, else the first
-// running one; the job comes with its earlier attempts for the log. The
-// pipeline is always read anew (the list and its status may be behind) and
-// a final one is cached under the key of the Pipeline screen.
-func (t *pipelinesTab) findLogJob(p gitlab.PipelineSummary) tea.Cmd {
-	env, ref := t.env(), t.sh.ref
-	key := fmt.Sprintf("pipe:%s:%d", ref.Key(), p.ID)
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		defer cancel()
-		pl, err := env.Client.Pipelines().Get(ctx, ref, p.ID)
-		if err != nil {
-			return pipeJobMsg{pipe: p, err: err}
-		}
-		if env.Cache != nil && pl.Status.Final() {
-			env.Cache.Set(key, pl)
-		}
-		return pipeJobMsg{pipe: pl.PipelineSummary, job: pickLogJob(pl.Jobs)}
-	}
-}
-
-func pickLogJob(jobs []gitlab.Job) *gitlab.Job {
-	for _, want := range []gitlab.PipelineStatus{gitlab.StatusFailed, gitlab.StatusRunning} {
-		for i := range jobs {
-			if jobs[i].Status == want {
-				return &jobs[i]
-			}
-		}
+		return pipeactions.FindLogJob(env, t.sh.ref, *p)
 	}
 	return nil
 }
@@ -759,23 +685,4 @@ func (t *pipelinesTab) listURL() string {
 		u += "?" + q.Encode()
 	}
 	return u
-}
-
-// runForm opens the "run pipeline" overlay. With
-// run_pipeline.prefill_local_branch the field holds the local branch (or
-// the default branch without one), otherwise it starts empty.
-func (t *pipelinesTab) runForm() tea.Cmd {
-	env := t.env()
-	local, initial := "", ""
-	if r := t.sh.repo; r != nil && !r.Detached && r.Branch != "" {
-		local = r.Branch
-	}
-	if env.Settings.PrefillLocalBranch {
-		initial = local
-		if initial == "" {
-			initial = t.sh.defaultBranch
-		}
-	}
-	f := runpipeline.New(env, t.sh.ref, initial, local)
-	return tea.Sequence(app.OpenOverlay(f), f.Init())
 }

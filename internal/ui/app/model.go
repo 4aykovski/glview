@@ -8,6 +8,7 @@ import (
 
 	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 )
 
 const (
@@ -35,6 +36,8 @@ type Model struct {
 
 	toast   *ToastMsg
 	toastID int
+
+	starredTried bool // the background starred refresh ran this session
 }
 
 // New creates the root with a first screen.
@@ -52,7 +55,39 @@ func New(env *Env, first Screen, opts Options) *Model {
 		m.isDark = env.Styles.Theme.IsDark
 	}
 	m.stack = []Screen{first}
+	m.registerWorkspace()
 	return m
+}
+
+// topWorkspace is the index of the topmost Workspace of the stack, -1 if
+// there is none.
+func (m *Model) topWorkspace() int {
+	for i := len(m.stack) - 1; i >= 0; i-- {
+		if _, ok := m.stack[i].(WorkspaceRoot); ok {
+			return i
+		}
+	}
+	return -1
+}
+
+// registerWorkspace tells the catalog which Workspace (if any) is the
+// topmost one of the stack: the picker lists its projects.
+func (m *Model) registerWorkspace() {
+	var w WorkspaceRoot
+	if i := m.topWorkspace(); i >= 0 {
+		w = m.stack[i].(WorkspaceRoot)
+	}
+	m.env.Catalog.SetWorkspace(w)
+}
+
+// refreshStarred starts the background starred refresh once per session,
+// as soon as there is a client.
+func (m *Model) refreshStarred() tea.Cmd {
+	if m.starredTried || m.env.Client == nil {
+		return nil
+	}
+	m.starredTried = true
+	return m.env.Catalog.refreshStarred(m.env.Client)
 }
 
 // Env returns the shared environment (for tests and main).
@@ -65,7 +100,7 @@ func (m *Model) Top() Screen { return m.stack[len(m.stack)-1] }
 func (m *Model) Depth() int { return len(m.stack) }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.refreshStarred()}
 	for _, t := range m.opts.InitialToasts {
 		cmds = append(cmds, msgCmd(t))
 	}
@@ -98,6 +133,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.pop()
 	case ReplaceRootMsg:
 		return m, m.replaceRoot(msg.Screen)
+	case OpenProjectMsg:
+		return m, m.openProject(msg.Screen)
+	case OpenGroupMsg:
+		return m, m.openAbove(0, msg.Screen)
 
 	case OpenOverlayMsg:
 		m.overlay = msg.Overlay
@@ -137,6 +176,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case authCheckedMsg:
 		return m, m.onAuthChecked(msg)
 
+	case starredLoadedMsg:
+		m.env.Catalog.onStarred(msg)
+		return m, nil
+
+	case localgit.ProgressMsg, localgit.DoneMsg, localgit.AheadBehindMsg:
+		return m, m.onGit(msg)
+
 	case langSavedMsg:
 		if msg.err != nil {
 			return m, Toast(common.ToastError, m.env.Msg.Toast.ConfigSaveFailed(msg.err.Error()), "")
@@ -150,9 +196,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, m.broadcast(msg)
 }
 
+// onGit feeds the git tracker, shows the final toast of an operation and
+// tells every screen (the one under the stack is up to date on return).
+func (m *Model) onGit(msg tea.Msg) tea.Cmd {
+	_, done, next := m.env.Git.Handle(msg)
+	cmds := []tea.Cmd{next, m.broadcast(msg)}
+	if done {
+		text, failed, hint := m.env.Git.Summary(m.env.Msg)
+		level := common.ToastSuccess
+		if failed {
+			level = common.ToastError
+		}
+		cmds = append(cmds, Toast(level, text, hint))
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) quit() tea.Cmd {
+	m.env.Git.Stop()
+	return tea.Quit
+}
+
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	if k.String() == "ctrl+c" {
-		return tea.Quit
+		return m.quit()
 	}
 	if m.overlay != nil {
 		o, cmd := m.overlay.Update(k)
@@ -168,13 +235,18 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 			return m.checkAuth()
 		}
 	case "?":
-		m.overlay = NewHelp(m.env, m.Top().KeyMap(), m.globalBindings())
+		m.overlay = NewHelp(m.env, m.Top().KeyMap(), m.globalBindings(), m.searchBindings()...)
 		return nil
+	case "p", "F":
+		if m.env.Search != nil && m.env.Client != nil {
+			m.overlay = m.env.Search(k.String() == "F")
+			return nil
+		}
 	case "ctrl+l":
 		return m.toggleLanguage()
 	case "q":
 		if len(m.stack) == 1 {
-			return tea.Quit
+			return m.quit()
 		}
 	case "esc":
 		if len(m.stack) > 1 {
@@ -202,6 +274,7 @@ func (m *Model) toggleLanguage() tea.Cmd {
 func (m *Model) push(s Screen) tea.Cmd {
 	deact := m.sendTop(DeactivatedMsg{})
 	m.stack = append(m.stack, s)
+	m.registerWorkspace()
 	s.SetSize(m.contentSize())
 	return tea.Batch(deact, s.Init(), m.sendTop(ActivatedMsg{}))
 }
@@ -212,6 +285,7 @@ func (m *Model) pop() tea.Cmd {
 	}
 	deact := m.sendTop(DeactivatedMsg{})
 	m.stack = m.stack[:len(m.stack)-1]
+	m.registerWorkspace()
 	return tea.Batch(deact, m.sendTop(ActivatedMsg{}))
 }
 
@@ -222,6 +296,31 @@ func (m *Model) replaceRoot(s Screen) tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 	m.stack = []Screen{s}
+	m.registerWorkspace()
+	s.SetSize(m.contentSize())
+	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred())...)
+}
+
+// openProject puts a project chosen in search above the topmost
+// Workspace of the stack, or above the root without one; every screen
+// above is closed (SPEC §2.6).
+func (m *Model) openProject(s Screen) tea.Cmd {
+	return m.openAbove(max(0, m.topWorkspace()), s)
+}
+
+// openAbove closes every screen above stack[keep] and puts s on top. The
+// start screen at the bottom is never replaced.
+func (m *Model) openAbove(keep int, s Screen) tea.Cmd {
+	var cmds []tea.Cmd
+	for i := len(m.stack) - 1; i > keep; i-- {
+		_, cmd := m.stack[i].Update(DeactivatedMsg{})
+		cmds = append(cmds, cmd)
+	}
+	if len(m.stack) == keep+1 {
+		cmds = append(cmds, m.sendTop(DeactivatedMsg{}))
+	}
+	m.stack = append(m.stack[:keep+1], s)
+	m.registerWorkspace()
 	s.SetSize(m.contentSize())
 	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}))...)
 }
@@ -254,8 +353,27 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 // A thin rule separates the content from the footer line.
 func (m *Model) contentSize() (int, int) { return m.width, max(0, m.height-2) }
 
+// searchBindings is the help group of the p and F overlays (none when
+// search is not available).
+func (m *Model) searchBindings() []common.Group {
+	if m.env.Search == nil {
+		return nil
+	}
+	k, s := m.env.Msg.Keys, m.env.Msg.Search
+	return []common.Group{{Title: s.HelpTitle, Bindings: []common.Binding{
+		common.NewBinding([]string{"down", "up", "ctrl+n", "ctrl+p"}, "↓/↑ ctrl+n/ctrl+p", s.KeyMove, common.PriorityLow),
+		common.NewBinding([]string{"ctrl+d", "ctrl+u", "pgdown", "pgup"}, "ctrl+d/ctrl+u pgdown/pgup", s.KeyHalfPage, common.PriorityLow),
+		common.NewBinding([]string{"enter"}, "enter", k.Open, common.PriorityLow),
+		common.NewBinding([]string{"esc"}, "esc", s.KeyClose, common.PriorityLow),
+	}}}
+}
+
 func (m *Model) globalBindings() []common.Binding {
 	k := m.env.Msg.Keys
+	search := func(b common.Binding) common.Binding {
+		b.Hidden = m.env.Search == nil
+		return b
+	}
 	return []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k ↑/↓", k.Down+" / "+k.Up, common.PriorityLow),
 		common.NewBinding([]string{"g"}, "g/G", k.Top+" / "+k.Bottom, common.PriorityLow),
@@ -263,6 +381,8 @@ func (m *Model) globalBindings() []common.Binding {
 		common.NewBinding([]string{"esc"}, "esc", k.Back, common.PriorityLow),
 		common.NewBinding([]string{"r"}, "r", k.Refresh, common.PriorityLow),
 		common.NewBinding([]string{"o"}, "o", k.Browser, common.PriorityLow),
+		search(common.NewBinding([]string{"p"}, "p", m.env.Msg.Search.KeyPicker, common.PriorityLow)),
+		search(common.NewBinding([]string{"F"}, "F", m.env.Msg.Search.KeyGlobal, common.PriorityLow)),
 		common.NewBinding([]string{"ctrl+l"}, "ctrl+l", k.Language, common.PriorityLow),
 		common.NewBinding([]string{"q"}, "q", k.Quit, common.PriorityLow),
 		common.NewBinding([]string{"?"}, "?", k.Help, common.PriorityHelp),

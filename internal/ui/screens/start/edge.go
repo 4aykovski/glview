@@ -1,9 +1,8 @@
 package start
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -20,7 +19,7 @@ type NotOnInstanceInfo struct {
 }
 
 // NotOnInstance explains why the project could not be opened and offers
-// the next steps (SPEC §2.4). p and F are wired in M2.
+// the next steps (SPEC §2.4). p and F are handled by the root.
 type NotOnInstance struct {
 	env           *app.Env
 	info          NotOnInstanceInfo
@@ -53,8 +52,6 @@ func (n *NotOnInstance) KeyMap() common.KeyMap {
 func (n *NotOnInstance) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok {
 		switch k.String() {
-		case "p", "F":
-			return n, app.Toast(common.ToastInfo, n.env.Msg.Startup.ComingSoon, "")
 		case "w":
 			if n.openWorkspace != nil {
 				return n, app.ReplaceRoot(n.openWorkspace())
@@ -67,7 +64,7 @@ func (n *NotOnInstance) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 func (n *NotOnInstance) View() string {
 	s, m := n.env.Styles, n.env.Msg
 	var b strings.Builder
-	b.WriteString(common.Header(s, s.Bold.Render(n.info.Reason), "@"+n.env.User.Username, n.w) + "\n\n")
+	b.WriteString(common.Header(s, s.Bold.Render(n.info.Reason), n.env.HeaderRight(time.Time{}), n.w) + "\n\n")
 	row := func(k, v string) {
 		if v != "" {
 			b.WriteString("  " + s.Muted.Render(padRight(k, 22)) + v + "\n")
@@ -78,65 +75,6 @@ func (n *NotOnInstance) View() string {
 	row(m.Startup.RemoteHost, n.info.RemoteHost)
 	row(m.Startup.InstanceHost, n.env.Host)
 	return b.String()
-}
-
-// EmptyWorkspace is shown when a workspace has no GitLab projects.
-type EmptyWorkspace struct {
-	env                   *app.Env
-	dir                   string
-	scanned, foreign, raw int
-	w, h                  int
-}
-
-// NewEmptyWorkspace creates the empty-state screen.
-func NewEmptyWorkspace(env *app.Env, dir string, scanned, foreign, noGit int) *EmptyWorkspace {
-	return &EmptyWorkspace{env: env, dir: dir, scanned: scanned, foreign: foreign, raw: noGit}
-}
-
-func (e *EmptyWorkspace) Init() tea.Cmd    { return nil }
-func (e *EmptyWorkspace) Title() string    { return e.dir }
-func (e *EmptyWorkspace) SetSize(w, h int) { e.w, e.h = w, h }
-
-func (e *EmptyWorkspace) KeyMap() common.KeyMap {
-	m := e.env.Msg
-	return common.KeyMap{Short: []common.Binding{
-		common.NewBinding([]string{"p"}, "", m.Startup.PickProject, common.PriorityHigh),
-		common.NewBinding([]string{"F"}, "", m.Startup.GlobalSearch, common.PriorityHigh),
-		common.NewBinding([]string{"q"}, "", m.Keys.Quit, common.PriorityNormal),
-	}}
-}
-
-func (e *EmptyWorkspace) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
-	if k, ok := msg.(tea.KeyPressMsg); ok {
-		switch k.String() {
-		case "p", "F":
-			return e, app.Toast(common.ToastInfo, e.env.Msg.Startup.ComingSoon, "")
-		}
-	}
-	return e, nil
-}
-
-func (e *EmptyWorkspace) View() string {
-	s, m := e.env.Styles, e.env.Msg
-	ctx := homeRel(e.dir) + " " + s.Muted.Render("· "+m.Header.Workspace+" · "+m.Plural.GitLabProjects(0))
-	return common.Header(s, ctx, "@"+e.env.User.Username, e.w) + "\n\n" +
-		"  " + s.Bold.Render(m.Startup.EmptyWorkspace(homeRel(e.dir))) + "\n" +
-		"  " + s.Muted.Render(m.Startup.EmptyWorkspaceDetail(e.scanned, e.foreign, e.raw)) + "\n"
-}
-
-// homeRel shortens /Users/me/src to ~/src.
-func homeRel(dir string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return dir
-	}
-	if dir == home {
-		return "~"
-	}
-	if rel, err := filepath.Rel(home, dir); err == nil && !strings.HasPrefix(rel, "..") {
-		return "~/" + rel
-	}
-	return dir
 }
 
 func padRight(s string, w int) string {

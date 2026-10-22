@@ -105,14 +105,13 @@ var ru = func() Messages {
 	m.Startup.NoUsableRemote = "Нет подходящего remote (нет origin, и remote не один)"
 	m.Startup.EmptyWorkspace = func(dir string) string { return "В " + dir + " нет GitLab-проектов" }
 	m.Startup.EmptyWorkspaceDetail = func(scanned, foreign, noGit int) string {
-		return fmt.Sprintf("просмотрено %s: с чужим remote %d, без .git %d",
+		return fmt.Sprintf("просмотрено %s, из них %d с чужим remote, %d без .git",
 			Count(RU, scanned, PluralForms{"папка", "папки", "папок"}), foreign, noGit)
 	}
 	m.Startup.TooSmall = func(w, h int) string { return fmt.Sprintf("Расширь терминал до %d×%d", w, h) }
 	m.Startup.PickProject = "выбрать проект"
 	m.Startup.GlobalSearch = "поиск по GitLab"
 	m.Startup.OpenWorkspace = "workspace родительской папки"
-	m.Startup.ComingSoon = "появится в следующей вехе"
 	m.Startup.SkippedNoGit = func(names string) string { return "пропущено без .git: " + names }
 	m.Startup.ForeignRemote = "не GitLab"
 	m.Startup.NoRemote = "нет remote"
@@ -139,5 +138,6 @@ var ru = func() Messages {
 	m.Plural.Tags = func(n int) string { return Count(RU, n, PluralForms{"тег", "тега", "тегов"}) }
 	m.Plural.Lines = func(n int) string { return Count(RU, n, PluralForms{"строка", "строки", "строк"}) }
 	fillM1RU(&m)
+	fillM2RU(&m)
 	return m
 }()

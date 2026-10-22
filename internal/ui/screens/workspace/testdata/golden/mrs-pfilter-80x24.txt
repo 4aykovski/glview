@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1 Projects 5   2 MRs 5   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  state:opened  project: platform ✕                     showing 2 of 5 projects
+  IID    Title                               Author    You  Pipeline  Appr   Upd
+────────────────────────────────────────────────────────────────────────────────
+› ▸ platform/route-service  4 open · 2 waiting for you
+  ▸ platform/routing-engine  1 open · 1 waiting for you
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  f filter by project  ? help      groups by latest activity

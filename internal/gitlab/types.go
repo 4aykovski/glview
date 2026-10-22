@@ -114,6 +114,9 @@ type MRFilter struct {
 	Labels   []string
 	Search   string // matched against the title
 	Mine     bool   // "me" filter: author ∪ assignee ∪ reviewer
+	// SourceBranch selects MRs from one branch (the local branch preview
+	// of the workspace).
+	SourceBranch string
 }
 
 // Key is a canonical signature of the filter for cache keys and equality.
@@ -126,7 +129,7 @@ func (f MRFilter) Key() string {
 	if scope == "" {
 		scope = MRScopeAll
 	}
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine)
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t|%s", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine, f.SourceBranch)
 }
 
 // MergeOptions are the parameters of a merge request merge.
@@ -299,6 +302,21 @@ type Issue struct {
 	RelatedMRs     []int64
 	WebURL         string
 	UpdatedAt      time.Time
+}
+
+// ProjectOverview is a row of the workspace Projects tab, filled in two
+// phases (SPEC §5.2): phase 1 — project metadata and MR counters, phase 2 —
+// the latest pipeline of the default branch and the latest tag.
+type ProjectOverview struct {
+	Project
+	OpenMRs   int // open merge requests
+	ReviewMRs int // open merge requests where the current user is a reviewer
+	// DefaultPipeline is the latest pipeline of the default branch; nil
+	// when there is none or it is not known yet.
+	DefaultPipeline *PipelineSummary
+	LastTag         string // latest tag, "" when none
+	TagKnown        bool   // LastTag was fetched (an empty one means no tags)
+	Phase           int    // 1 or 2: which fields are filled
 }
 
 // ProjectGroup is one project's slice of a multi-project batch.

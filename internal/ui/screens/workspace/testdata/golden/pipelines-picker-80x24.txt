@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1╭──────────────────────────────────────────────────────────────────────────╮
+──│ Projects · Pipelines  2 marked                                           │──
+/ │ ›                                                                        │
+  │ ──────────────────────────────────────────────────────────────────────── │go
+──│   [x] platform/route-service                                             │──
+› │   [ ] platform/routing-engine                                            │
+  │   [x] frontend/route-planner-ui                                          │
+  │ › [ ] infra/router-configs                                               │
+  │   [ ] qa/e2e-routes                                                      │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │ ──────────────────────────────────────────────────────────────────────── │
+  │ space mark  ctrl+a all  enter apply  esc close                     5 / 5 │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  f filter by project  ? help      groups by latest activity

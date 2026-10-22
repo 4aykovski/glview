@@ -37,7 +37,7 @@ func TestSuggestReviewerFromServer(t *testing.T) {
 	client.SetMembers(path, gitlab.User{Username: "anna.k", Name: "Anna K"}, gitlab.User{Username: "andrey", Name: "Andrey"}, gitlab.User{Username: "bob", Name: "Bob"})
 	env := newEnv(client)
 	env.Cache = cache.New()
-	scr := New(env, path, nil)
+	scr := New(env, Options{Path: path, Repo: nil})
 	d := uitest.New(t, app.New(env, scr, app.Options{}))
 	mrs := scr.tabs[0].(*mrsTab)
 	d.Key("/")

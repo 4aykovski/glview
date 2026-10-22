@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1 Projects 5   2 MRs 4   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  state:opened  me: author/assignee/reviewer  project… found in 2 of 2 projects
+  IID    Title                         Author    You       Pipeline   Appr   Upd
+────────────────────────────────────────────────────────────────────────────────
+› ▾ platform/route-service  ≥3 open
+  !482   Draft: add surge pricing to…  anna.k    reviewer  ◐ running   0/2    4m
+  !479   Fix race in courier slot al…  egor      author    ✓ success   0/2    1h
+  !477   Kafka consumer: batch offse…  bob       reviewer  ✗ failed    0/2    3h
+  ▾ platform/routing-engine  ≥1 open
+  !88    Contraction hierarchies: re…  maria.s   reviewer  ✓ success   0/2    3h
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  f filter by project  ? help      groups by latest activity

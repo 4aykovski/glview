@@ -257,3 +257,33 @@ func Pad(s string, w int) string {
 	}
 	return s
 }
+
+// MRPreview is the dense three-line summary of an MR in list previews:
+// title; status · approvals · pipeline · diff; first line of the description.
+func MRPreview(s *common.Styles, m *i18n.Messages, mr *gitlab.MergeRequest) []string {
+	dot := s.Muted.Render(" · ")
+	line2 := []string{MergeChip(s, mr)}
+	if lbl := m.MR.StatusLabel(mr.MergeStatus); lbl != "" && mr.State == gitlab.MRStateOpened {
+		line2[0] += " " + s.Muted.Render(lbl)
+	}
+	if len(mr.Approvals.ApprovedBy) > 0 {
+		line2 = append(line2, Approvals(s, mr.Approvals)+" "+s.Muted.Render("("+Names(mr.Approvals.ApprovedBy)+")"))
+	} else {
+		line2 = append(line2, s.Muted.Render(m.MR.PrevNoApprovals))
+	}
+	if p := mr.HeadPipeline; p != nil {
+		line2 = append(line2, m.MR.PrevPipeline+" "+s.Accent.Render(fmt.Sprintf("#%d", p.ID))+" "+s.StatusGlyph(p.Status)+" "+s.Muted.Render(Duration(p.Duration)))
+	}
+	if d := mr.Diff; d != nil {
+		line2 = append(line2, s.DiffAdd.Render(fmt.Sprintf("+%d", d.Additions))+" "+s.DiffDel.Render(fmt.Sprintf("−%d", d.Deletions))+" "+s.Muted.Render(m.Plural.Files(d.Files)))
+	}
+	desc := FirstLine(mr.Description)
+	if desc == "" {
+		desc = s.Muted.Render(m.MR.PrevNoDesc)
+	}
+	return []string{
+		s.Accent.Render(fmt.Sprintf("!%d", mr.IID)) + "  " + s.PreviewTitle.Render(mr.Title),
+		strings.Join(line2, dot),
+		desc,
+	}
+}

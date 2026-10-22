@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 2 GitLab projects                  @egor · ⟳ <1m
+ 1╭──────────────────────────────────────────────────────────────────────────╮
+──│ Switch project   gitlab.example.com                                      │──
+/ │ › rou                                                                    │
+  │ ──────────────────────────────────────────────────────────────────────── │ct
+──│ FROM GIT REMOTE                                                          │──
+› │ › platform/route-service  current · ★ · 1 MR · 1h                        │1h
+  │ WORKSPACE                                                                │3h
+  │   infra/router-configs  1 MR · 3h                                        │
+  │ STARRED                                                                  │
+  │   platform/routing-engine  ★ · 1h                                        │
+  │ RECENT                                                                   │
+  │   qa/e2e-routes                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │                                                                          │
+  │ ──────────────────────────────────────────────────────────────────────── │
+  │ ↑↓ select  enter open  esc close                                   4 / 4 │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open project  / filter  1-4 tabs  r refresh  ? help    poll 1m0s

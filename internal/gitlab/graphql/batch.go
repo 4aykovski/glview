@@ -27,8 +27,17 @@ type BatchSpec[T any] struct {
 	VarDecls string
 	// Vars holds the values for VarDecls.
 	Vars map[string]any
+	// PerProject optionally declares variables of one alias: i is the
+	// alias index in the request, path the project. It returns the
+	// declarations ("$r3: String!") and their values ({"r3": "main"}).
+	// Fragments take no arguments, so per-alias variables are used in Body.
+	PerProject func(i int, path string) (decl string, vars map[string]any)
+	// Body optionally returns the selection of alias i; by default it is
+	// the fragment spread ("...FragmentName"). A body that does not use
+	// the fragment requires an empty Fragment.
+	Body func(i int) string
 	// Decode turns one project's JSON object into items and a total count.
-	Decode func(raw json.RawMessage) (items []T, total int, err error)
+	Decode func(path string, raw json.RawMessage) (items []T, total int, err error)
 }
 
 // BuildQuery returns the batch query and variables for paths.
@@ -45,10 +54,23 @@ func BuildQuery[T any](spec BatchSpec[T], paths []string) (string, map[string]an
 	for i, p := range paths {
 		decls = append(decls, fmt.Sprintf("$p%d: ID!", i))
 		vars[fmt.Sprintf("p%d", i)] = p
+		if spec.PerProject != nil {
+			decl, pv := spec.PerProject(i, p)
+			if decl != "" {
+				decls = append(decls, decl)
+			}
+			for k, v := range pv {
+				vars[k] = v
+			}
+		}
 	}
 	fmt.Fprintf(&b, "query Batch(%s) {\n", strings.Join(decls, ", "))
 	for i := range paths {
-		fmt.Fprintf(&b, "p%d: project(fullPath: $p%d) { ...%s }\n", i, i, spec.FragmentName)
+		body := "..." + spec.FragmentName
+		if spec.Body != nil {
+			body = spec.Body(i)
+		}
+		fmt.Fprintf(&b, "p%d: project(fullPath: $p%d) { %s }\n", i, i, body)
 	}
 	b.WriteString("}\n")
 	b.WriteString(spec.Fragment)
@@ -90,9 +112,16 @@ func Batch[T any](ctx context.Context, c *Client, spec BatchSpec[T], paths []str
 // errors and splitting once on timeout.
 func runChunk[T any](ctx context.Context, c *Client, spec BatchSpec[T], paths []string, mayRetryTimeout bool, out chan<- gitlab.BatchResult[T]) {
 	query, vars := BuildQuery(spec, paths)
+	text, names := c.render(query)
 	reqCtx, cancel := context.WithTimeout(ctx, c.RequestTimeout)
-	resp, err := c.Raw(reqCtx, query, vars)
+	resp, err := c.Raw(reqCtx, text, vars)
 	cancel()
+
+	// An optional field unknown to the instance: drop it and repeat.
+	if err == nil && len(resp.Errors) > 0 && c.dropUnknown(resp.Errors, names) != "" {
+		runChunk(ctx, c, spec, paths, mayRetryTimeout, out)
+		return
+	}
 
 	var ce *ComplexityError
 	if errors.As(err, &ce) && len(paths) > 1 {
@@ -161,7 +190,7 @@ func decodeBatch[T any](spec BatchSpec[T], paths []string, resp *Response) gitla
 				g.Err = &gitlab.Error{Kind: gitlab.ErrNotFound}
 			}
 		default:
-			items, total, err := spec.Decode(raw)
+			items, total, err := spec.Decode(p, raw)
 			g.Items, g.Total, g.Err = items, total, err
 			if g.Err == nil && len(aliasErr[alias]) > 0 {
 				g.Err = &gitlab.Error{Kind: gitlab.ErrServer, Message: strings.Join(aliasErr[alias], "; ")}

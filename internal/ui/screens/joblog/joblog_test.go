@@ -141,6 +141,13 @@ func TestTruncatedLog(t *testing.T) {
 	for i := 0; i < 80000; i++ {
 		fmt.Fprintf(&b, "line %d\n", i)
 	}
+	// Loading 80 000 lines takes longer than the package's CmdTimeout under
+	// -race, and the driver would drop the load as a timer. The job has
+	// failed, so the screen starts no timers and a long timeout costs
+	// nothing.
+	old := uitest.CmdTimeout
+	uitest.CmdTimeout = 5 * time.Second
+	t.Cleanup(func() { uitest.CmdTimeout = old })
 	d, _, scr, _ := setup(t, gitlab.StatusFailed, b.String())
 	d.RequireView("… beginning truncated, o — open the full log in the browser", "lines")
 	if scr.p.Dropped != 30000 || len(scr.p.Lines()) != 50000 {

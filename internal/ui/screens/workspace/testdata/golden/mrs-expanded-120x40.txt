@@ -1,0 +1,40 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                                                          @egor · ⟳ <1m
+ 1 Projects 5   2 MRs 6   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  state:opened
+  IID    Title                                                                 Author    You       Pipeline   Appr   Upd
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› ▾ platform/route-service  4 open · 2 waiting for you · showing 3
+  !482   Draft: add surge pricing to route estimator                           anna.k    reviewer  ◐ running   0/2    4m
+  !479   Fix race in courier slot allocator                                    egor      author    ✓ success   0/2    1h
+  !477   Kafka consumer: batch offset commits                                  bob       reviewer  ✗ failed    0/2    3h
+  ↳ 1 more · f filter by project
+  ▸ platform/routing-engine  1 open · 1 waiting for you
+  ▸ frontend/route-planner-ui  1 open
+  ▾ infra/router-configs
+    no open
+  ▸ qa/e2e-routes  no open
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  J/K next/prev project  enter open  f filter by project  m me  a approve  ? help      groups by latest activity

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/config"
 	"github.com/4aykovski/glview/internal/debuglog"
+	"github.com/4aykovski/glview/internal/gitexec"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/graphql"
 	"github.com/4aykovski/glview/internal/gitlab/httpx"
@@ -20,9 +22,14 @@ import (
 	"github.com/4aykovski/glview/internal/startup"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
+	"github.com/4aykovski/glview/internal/ui/screens/search"
 	"github.com/4aykovski/glview/internal/ui/screens/setup"
 	"github.com/4aykovski/glview/internal/ui/screens/start"
+	wsscreen "github.com/4aykovski/glview/internal/ui/screens/workspace"
+	"github.com/4aykovski/glview/internal/workspace"
+	"github.com/4aykovski/glview/internal/xdg"
 )
 
 // buildRoot resolves the start plan and returns the root model.
@@ -38,6 +45,14 @@ func buildRoot(opts options) (*app.Model, error) {
 
 	env := app.NewEnv(i18n.Parse(cfg.Language))
 	env.Cache = cache.New()
+	env.Disk = &cache.Disk{Dir: xdg.CacheDir()}
+	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"), func() string { return env.Host })
+	env.Search = func(global bool) app.Overlay { return search.New(env, global) }
+	var runner gitexec.Runner
+	if g := gitexec.Detect(cfg.Git.Path, cfg.Git.Disabled(), cfg.Git.Timeout.D(), cfg.Git.Parallel); g != nil {
+		runner = g
+	}
+	env.Git = localgit.New(runner)
 	toasts := applyConfig(env, cfg, warns, cfgPath)
 
 	gl := glab.Detect(cfg.Glab.Path, cfg.Glab.Disabled())
@@ -82,7 +97,7 @@ func buildRoot(opts options) (*app.Model, error) {
 			return c, u, err
 		}
 		gql := graphql.New(hostURL, token, hc, cfg.GraphQL.BatchSize)
-		return hybrid.New(c, gql, u.Username), u, nil
+		return hybrid.New(c, gql, u.Username).WithCache(env.Cache), u, nil
 	}
 	next := func(env *app.Env) app.Screen { return modeScreen(env, plan, cfg) }
 
@@ -135,27 +150,15 @@ func buildRoot(opts options) (*app.Model, error) {
 // modeScreen builds the first screen of the resolved mode.
 func modeScreen(env *app.Env, plan startup.Plan, cfg config.Config) app.Screen {
 	workspaceOf := func(dir string) app.Screen {
-		inst, err := gitremote.NewInstance(env.Host, cfg.HostAliases)
-		if err != nil {
-			return start.NewEmptyWorkspace(env, dir, 0, 0, 0)
-		}
-		entries, err := gitremote.Scan(dir, inst)
-		if err != nil {
-			return start.NewEmptyWorkspace(env, dir, 0, 0, 0)
-		}
-		ws := start.NewWorkspace(env, dir, entries)
-		if ws.GitLabCount() == 0 {
-			var foreign, noGit int
-			for _, e := range entries {
-				if e.Kind == gitremote.KindNoGit {
-					noGit++
-				} else {
-					foreign++
-				}
+		src := workspace.LocalDirSource{Dir: dir}
+		var rows []workspace.Project
+		if inst, err := gitremote.NewInstance(env.Host, cfg.HostAliases); err == nil {
+			src.Instance = inst
+			if rows, err = src.Projects(context.Background()); err != nil {
+				debuglog.L().Info("workspace scan failed", "err", err)
 			}
-			return start.NewEmptyWorkspace(env, dir, len(entries), foreign, noGit)
 		}
-		return ws
+		return wsscreen.New(env, src.Name(), workspace.NewScope(src.Name(), rows))
 	}
 
 	if plan.Mode == startup.ModeWorkspace {
@@ -177,7 +180,8 @@ func modeScreen(env *app.Env, plan startup.Plan, cfg config.Config) app.Screen {
 		parent := plan.ParentDir()
 		return start.NewNotOnInstance(env, info, func() app.Screen { return workspaceOf(parent) })
 	}
-	return project.New(env, target.ProjectPath, plan.Repo)
+	env.Catalog.SetCurrent(target.ProjectPath, plan.Repo)
+	return project.New(env, project.Options{Path: target.ProjectPath, Repo: plan.Repo})
 }
 
 // applyConfig copies the config values screens need into env.Settings and
@@ -185,6 +189,8 @@ func modeScreen(env *app.Env, plan startup.Plan, cfg config.Config) app.Screen {
 func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPath string) []app.ToastMsg {
 	env.Settings = app.Settings{
 		PageSize: cfg.Project.PageSize, PollActive: cfg.Polling.Active.D(), PollIdle: cfg.Polling.Idle.D(),
+		PollWorkspace: cfg.Polling.Workspace.D(), PerProject: cfg.Workspace.PerProject, MaxGroupProjects: cfg.Workspace.MaxGroupProjects,
+		FetchOnStart:       cfg.Git.FetchOnStart,
 		RefsTagsFirst:      cfg.RunPipeline.RefsFirst == config.RefsTagsFirst,
 		PrefillLocalBranch: cfg.RunPipeline.PrefillLocalBranch,
 	}

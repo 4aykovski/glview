@@ -15,13 +15,19 @@ import (
 	"github.com/4aykovski/glview/internal/glab"
 	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/localgit"
 )
 
 // Settings are the config values screens need.
 type Settings struct {
-	PageSize   int           // project.page_size
-	PollActive time.Duration // polling.active
-	PollIdle   time.Duration // polling.idle
+	PageSize      int           // project.page_size
+	PollActive    time.Duration // polling.active
+	PollIdle      time.Duration // polling.idle
+	PollWorkspace time.Duration // polling.workspace
+
+	PerProject       int  // workspace.per_project
+	MaxGroupProjects int  // workspace.max_group_projects
+	FetchOnStart     bool // git.fetch_on_start
 
 	// RefsTagsFirst puts tags before branches in Run pipeline ref
 	// suggestions (run_pipeline.refs_first: tags).
@@ -36,6 +42,10 @@ const (
 	DefaultPageSize   = 20
 	DefaultPollActive = 3 * time.Second
 	DefaultPollIdle   = 30 * time.Second
+
+	DefaultPollWorkspace    = 60 * time.Second
+	DefaultPerProject       = 3
+	DefaultMaxGroupProjects = 100
 )
 
 // Env is shared by all screens. The root mutates it on language and theme
@@ -69,6 +79,17 @@ type Env struct {
 	// GlabLoggedIn caches the one-time `glab auth status` check (nil = not
 	// checked yet in this session).
 	GlabLoggedIn *bool
+
+	// Disk holds the snapshots on disk (workspace overview, starred); nil
+	// keeps nothing on disk.
+	Disk *cache.Disk
+	// Catalog lists the projects known without network for p and F.
+	Catalog *Catalog
+	// Search builds the project picker (p, global false) and the global
+	// search (F, global true) overlays; nil disables both keys.
+	Search func(global bool) Overlay
+	// Git is the state of local fetch/pull; unavailable without git.
+	Git *localgit.Tracker
 }
 
 // NewEnv returns an Env with messages, default (dark) styles and clock set,
@@ -80,10 +101,13 @@ func NewEnv(lang i18n.Lang) *Env {
 		Styles: common.NewStyles(common.TerminalTheme(true)),
 		Now:    time.Now,
 
-		Settings: Settings{PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle, PrefillLocalBranch: true},
-		Focused:  true,
-		Browser:  browser.Open,
-		Exec:     func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd { return tea.ExecProcess(c, done) },
+		Settings: Settings{
+			PageSize: DefaultPageSize, PollActive: DefaultPollActive, PollIdle: DefaultPollIdle, PrefillLocalBranch: true,
+			PollWorkspace: DefaultPollWorkspace, PerProject: DefaultPerProject, MaxGroupProjects: DefaultMaxGroupProjects,
+		},
+		Focused: true,
+		Browser: browser.Open,
+		Exec:    func(c *exec.Cmd, done func(error) tea.Msg) tea.Cmd { return tea.ExecProcess(c, done) },
 	}
 }
 
@@ -127,6 +151,15 @@ type (
 	ActivatedMsg struct{}
 	// DeactivatedMsg is sent when another screen covers it or it is popped.
 	DeactivatedMsg struct{}
+
+	// OpenProjectMsg opens a project chosen in search above the topmost
+	// Workspace of the stack, or above the root without one; everything
+	// above is closed.
+	OpenProjectMsg struct{ Screen Screen }
+	// OpenGroupMsg opens the Workspace of a group chosen in search above
+	// the root (the start screen); everything above the root is closed, so
+	// the stack holds one group Workspace at most.
+	OpenGroupMsg struct{ Screen Screen }
 
 	OpenOverlayMsg  struct{ Overlay Overlay }
 	CloseOverlayMsg struct{}
@@ -186,6 +219,12 @@ func Pop() tea.Cmd { return msgCmd(PopMsg{}) }
 
 // ReplaceRoot clears the stack and makes s the only screen.
 func ReplaceRoot(s Screen) tea.Cmd { return msgCmd(ReplaceRootMsg{Screen: s}) }
+
+// OpenProject opens a project screen chosen in search (OpenProjectMsg).
+func OpenProject(s Screen) tea.Cmd { return msgCmd(OpenProjectMsg{Screen: s}) }
+
+// OpenGroup opens the Workspace of a group chosen in search (OpenGroupMsg).
+func OpenGroup(s Screen) tea.Cmd { return msgCmd(OpenGroupMsg{Screen: s}) }
 
 // OpenOverlay shows o above the current screen.
 func OpenOverlay(o Overlay) tea.Cmd { return msgCmd(OpenOverlayMsg{Overlay: o}) }
