@@ -33,9 +33,10 @@ const (
 type CreatedMsg = newtag.CreatedMsg
 
 // NewTag opens the New tag form for the project; its ref starts as the
-// default branch.
-func NewTag(env *app.Env, ref gitlab.ProjectRef, defaultBranch string) tea.Cmd {
-	f := newtag.New(env, ref, defaultBranch)
+// default branch. owner is the token of the tab that opened it: the result
+// carries it so that only that tab toasts.
+func NewTag(env *app.Env, owner common.Token, ref gitlab.ProjectRef, defaultBranch string) tea.Cmd {
+	f := newtag.New(env, ref, defaultBranch, owner)
 	return tea.Sequence(app.OpenOverlay(f), f.Init())
 }
 
@@ -45,6 +46,7 @@ func Created(env *app.Env, msg CreatedMsg) { Invalidate(env, msg.Ref) }
 
 // DeletedMsg reports a finished deletion of tag Name.
 type DeletedMsg struct {
+	Owner     common.Token // the tab that asked: it alone toasts
 	Ref       gitlab.ProjectRef
 	Name      string
 	Protected bool
@@ -53,7 +55,7 @@ type DeletedMsg struct {
 
 // Delete asks for confirmation and deletes the tag. A protected tag gets
 // a warning in the description; GitLab has the last word.
-func Delete(env *app.Env, ref gitlab.ProjectRef, t gitlab.Tag) tea.Cmd {
+func Delete(env *app.Env, owner common.Token, ref gitlab.ProjectRef, t gitlab.Tag) tea.Cmd {
 	m := env.Msg.Tag
 	body := m.DeleteBody(t.Commit.ShortSHA)
 	if t.Protected {
@@ -64,7 +66,7 @@ func Delete(env *app.Env, ref gitlab.ProjectRef, t gitlab.Tag) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
 		err := client.Tags().Delete(ctx, ref, name)
-		return DeletedMsg{Ref: ref, Name: name, Protected: protected, Err: err}
+		return DeletedMsg{Owner: owner, Ref: ref, Name: name, Protected: protected, Err: err}
 	}
 	return app.OpenOverlay(app.NewConfirm(env, m.DeleteTitle(name), body, del))
 }
@@ -182,6 +184,11 @@ const (
 type Entry struct {
 	State CompareState
 	Ahead int // commits of the branch after the tag, with CompareDone
+	// Stale: Ahead is from before an Expire; it is shown until the new
+	// answer comes.
+	Stale bool
+	// refreshing: the stale entry is asked again.
+	refreshing bool
 }
 
 // Comparer asks the comparison of the selected tag lazily, one request at a
@@ -192,6 +199,7 @@ type Comparer struct {
 	cancel  context.CancelFunc
 	entries map[string]Entry
 	cur     string // key asked last
+	force   bool   // the next request goes past the cache (Expire(true))
 }
 
 // NewComparer returns an empty Comparer.
@@ -219,33 +227,71 @@ func (c *Comparer) Reset() {
 	c.cur = ""
 }
 
+// Expire drops the request in flight and marks the answers stale: they stay
+// on screen until the tag is asked again (no flicker on a poll tick); entries
+// that were loading or failed are forgotten. force makes the next request
+// go past the cache (r), otherwise it uses it (poll).
+func (c *Comparer) Expire(force bool) {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.gen.Next()
+	for k, e := range c.entries {
+		if e.State != CompareDone {
+			delete(c.entries, k)
+			continue
+		}
+		e.Stale, e.refreshing = true, false
+		c.entries[k] = e
+	}
+	c.cur = ""
+	c.force = force
+}
+
+// abandon forgets what the dropped request of the current key left.
+func (c *Comparer) abandon() {
+	e, ok := c.entries[c.cur]
+	switch {
+	case !ok:
+	case e.State == CompareLoading:
+		delete(c.entries, c.cur)
+	case e.refreshing:
+		e.Stale, e.refreshing = true, false
+		c.entries[c.cur] = e
+	}
+}
+
 // Stop drops the request in flight (the tab is hidden).
 func (c *Comparer) Stop() {
 	if c.cancel != nil {
 		c.cancel()
 	}
 	c.gen.Next()
-	if e, ok := c.entries[c.cur]; ok && e.State == CompareLoading {
-		delete(c.entries, c.cur)
-	}
+	c.abandon()
 }
 
 // Load asks the comparison of tag with branch unless it is known or in
-// flight; a failed one is asked again.
+// flight; a failed or a stale one is asked again.
 func (c *Comparer) Load(env *app.Env, ref gitlab.ProjectRef, tag, branch string) tea.Cmd {
 	key := entryKey(ref, tag)
-	if e, ok := c.entries[key]; ok && e.State != CompareFailed {
+	e, ok := c.entries[key]
+	if ok && e.State != CompareFailed && !e.Stale {
 		return nil
 	}
 	if c.cancel != nil {
 		c.cancel()
 	}
-	if e, ok := c.entries[c.cur]; ok && e.State == CompareLoading {
-		delete(c.entries, c.cur) // its answer will be dropped
-	}
+	c.abandon() // its answer will be dropped
 	c.cur = key
-	c.entries[key] = Entry{State: CompareLoading}
-	cmd, cancel := Compare(env, c.gen.Next(), ref, tag, branch, false)
+	if ok && e.Stale {
+		e.Stale, e.refreshing = false, true
+		c.entries[key] = e
+	} else {
+		c.entries[key] = Entry{State: CompareLoading}
+	}
+	force := c.force
+	c.force = false
+	cmd, cancel := Compare(env, c.gen.Next(), ref, tag, branch, force)
 	c.cancel = cancel
 	return cmd
 }

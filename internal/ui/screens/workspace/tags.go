@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -30,6 +31,10 @@ type tagsTab struct {
 	// wantPath/wantTag: put the cursor on this tag once it is listed (a
 	// tag just created).
 	wantPath, wantTag string
+
+	// dirty: projects whose tags changed while the tab was covered; they
+	// are asked again on activation.
+	dirty map[string]bool
 }
 
 func newTagsTab(sh *shared) *tagsTab {
@@ -54,16 +59,51 @@ func (t *tagsTab) Count() int {
 
 func (t *tagsTab) Status() string { return t.env().Msg.WS.StatusGroups }
 
-func (t *tagsTab) Activate() tea.Cmd { return tea.Batch(t.activate(), t.loadCompare()) }
+func (t *tagsTab) Activate() tea.Cmd {
+	cmd := t.activate()
+	var reload tea.Cmd
+	if !t.loading { // a full load already asks them all
+		var refs []gitlab.ProjectRef
+		for path := range t.dirty {
+			refs = append(refs, t.ref(path))
+		}
+		reload = t.reload(refs)
+	}
+	t.dirty = nil
+	return tea.Batch(cmd, reload, t.loadCompare())
+}
 
 func (t *tagsTab) Deactivate() {
 	t.deactivate()
 	t.cmp.Stop()
 }
 
-func (t *tagsTab) Refresh() tea.Cmd {
-	t.cmp.Reset()
+// Refresh is r: the comparisons are asked again past the cache.
+func (t *tagsTab) Refresh() tea.Cmd { return t.refreshCmp(true) }
+
+// refreshCmp reloads the groups and marks the comparisons stale; they keep
+// their numbers until the new answers come. force: past the cache.
+func (t *tagsTab) refreshCmp(force bool) tea.Cmd {
+	t.cmp.Expire(force)
 	return t.refresh()
+}
+
+// removeTag drops a deleted tag from the loaded group: the reload merges
+// nothing, but the shown list must not wait for it.
+func (t *tagsTab) removeTag(path, name string) {
+	g, ok := t.data[path]
+	if !ok {
+		return
+	}
+	i := slices.IndexFunc(g.Items, func(tag gitlab.Tag) bool { return tag.Name == name })
+	if i < 0 {
+		return
+	}
+	g.Items = slices.Delete(slices.Clone(g.Items), i, i+1)
+	if g.Total > 0 {
+		g.Total--
+	}
+	t.data[path] = g
 }
 
 func (t *tagsTab) Rebuild() {
@@ -207,25 +247,35 @@ func (t *tagsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		return t, nil
 	case common.PollTickMsg:
 		if t.active && !env.AuthLost && t.poll.Valid(msg.Token) {
-			return t, t.Refresh()
+			return t, t.refreshCmp(false)
 		}
 	case tagactions.DeletedMsg:
-		cmd := tagactions.Done(env, msg)
+		// Only the tab that asked toasts; the others follow the change.
+		own := t.seq.Owns(msg.Owner)
+		var cmd tea.Cmd
+		if own {
+			cmd = tagactions.Done(env, msg)
+		}
 		if msg.Err != nil {
 			return t, cmd
 		}
-		t.sh.forgetLastTag(msg.Ref.FullPath, msg.Name)
+		path := msg.Ref.FullPath
+		t.sh.forgetLastTag(path, msg.Name)
+		t.removeTag(path, msg.Name)
 		t.cmp.Reset()
 		t.Rebuild()
-		return t, tea.Batch(cmd, t.reload([]gitlab.ProjectRef{t.ref(msg.Ref.FullPath)}))
+		return t, tea.Batch(cmd, t.followChange(own, path))
 	case tagactions.CreatedMsg:
 		path := msg.Ref.FullPath
-		tagactions.Created(env, msg)
+		own := t.seq.Owns(msg.Owner)
+		if own {
+			tagactions.Created(env, msg)
+			t.wantPath, t.wantTag = path, msg.Tag.Name
+		}
 		t.sh.setLastTag(path, msg.Tag.Name)
 		t.cmp.Reset()
-		t.wantPath, t.wantTag = path, msg.Tag.Name
 		t.Rebuild()
-		return t, t.reload([]gitlab.ProjectRef{t.ref(path)})
+		return t, t.followChange(own, path)
 	case app.AuthLostMsg:
 		t.poll.Next()
 	case app.AuthRestoredMsg:
@@ -238,6 +288,21 @@ func (t *tagsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		return t, t.onKey(msg)
 	}
 	return t, nil
+}
+
+// followChange asks the project again after its tags changed: at once when
+// the tab asked for the change or is shown, on return otherwise.
+func (t *tagsTab) followChange(own bool, path string) tea.Cmd {
+	if !own && !t.active {
+		if _, ok := t.data[path]; ok {
+			if t.dirty == nil {
+				t.dirty = map[string]bool{}
+			}
+			t.dirty[path] = true
+		}
+		return nil
+	}
+	return t.reload([]gitlab.ProjectRef{t.ref(path)})
 }
 
 func (t *tagsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
@@ -279,7 +344,7 @@ func (t *tagsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "n":
 		if path != "" && !t.archived(path) {
 			ov, _ := t.sh.overview(path)
-			return tagactions.NewTag(env, t.ref(path), ov.DefaultBranch)
+			return tagactions.NewTag(env, t.seq.Current(), t.ref(path), ov.DefaultBranch)
 		}
 	}
 	if _, _, kind := t.tbl.Cursor(); kind == grouped.KindHeader && k.String() == "enter" {
@@ -297,7 +362,7 @@ func (t *tagsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return tagactions.Copy(env, *tag)
 	case "D":
 		if !t.archived(path) {
-			return tagactions.Delete(env, ref, *tag)
+			return tagactions.Delete(env, t.seq.Current(), ref, *tag)
 		}
 	}
 	return nil

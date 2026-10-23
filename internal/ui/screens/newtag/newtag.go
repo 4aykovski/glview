@@ -33,8 +33,9 @@ const (
 // CreatedMsg reports a created tag; the Tags tab reloads and puts the
 // cursor on it.
 type CreatedMsg struct {
-	Ref gitlab.ProjectRef
-	Tag gitlab.Tag
+	Owner common.Token // the tab that opened the form: it alone finishes the work
+	Ref   gitlab.ProjectRef
+	Tag   gitlab.Tag
 }
 
 type focus int
@@ -98,6 +99,7 @@ type Form struct {
 	env           *app.Env
 	project       gitlab.ProjectRef
 	defaultBranch string
+	owner         common.Token
 
 	name, ref, msg textinput.Model
 	focus          focus
@@ -131,7 +133,8 @@ type Form struct {
 }
 
 // New creates the form for the project; the ref starts as defaultBranch.
-func New(env *app.Env, project gitlab.ProjectRef, defaultBranch string) *Form {
+// owner is put into CreatedMsg.
+func New(env *app.Env, project gitlab.ProjectRef, defaultBranch string, owner common.Token) *Form {
 	mk := func(v string) textinput.Model {
 		in := common.NewInput(env.Styles)
 		in.SetValue(v)
@@ -139,7 +142,7 @@ func New(env *app.Env, project gitlab.ProjectRef, defaultBranch string) *Form {
 		return in
 	}
 	f := &Form{
-		env: env, project: project, defaultBranch: defaultBranch,
+		env: env, project: project, defaultBranch: defaultBranch, owner: owner,
 		name: mk(""), ref: mk(defaultBranch), msg: mk(""), msgFollows: true,
 		tagsGen: common.NewGen(), tickGen: common.NewGen(), hintGen: common.NewGen(),
 		cmpGen: common.NewGen(), runGen: common.NewGen(),
@@ -520,10 +523,10 @@ func (f *Form) onCreated(msg createdMsg) (app.Overlay, tea.Cmd) {
 		return f, f.fail(msg.err)
 	}
 	f.closed = true
-	p, tag := f.project, msg.tag
+	p, tag, owner := f.project, msg.tag, f.owner
 	return nil, tea.Batch(
 		app.Toast(common.ToastSuccess, f.env.Msg.Tag.Created(tag.Name), ""),
-		func() tea.Msg { return CreatedMsg{Ref: p, Tag: tag} },
+		func() tea.Msg { return CreatedMsg{Owner: owner, Ref: p, Tag: tag} },
 	)
 }
 

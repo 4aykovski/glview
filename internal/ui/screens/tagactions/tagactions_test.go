@@ -39,14 +39,14 @@ func overlayOf(t *testing.T, cmd tea.Cmd) app.Overlay {
 func TestDeleteConfirmDescribesProtectedTag(t *testing.T) {
 	env, _ := newEnv(i18n.EN)
 	tag := gitlab.Tag{Name: "v1.14.2", Protected: true, Commit: gitlab.CommitSummary{ShortSHA: "9fa2c51"}}
-	view := ansi.Strip(overlayOf(t, Delete(env, ref, tag)).View(100, 30))
+	view := ansi.Strip(overlayOf(t, Delete(env, common.Token{}, ref, tag)).View(100, 30))
 	for _, want := range []string{"Delete tag v1.14.2?", "commit 9fa2c51 stays", "protected: GitLab will most likely refuse"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("confirm lacks %q:\n%s", want, view)
 		}
 	}
 	plain := gitlab.Tag{Name: "v1.14.1", Commit: gitlab.CommitSummary{ShortSHA: "3e81b07"}}
-	if view := ansi.Strip(overlayOf(t, Delete(env, ref, plain)).View(100, 30)); strings.Contains(view, "protected") {
+	if view := ansi.Strip(overlayOf(t, Delete(env, common.Token{}, ref, plain)).View(100, 30)); strings.Contains(view, "protected") {
 		t.Fatalf("a plain tag must not carry the warning:\n%s", view)
 	}
 }
@@ -54,7 +54,7 @@ func TestDeleteConfirmDescribesProtectedTag(t *testing.T) {
 func TestDeleteDefaultsToCancel(t *testing.T) {
 	env, c := newEnv(i18n.EN)
 	c.SetTags(ref.FullPath, gitlab.Tag{Name: "v1.14.1"})
-	ov := overlayOf(t, Delete(env, ref, gitlab.Tag{Name: "v1.14.1"}))
+	ov := overlayOf(t, Delete(env, common.Token{}, ref, gitlab.Tag{Name: "v1.14.1"}))
 	if o, cmd := ov.Update(uitest.KeyPress("enter")); o != nil || cmd != nil {
 		t.Fatalf("enter must cancel: %v %v", o, cmd)
 	}
@@ -183,12 +183,101 @@ func TestSuggestedAndURL(t *testing.T) {
 func TestCreatedDropsCaches(t *testing.T) {
 	env, c := newEnv(i18n.EN)
 	c.SetTags(ref.FullPath, gitlab.Tag{Name: "v1.14.2"})
-	if NewTag(env, ref, "main") == nil {
+	if NewTag(env, common.Token{}, ref, "main") == nil {
 		t.Fatal("no command")
 	}
 	env.Cache.Set(ListKey(ref.FullPath, "", ""), 1)
 	Created(env, CreatedMsg{Ref: ref})
 	if _, ok := cache.Lookup[int](env.Cache, ListKey(ref.FullPath, "", ""), 1e18); ok {
 		t.Fatal("the list cache must be dropped")
+	}
+}
+
+// answer runs the Compare command and feeds the answer to the Comparer.
+func answer(t *testing.T, c *Comparer, cmd tea.Cmd) {
+	t.Helper()
+	msg, ok := cmd().(CompareMsg)
+	if !ok {
+		t.Fatalf("want CompareMsg")
+	}
+	c.OnMsg(msg)
+}
+
+func TestComparerExpireKeepsTheOldNumberUntilTheAnswer(t *testing.T) {
+	env, fk := newEnv(i18n.EN)
+	fk.SetCompare(ref.FullPath, "v1", "main", gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 2)})
+	c := NewComparer()
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	if e, _ := c.Entry(ref, "v1"); e.State != CompareDone || e.Ahead != 2 || e.Stale {
+		t.Fatalf("entry = %+v", e)
+	}
+	fk.SetCompare(ref.FullPath, "v1", "main", gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 3)})
+	c.Expire(true)
+	if e, _ := c.Entry(ref, "v1"); e.State != CompareDone || e.Ahead != 2 || !e.Stale {
+		t.Fatalf("after Expire: %+v", e)
+	}
+	cmd := c.Load(env, ref, "v1", "main")
+	if cmd == nil {
+		t.Fatal("a stale entry is asked again")
+	}
+	if e, _ := c.Entry(ref, "v1"); e.State != CompareDone || e.Ahead != 2 {
+		t.Fatalf("the old number stays until the answer: %+v", e)
+	}
+	if c.Load(env, ref, "v1", "main") != nil {
+		t.Fatal("a refresh in flight is not asked twice")
+	}
+	answer(t, c, cmd)
+	if e, _ := c.Entry(ref, "v1"); e.State != CompareDone || e.Ahead != 3 || e.Stale {
+		t.Fatalf("after the answer: %+v", e)
+	}
+}
+
+func TestComparerExpireDropsTheAnswerOfTheOldGeneration(t *testing.T) {
+	env, fk := newEnv(i18n.EN)
+	fk.SetCompare(ref.FullPath, "v1", "main", gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 2)})
+	c := NewComparer()
+	cmd := c.Load(env, ref, "v1", "main")
+	c.Expire(false)
+	if _, ok := c.Entry(ref, "v1"); ok {
+		t.Fatal("a loading entry is forgotten")
+	}
+	answer(t, c, cmd) // the old generation
+	if _, ok := c.Entry(ref, "v1"); ok {
+		t.Fatal("the answer of the old generation must be dropped")
+	}
+}
+
+func TestComparerExpireForceGoesPastTheCacheOnce(t *testing.T) {
+	env, fk := newEnv(i18n.EN)
+	fk.SetCompare(ref.FullPath, "v1", "main", gitlab.Comparison{})
+	c := NewComparer()
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	c.Expire(false)
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	if n := fk.CallCount("Tags.Compare"); n != 1 {
+		t.Fatalf("a poll uses the cache: %d calls", n)
+	}
+	c.Expire(true)
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	if n := fk.CallCount("Tags.Compare"); n != 2 {
+		t.Fatalf("r goes past the cache: %d calls", n)
+	}
+	c.Expire(false)
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	if n := fk.CallCount("Tags.Compare"); n != 2 {
+		t.Fatalf("force is for one request only: %d calls", n)
+	}
+}
+
+func TestComparerExpireFailedIsAskedAgain(t *testing.T) {
+	env, fk := newEnv(i18n.EN)
+	fk.SetCompare(ref.FullPath, "v1", "main", gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 1)})
+	c := NewComparer()
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	c.Expire(true)
+	fk.FailNext("Tags.Compare", &gitlab.Error{Kind: gitlab.ErrServer, Status: 500})
+	answer(t, c, c.Load(env, ref, "v1", "main"))
+	if e, _ := c.Entry(ref, "v1"); e.State != CompareFailed {
+		t.Fatalf("a failed refresh is Failed: %+v", e)
 	}
 }

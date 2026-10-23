@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/ui/app"
@@ -326,6 +327,90 @@ func TestTagsPagesAndPoll(t *testing.T) {
 	}
 	if tab.Items()[0].Name != "v1.46.0" {
 		t.Fatalf("first = %q", tab.Items()[0].Name)
+	}
+}
+
+func manyTags(n int) []gitlab.Tag {
+	var many []gitlab.Tag
+	for i := n; i >= 1; i-- {
+		many = append(many, gitlab.Tag{Name: fmt.Sprintf("v1.%d.0", i), Commit: gitlab.CommitSummary{ShortSHA: fmt.Sprintf("%07d", i)}})
+	}
+	return many
+}
+
+// A tag deleted from the second page must not come back with the old tail
+// the refresh keeps behind the fresh first page.
+func TestTagsDeleteFromSecondPageLeavesNoStaleTail(t *testing.T) {
+	client := tagsFake()
+	client.SetTags(path, manyTags(45)...)
+	d, _, tab := openTags(t, client, nil)
+	for range 16 {
+		d.Key("j")
+	}
+	if len(tab.Items()) != 40 {
+		t.Fatalf("two pages must be loaded: %d", len(tab.Items()))
+	}
+	for range 6 {
+		d.Key("j")
+	}
+	name := tab.tbl.CursorID()
+	if tab.tbl.Cursor() < 20 {
+		t.Fatalf("the cursor must be on the second page: %d", tab.tbl.Cursor())
+	}
+	lists := client.CallCount("Tags.List")
+	d.Key("D", "y")
+	if got := client.CallCount("Tags.Delete"); got != 1 {
+		t.Fatalf("Delete calls = %d", got)
+	}
+	if got := client.CallCount("Tags.List"); got != lists+1 {
+		t.Fatalf("the list is asked once more: %d -> %d", lists, got)
+	}
+	for _, it := range tab.Items() {
+		if it.Name == name {
+			t.Fatalf("%s is back in the list", name)
+		}
+	}
+	if len(tab.Items()) != 39 || tab.Count() != 44 {
+		t.Fatalf("items = %d count = %d", len(tab.Items()), tab.Count())
+	}
+	if tab.tbl.CursorID() == "" || tab.tbl.CursorID() == name {
+		t.Fatalf("the cursor must go to a neighbour: %q", tab.tbl.CursorID())
+	}
+}
+
+func TestTagsRemoveTagAdjustsCounters(t *testing.T) {
+	client := tagsFake()
+	client.SetTags(path, manyTags(45)...)
+	_, _, tab := openTags(t, client, nil)
+	tab.removeTag("v1.45.0") // first page
+	if tab.firstLen != 19 || tab.total != 44 || len(tab.items) != 19 {
+		t.Fatalf("firstLen = %d total = %d items = %d", tab.firstLen, tab.total, len(tab.items))
+	}
+	tab.removeTag("v1.45.0") // gone already
+	if tab.total != 44 {
+		t.Fatalf("total = %d", tab.total)
+	}
+}
+
+// The poll marks the comparison stale instead of forgetting it: no
+// "comparing…" flicker, and the cache serves the new request; r goes past it.
+func TestTagsPollKeepsTheComparisonAndUsesTheCache(t *testing.T) {
+	client := tagsFake()
+	d, _, tab := openTags(t, client, func(env *app.Env) { env.Cache = cache.New() })
+	d.RequireView("main is 2 commits ahead")
+	asked := client.CallCount("Tags.Compare")
+	_, cmd := tab.Update(commonPoll(tab))
+	d.RequireView("main is 2 commits ahead")
+	d.RequireNoView("comparing")
+	d.Run(cmd)
+	d.RequireView("main is 2 commits ahead")
+	if got := client.CallCount("Tags.Compare"); got != asked {
+		t.Fatalf("a poll with a live cache must not ask GitLab: %d -> %d", asked, got)
+	}
+	d.Key("r")
+	d.RequireView("main is 2 commits ahead")
+	if got := client.CallCount("Tags.Compare"); got != asked+1 {
+		t.Fatalf("r asks past the cache: %d -> %d", asked, got)
 	}
 }
 

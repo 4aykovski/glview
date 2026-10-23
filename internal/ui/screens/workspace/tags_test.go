@@ -313,3 +313,97 @@ func TestGoldenTagsTab(t *testing.T) {
 	d.Key("j")
 	d.RequireGolden("tags-expanded-120x40")
 }
+
+// toasts counts the toasts with the text shown so far.
+func toasts(d *uitest.Driver, text string) int {
+	n := 0
+	for _, m := range d.Msgs {
+		if tm, ok := m.(app.ToastMsg); ok && tm.Text == text {
+			n++
+		}
+	}
+	return n
+}
+
+// A project opened with f from the group: the project tab asked, so it
+// alone toasts and reloads; the group tab under it follows on return.
+func TestTagsDeleteInTheProjectOpenedWithF(t *testing.T) {
+	client := tagsFake()
+	d, root, _, _ := openTags(t, client, routeSvc)
+	d.Key("f")
+	if _, ok := root.Top().(*project.Project); !ok {
+		t.Fatalf("top = %T", root.Top())
+	}
+	d.RequireView("v1.57.0")
+	lists, wsTags := client.CallCount("Tags.List"), client.CallCount("Workspace.Tags")
+	d.Key("j", "D", "y")
+	if got := client.CallCount("Tags.Delete"); got != 1 {
+		t.Fatalf("Delete calls = %d", got)
+	}
+	if n := toasts(d, "Tag v1.57.0 deleted"); n != 1 {
+		t.Fatalf("toasts = %d", n)
+	}
+	if got := client.CallCount("Tags.List") - lists; got != 1 {
+		t.Fatalf("the project list is asked %d times", got)
+	}
+	if got := client.CallCount("Workspace.Tags"); got != wsTags {
+		t.Fatalf("the covered group tab must wait: %d -> %d", wsTags, got)
+	}
+	d.Key("esc")
+	d.RequireView("57 tags · showing 3", "v1.56.0")
+	d.RequireNoView("release: v1.57.0")
+	if got := client.CallCount("Workspace.Tags"); got != wsTags+1 {
+		t.Fatalf("the group tab reloads once on return: %d -> %d", wsTags, got)
+	}
+	if n := toasts(d, "Tag v1.57.0 deleted"); n != 1 {
+		t.Fatalf("toasts = %d", n)
+	}
+}
+
+func TestTagsDeleteErrorInTheProjectOpenedWithFToastsOnce(t *testing.T) {
+	client := tagsFake()
+	d, _, _, _ := openTags(t, client, routeSvc)
+	d.Key("f")
+	d.RequireView("v1.57.0")
+	client.FailNext("Tags.Delete", &gitlab.Error{Kind: gitlab.ErrServer, Status: 500})
+	wsTags := client.CallCount("Workspace.Tags")
+	n := len(d.Msgs)
+	d.Key("j", "D", "y")
+	errs := 0
+	for _, m := range d.Msgs[n:] {
+		if tm, ok := m.(app.ToastMsg); ok && tm.Level == common.ToastError {
+			errs++
+		}
+	}
+	if errs != 1 {
+		t.Fatalf("error toasts = %d", errs)
+	}
+	d.Key("esc")
+	if got := client.CallCount("Workspace.Tags"); got != wsTags {
+		t.Fatalf("nothing changed, the group tab stays: %d -> %d", wsTags, got)
+	}
+}
+
+func TestTagsCreateInTheProjectOpenedWithF(t *testing.T) {
+	client := tagsFake()
+	client.SetCompare(routeSvc, "v1.58.0", "main", gitlab.Comparison{Head: &gitlab.CommitSummary{ShortSHA: "0b7d3e9"}, Commits: make([]gitlab.CommitSummary, 2)})
+	d, _, _, _ := openTags(t, client, routeSvc)
+	d.Key("f")
+	d.RequireView("v1.57.0")
+	wsTags := client.CallCount("Workspace.Tags")
+	d.Key("n", "tab", "tab", "tab", "enter", "y")
+	if got := client.CallCount("Tags.Create"); got != 1 {
+		t.Fatalf("Create calls = %d", got)
+	}
+	if n := toasts(d, "Tag v1.58.1 created"); n != 1 {
+		t.Fatalf("toasts = %d", n)
+	}
+	if got := client.CallCount("Workspace.Tags"); got != wsTags {
+		t.Fatalf("the covered group tab must wait: %d -> %d", wsTags, got)
+	}
+	d.Key("esc")
+	d.RequireView("59 tags", "v1.58.1")
+	if got := client.CallCount("Workspace.Tags"); got != wsTags+1 {
+		t.Fatalf("the group tab reloads once on return: %d -> %d", wsTags, got)
+	}
+}

@@ -64,6 +64,7 @@ type tagsTab struct {
 	err                                   error
 	updated                               time.Time
 	active                                bool
+	dirty                                 bool // changed behind the tab's back: reload on activation
 	w, h                                  int
 }
 
@@ -227,8 +228,10 @@ func (t *tagsTab) fetch(tok common.Token, cursor string, force, refresh bool) te
 func (t *tagsTab) loadFirst(reset, force bool) tea.Cmd {
 	tok := t.gen.Next()
 	t.moreLoading, t.moreErr, t.err = false, false, nil
-	if force || reset {
+	if reset {
 		t.cmp.Reset()
+	} else if force {
+		t.cmp.Expire(false)
 	}
 	if reset {
 		t.items, t.firstLen, t.next, t.total, t.loaded = nil, 0, "", -1, false
@@ -256,7 +259,26 @@ func (t *tagsTab) Refresh() tea.Cmd {
 		t.setTail()
 		return t.fetch(t.gen.Current(), t.next, true, false)
 	}
-	return tea.Batch(t.loadFirst(false, true), t.loadCompare())
+	cmd := t.loadFirst(false, true)
+	t.cmp.Expire(true) // r asks the comparison past the cache
+	return tea.Batch(cmd, t.loadCompare())
+}
+
+// removeTag drops a deleted tag from the loaded pages: the refresh merges a
+// fresh first page with the old tail, which would bring the row back.
+func (t *tagsTab) removeTag(name string) {
+	i := slices.IndexFunc(t.items, func(tag gitlab.Tag) bool { return tag.Name == name })
+	if i < 0 {
+		return
+	}
+	t.items = slices.Delete(t.items, i, i+1)
+	if i < t.firstLen {
+		t.firstLen--
+	}
+	if t.total > 0 {
+		t.total--
+	}
+	t.rebuild()
 }
 
 func (t *tagsTab) schedulePoll() tea.Cmd {
@@ -272,6 +294,9 @@ func (t *tagsTab) Activate() tea.Cmd {
 	switch {
 	case !t.loaded && !t.loading:
 		return t.loadFirst(true, false)
+	case t.loaded && t.dirty && !t.env().AuthLost:
+		t.dirty = false
+		return t.loadFirst(false, true)
 	case t.loaded && t.env().Now().Sub(t.updated) >= tagsPollInterval && !t.env().AuthLost:
 		return t.loadFirst(false, true)
 	}
@@ -324,17 +349,37 @@ func (t *tagsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if msg.Ref.FullPath != t.sh.ref.FullPath {
 			return t, nil
 		}
-		cmd := tagactions.Done(env, msg)
+		// Only the tab that asked toasts; any other tab of the project just
+		// follows the change.
+		var cmd tea.Cmd
+		own := t.gen.Owns(msg.Owner)
+		if own {
+			cmd = tagactions.Done(env, msg)
+		}
 		if msg.Err != nil {
 			return t, cmd
+		}
+		t.removeTag(msg.Name)
+		t.cmp.Reset()
+		if !own && !t.active {
+			t.dirty = true // covered: reload on return
+			return t, nil
 		}
 		return t, tea.Batch(cmd, t.loadFirst(false, true))
 	case tagactions.CreatedMsg:
 		if msg.Ref.FullPath != t.sh.ref.FullPath {
 			return t, nil
 		}
-		tagactions.Created(env, msg)
+		own := t.gen.Owns(msg.Owner)
+		if own {
+			tagactions.Created(env, msg)
+		}
 		t.want = msg.Tag.Name
+		t.cmp.Reset()
+		if !own && !t.active {
+			t.dirty = true
+			return t, nil
+		}
 		return t, t.loadFirst(false, true)
 	case common.PollTickMsg:
 		if !t.poll.Valid(msg.Token) || !t.active || env.AuthLost {
@@ -471,7 +516,7 @@ func (t *tagsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return app.OpenURL(env, tagactions.TagsURL(t.sh.projectURL(), t.search))
 	case "n":
 		if !t.sh.archived {
-			return tagactions.NewTag(env, t.sh.ref, t.sh.defaultBranch)
+			return tagactions.NewTag(env, t.gen.Current(), t.sh.ref, t.sh.defaultBranch)
 		}
 		return nil
 	}
@@ -486,7 +531,7 @@ func (t *tagsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return tagactions.Copy(env, *tag)
 	case "D":
 		if !t.sh.archived {
-			return tagactions.Delete(env, t.sh.ref, *tag)
+			return tagactions.Delete(env, t.gen.Current(), t.sh.ref, *tag)
 		}
 	}
 	return nil

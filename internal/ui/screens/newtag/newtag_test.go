@@ -57,7 +57,7 @@ func open(t *testing.T, c *fake.Client, lang i18n.Lang) (*uitest.Driver, *app.En
 	env.Now = func() time.Time { return time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC) }
 	root := app.New(env, host{}, app.Options{})
 	d := uitest.New(t, root)
-	f := New(env, project, "main")
+	f := New(env, project, "main", common.Token{})
 	d.Send(app.OpenOverlayMsg{Overlay: f})
 	d.Run(f.Init())
 	return d, env, f
@@ -274,7 +274,7 @@ func TestAnswersOfAClosedFormAreDropped(t *testing.T) {
 	c := newFake()
 	env := app.NewEnv(i18n.EN)
 	env.Client = c
-	f := New(env, project, "main")
+	f := New(env, project, "main", common.Token{})
 	tags := f.Init()()
 	f.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
 	if o, cmd := f.Update(tags); o != nil || cmd != nil {
@@ -284,7 +284,7 @@ func TestAnswersOfAClosedFormAreDropped(t *testing.T) {
 		t.Fatal("tags applied to a closed form")
 	}
 	// Another instance does not take over the answers either.
-	g := New(env, project, "main")
+	g := New(env, project, "main", common.Token{})
 	g.Init()
 	g.Update(tags)
 	if g.tagsLoaded {
