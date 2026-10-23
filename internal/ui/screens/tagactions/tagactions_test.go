@@ -179,3 +179,16 @@ func TestSuggestedAndURL(t *testing.T) {
 		t.Fatalf("url = %q", got)
 	}
 }
+
+func TestCreatedDropsCaches(t *testing.T) {
+	env, c := newEnv(i18n.EN)
+	c.SetTags(ref.FullPath, gitlab.Tag{Name: "v1.14.2"})
+	if NewTag(env, ref, "main") == nil {
+		t.Fatal("no command")
+	}
+	env.Cache.Set(ListKey(ref.FullPath, "", ""), 1)
+	Created(env, CreatedMsg{Ref: ref})
+	if _, ok := cache.Lookup[int](env.Cache, ListKey(ref.FullPath, "", ""), 1e18); ok {
+		t.Fatal("the list cache must be dropped")
+	}
+}

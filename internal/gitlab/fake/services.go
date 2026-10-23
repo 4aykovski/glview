@@ -825,17 +825,30 @@ func (s tagService) Delete(ctx context.Context, p gitlab.ProjectRef, name string
 	return notFound("tag " + name)
 }
 
-// Compare serves the comparison registered with SetCompare, an empty one
-// when there is none.
+// Compare serves the comparison registered with SetCompare; an unregistered
+// one is empty for a known ref and 404 for any other.
 func (s tagService) Compare(ctx context.Context, p gitlab.ProjectRef, from, to string) (gitlab.Comparison, error) {
 	if err := s.c.enter(ctx, "Tags.Compare", p.FullPath, from, to); err != nil {
 		return gitlab.Comparison{}, err
 	}
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
-	cmp := s.c.data.compares[compareKey(s.c.pathOf(p), from, to)]
+	path := s.c.pathOf(p)
+	cmp, ok := s.c.data.compares[compareKey(path, from, to)]
+	if !ok && !s.c.knownRef(path, to) {
+		return gitlab.Comparison{}, notFound("ref " + to)
+	}
 	cmp.Commits = slices.Clone(cmp.Commits)
 	return cmp, nil
+}
+
+// knownRef reports whether ref is a branch, a tag or the default branch of
+// the project. The caller holds c.mu.
+func (c *Client) knownRef(path, ref string) bool {
+	if slices.Contains(c.data.branches[path], ref) || c.ProjectsByPath[path].DefaultBranch == ref {
+		return true
+	}
+	return slices.ContainsFunc(c.data.tags[path], func(t gitlab.Tag) bool { return t.Name == ref })
 }
 
 func compareKey(path, from, to string) string { return path + "\x00" + from + "\x00" + to }

@@ -40,4 +40,27 @@ type TagMessages struct {
 	PrevCompareErr string
 	PrevSuggest    func(name string) string
 	PrevRelease    string // "Release notes:"
+
+	// New tag form
+	FormTitle                     string
+	LblName, LblRef, LblMessage   string
+	LblCommits                    string
+	Custom                        string
+	SuggestedFrom                 func(kind, base string) string // "suggested: patch from v1.14.2"
+	SuggestedNoBase               func(name string) string
+	LoadingTags                   string
+	RefCaption                    func(ref, sha string, n int, last string) string
+	RefFirstTag                   func(ref string) string
+	RefComparing, RefCompareErr   string
+	NoNewCommits                  func(last string) string
+	CommitsMore                   func(n int) string
+	ErrNoName, ErrNoRef           string
+	ErrExists                     func(name string) string
+	ConfirmTitle                  func(name, ref, sha string) string
+	ConfirmAnnotated              func(msg string) string
+	ConfirmLightweight            string
+	ButtonCreate                  string
+	KeysName, KeysCustom, KeysRef string
+	KeysRefList, KeysMessage      string
+	KeysButton, KeysCreating      string
 }

@@ -1,7 +1,10 @@
 package i18n
 
+import "fmt"
+
 func fillM3EN(m *Messages) {
 	fillTagsEN(m)
+	fillTagFormEN(m)
 	l := &m.Links
 	l.Key = "links"
 	l.Title = func(ref string) string { return "Links · " + ref }
@@ -37,4 +40,48 @@ func fillTagsEN(m *Messages) {
 	t.PrevCompareErr = "comparison unavailable"
 	t.PrevSuggest = func(name string) string { return "n suggests " + name }
 	t.PrevRelease = "Release notes:"
+}
+
+func fillTagFormEN(m *Messages) {
+	t := &m.Tag
+	t.FormTitle = "New tag"
+	t.LblName = "Name"
+	t.LblRef = "From ref"
+	t.LblMessage = "Message (annotated)"
+	t.LblCommits = "The tag will include:"
+	t.Custom = "custom…"
+	t.SuggestedFrom = func(kind, base string) string { return "suggested: " + kind + " from " + base }
+	t.SuggestedNoBase = func(name string) string { return "no semver tags · suggested " + name }
+	t.LoadingTags = "◐ loading tags…"
+	t.RefCaption = func(ref, sha string, n int, last string) string {
+		s := ref
+		if sha != "" {
+			s += " @ " + sha
+		}
+		return s + " · " + Count(EN, n, PluralForms{"commit", "", "commits"}) + " after " + last
+	}
+	t.RefFirstTag = func(ref string) string { return ref + " · first tag of the project" }
+	t.RefComparing = "◐ comparing…"
+	t.RefCompareErr = "ref not found or comparison unavailable"
+	t.NoNewCommits = func(last string) string { return "no new commits after " + last }
+	t.CommitsMore = func(n int) string { return fmt.Sprintf("… %d more", n) }
+	t.ErrNoName = "enter a tag name"
+	t.ErrNoRef = "enter a ref"
+	t.ErrExists = func(name string) string { return "tag " + name + " already exists" }
+	t.ConfirmTitle = func(name, ref, sha string) string {
+		if sha == "" {
+			return "Create tag " + name + " on " + ref + "?"
+		}
+		return "Create tag " + name + " on " + ref + " @ " + sha + "?"
+	}
+	t.ConfirmAnnotated = func(msg string) string { return "Annotated tag: “" + msg + "”" }
+	t.ConfirmLightweight = "Lightweight tag without a message"
+	t.ButtonCreate = "Create"
+	t.KeysName = "↑/↓ variant · enter next · tab field · esc cancel"
+	t.KeysCustom = "↑/↓ variant · type a name · enter next · esc cancel"
+	t.KeysRef = "type a ref · enter next · tab field · esc cancel"
+	t.KeysRefList = "↑/↓ pick · enter use · tab field · esc cancel"
+	t.KeysMessage = "empty = lightweight tag · enter next · esc cancel"
+	t.KeysButton = "enter create · tab field · esc cancel"
+	t.KeysCreating = "creating…"
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/4aykovski/glview/internal/semver"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
+	"github.com/4aykovski/glview/internal/ui/screens/newtag"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
@@ -27,6 +28,20 @@ const (
 	// CompareTTL is how long a comparison stays cached.
 	CompareTTL = 30 * time.Second
 )
+
+// CreatedMsg reports a tag created by the New tag form.
+type CreatedMsg = newtag.CreatedMsg
+
+// NewTag opens the New tag form for the project; its ref starts as the
+// default branch.
+func NewTag(env *app.Env, ref gitlab.ProjectRef, defaultBranch string) tea.Cmd {
+	f := newtag.New(env, ref, defaultBranch)
+	return tea.Sequence(app.OpenOverlay(f), f.Init())
+}
+
+// Created drops the tag caches of the project after a tag was created. The
+// caller reloads its list and puts the cursor on the new tag.
+func Created(env *app.Env, msg CreatedMsg) { Invalidate(env, msg.Ref) }
 
 // DeletedMsg reports a finished deletion of tag Name.
 type DeletedMsg struct {

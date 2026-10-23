@@ -1,7 +1,10 @@
 package i18n
 
+import "fmt"
+
 func fillM3RU(m *Messages) {
 	fillTagsRU(m)
+	fillTagFormRU(m)
 	l := &m.Links
 	l.Key = "ссылки"
 	l.Title = func(ref string) string { return "Ссылки · " + ref }
@@ -41,4 +44,48 @@ func fillTagsRU(m *Messages) {
 	t.PrevCompareErr = "сравнение недоступно"
 	t.PrevSuggest = func(name string) string { return "n предложит " + name }
 	t.PrevRelease = "Release notes:"
+}
+
+func fillTagFormRU(m *Messages) {
+	t := &m.Tag
+	t.FormTitle = "Новый тег"
+	t.LblName = "Имя"
+	t.LblRef = "Из ref"
+	t.LblMessage = "Сообщение (annotated)"
+	t.LblCommits = "В теге окажутся:"
+	t.Custom = "своё…"
+	t.SuggestedFrom = func(kind, base string) string { return "предложено: " + kind + " от " + base }
+	t.SuggestedNoBase = func(name string) string { return "нет semver-тегов · предложено " + name }
+	t.LoadingTags = "◐ загружаем теги…"
+	t.RefCaption = func(ref, sha string, n int, last string) string {
+		s := ref
+		if sha != "" {
+			s += " @ " + sha
+		}
+		return s + " · " + Count(RU, n, PluralForms{"коммит", "коммита", "коммитов"}) + " после " + last
+	}
+	t.RefFirstTag = func(ref string) string { return ref + " · первый тег проекта" }
+	t.RefComparing = "◐ сравниваем…"
+	t.RefCompareErr = "ref не найден или сравнение недоступно"
+	t.NoNewCommits = func(last string) string { return "нет новых коммитов после " + last }
+	t.CommitsMore = func(n int) string { return fmt.Sprintf("… ещё %d", n) }
+	t.ErrNoName = "укажи имя тега"
+	t.ErrNoRef = "укажи ref"
+	t.ErrExists = func(name string) string { return "тег " + name + " уже есть" }
+	t.ConfirmTitle = func(name, ref, sha string) string {
+		if sha == "" {
+			return "Создать тег " + name + " на " + ref + "?"
+		}
+		return "Создать тег " + name + " на " + ref + " @ " + sha + "?"
+	}
+	t.ConfirmAnnotated = func(msg string) string { return "Annotated-тег: «" + msg + "»" }
+	t.ConfirmLightweight = "Lightweight-тег без сообщения"
+	t.ButtonCreate = "Создать"
+	t.KeysName = "↑/↓ вариант · enter далее · tab поле · esc отмена"
+	t.KeysCustom = "↑/↓ вариант · вводи имя · enter далее · esc отмена"
+	t.KeysRef = "вводи ref · enter далее · tab поле · esc отмена"
+	t.KeysRefList = "↑/↓ выбор · enter подставить · tab поле · esc отмена"
+	t.KeysMessage = "пусто — lightweight-тег · enter далее · esc отмена"
+	t.KeysButton = "enter создать · tab поле · esc отмена"
+	t.KeysCreating = "создаём…"
 }
