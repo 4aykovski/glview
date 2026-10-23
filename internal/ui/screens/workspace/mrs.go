@@ -403,7 +403,7 @@ func (t *mrsTab) View() string {
 		if mr == nil {
 			parts = append(parts, t.frame("", "", ""))
 		} else {
-			parts = append(parts, t.frame(render.MRPreview(s, env.Msg, mr)...))
+			parts = append(parts, t.frame(render.MRPreview(s, env.Msg, mr, env.Settings.LinkRules)...))
 		}
 	}
 	return strings.Join(parts, "\n")

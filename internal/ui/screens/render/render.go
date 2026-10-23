@@ -12,6 +12,7 @@ import (
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/i18n"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/common"
 )
 
@@ -260,7 +261,7 @@ func Pad(s string, w int) string {
 
 // MRPreview is the dense three-line summary of an MR in list previews:
 // title; status · approvals · pipeline · diff; first line of the description.
-func MRPreview(s *common.Styles, m *i18n.Messages, mr *gitlab.MergeRequest) []string {
+func MRPreview(s *common.Styles, m *i18n.Messages, mr *gitlab.MergeRequest, rules []mrlinks.Rule) []string {
 	dot := s.Muted.Render(" · ")
 	line2 := []string{MergeChip(s, mr)}
 	if lbl := m.MR.StatusLabel(mr.MergeStatus); lbl != "" && mr.State == gitlab.MRStateOpened {
@@ -280,9 +281,14 @@ func MRPreview(s *common.Styles, m *i18n.Messages, mr *gitlab.MergeRequest) []st
 	desc := FirstLine(mr.Description)
 	if desc == "" {
 		desc = s.Muted.Render(m.MR.PrevNoDesc)
+	} else {
+		desc = mrlinks.Apply(desc, mrlinks.Collect(mrlinks.Source{Description: desc}, rules))
 	}
+	// Links by the config rules and bare URLs: the list row carries no
+	// HTML links (SPEC 3.5, "MR links").
+	title := mrlinks.Apply(s.PreviewTitle.Render(mr.Title), mrlinks.Collect(mrlinks.Source{Title: mr.Title}, rules))
 	return []string{
-		s.Accent.Render(fmt.Sprintf("!%d", mr.IID)) + "  " + s.PreviewTitle.Render(mr.Title),
+		s.Accent.Render(fmt.Sprintf("!%d", mr.IID)) + "  " + title,
 		strings.Join(line2, dot),
 		desc,
 	}

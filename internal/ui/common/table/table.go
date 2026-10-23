@@ -10,6 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/4aykovski/glview/internal/gitlab"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/common"
 )
 
@@ -32,6 +34,9 @@ type Column struct {
 	// priority goes first (ties: the rightmost).
 	Priority   int
 	AlignRight bool
+	// Linked makes the cell show the row's Links as OSC 8 hyperlinks; they
+	// are laid over the cell after it was cut to the column width.
+	Linked bool
 }
 
 // Row is one table row. ID identifies the row across reloads.
@@ -39,6 +44,7 @@ type Row struct {
 	ID    string
 	Cells []string
 	Muted bool
+	Links []gitlab.Link // for Linked columns
 }
 
 // TailKind is the state of the pseudo-row after the last real row.
@@ -356,13 +362,14 @@ func fit(cell string, w int, right bool) string {
 	return cell + strings.Repeat(" ", pad)
 }
 
-func (m *Model) line(cells []string, plain bool) string {
-	return FormatLine(m.cols, m.compute(), cells, plain)
+func (m *Model) line(cells []string, plain bool, links []gitlab.Link) string {
+	return FormatLine(m.cols, m.compute(), cells, plain, links)
 }
 
 // FormatLine lays cells out in the widths from Layout (without the row
-// marker); plain strips the cells' styles (selected and muted rows).
-func FormatLine(cols []Column, widths []int, cells []string, plain bool) string {
+// marker); plain strips the cells' styles (selected and muted rows). links
+// are laid over the cells of Linked columns as OSC 8 hyperlinks.
+func FormatLine(cols []Column, widths []int, cells []string, plain bool, links []gitlab.Link) string {
 	parts := make([]string, 0, len(widths))
 	for i, w := range widths {
 		if w < 0 {
@@ -375,7 +382,11 @@ func FormatLine(cols []Column, widths []int, cells []string, plain bool) string 
 		if plain {
 			cell = ansi.Strip(cell)
 		}
-		parts = append(parts, fit(cell, w, cols[i].AlignRight))
+		cell = fit(cell, w, cols[i].AlignRight)
+		if cols[i].Linked {
+			cell = mrlinks.Apply(cell, links)
+		}
+		parts = append(parts, cell)
 	}
 	return strings.Join(parts, strings.Repeat(" ", gap))
 }
@@ -390,7 +401,7 @@ func (m *Model) View() string {
 	for i, c := range m.cols {
 		titles[i] = c.Title
 	}
-	out := []string{s.ColumnHeader.Render(noMarker + m.line(titles, true)), common.Rule(s, m.w)}
+	out := []string{s.ColumnHeader.Render(noMarker + m.line(titles, true, nil)), common.Rule(s, m.w)}
 
 	body := m.bodyHeight()
 	switch {
@@ -408,11 +419,11 @@ func (m *Model) View() string {
 			r := m.rows[i]
 			switch {
 			case i == m.cursor:
-				out = append(out, s.RowSelected.Render(marker+m.line(r.Cells, true)))
+				out = append(out, s.RowSelected.Render(marker+m.line(r.Cells, true, r.Links)))
 			case r.Muted:
-				out = append(out, s.RowMuted.Render(noMarker+m.line(r.Cells, true)))
+				out = append(out, s.RowMuted.Render(noMarker+m.line(r.Cells, true, r.Links)))
 			default:
-				out = append(out, noMarker+m.line(r.Cells, false))
+				out = append(out, noMarker+m.line(r.Cells, false, r.Links))
 			}
 		}
 	}
