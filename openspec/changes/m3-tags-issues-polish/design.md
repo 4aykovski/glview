@@ -1,6 +1,6 @@
 ## Context
 
-M0–M2 закрыты (архивы `2026-10-19-m0-foundation`, `2026-10-20-m1-project-mode`, `2026-10-22-m2-workspace`). Change общая на веху M3; в ней #51 (T34, сделана) и #23 (T23, теги). Мотивация — proposal.md, поведение — specs/ этой change, полная картина — docs/SPEC.md §3.5 («Ссылки MR»), §7 — для T34; §3.3, §3.4, §3.10, §6.3, §11.2 — для T23.
+M0–M2 закрыты (архивы `2026-10-19-m0-foundation`, `2026-10-20-m1-project-mode`, `2026-10-22-m2-workspace`). Change общая на веху M3; в ней #51 (T34, сделана), #23 (T23, теги, сделана) и #24 (T24, issues и комментарии). Мотивация — proposal.md, поведение — specs/ этой change, полная картина — docs/SPEC.md §3.5 («Ссылки MR»), §7 — для T34; §3.3, §3.4, §3.10, §6.3, §11.2 — для T23; §3.4 (Issues), §3.15, §3.16, §5.2, §6.3 — для T24.
 
 Что уже есть и переиспользуется:
 - `common.Markdown` (glamour v2): markdown-ссылки и автоссылки уже выводятся с OSC 8. `[#12](url)` glamour рисует как `#12 url` — текст и URL рядом (опции «только текст» у glamour нет, `SkipHref` выставляется только для таблиц).
@@ -19,6 +19,13 @@ M0–M2 закрыты (архивы `2026-10-19-m0-foundation`, `2026-10-20-m1-
 - `pipeactions` — шаблон пакета действий над строкой (confirm → мутация → `DoneMsg` → инвалидация кэша и тост); `runpipeline.Form` — шаблон формы-оверлея: `common.Gen` экземпляра, встроенный confirm (`f.confirm`), блокировка на время запроса, кнопка в фокусе.
 - `app.NewConfirm`, `app.OpenOverlay`, `app.OpenURL`, `app.Copy`, `Env.Fail`, i18n `Toast.TagCreated`, `Plural.Tags`, `WS.NotApplicableToTags`.
 
+Для T24 (issues и комментарии):
+- `gitlab.Issue`, `gitlab.Note`, `gitlab.Discussion` в `types.go`; `IssueService` в SPEC §6.3 описан, в коде его нет; `Client.Issues()` нет. `MergeRequestService.Comment` в коде нет.
+- Таб MRs проекта (`project/mrs.go`) — шаблон таба Issues: строка фильтров `filterline` с ключами `key:value`, подсказки `membersSource`/`labelsSource` (`project/suggest.go`), `s`/`m`/`backspace`, URL `o` по фильтрам, превью справа/снизу (`previewMinW = 100`).
+- Карточки тредов MR — методы `mrdetail.Screen` в `mrdetail/threads.go` (`noteMarkdown`, `noteHead`, `folded`, `cardInner`, `foldedLine`, `layout`, `threadKey`); снаружи не переиспользуются.
+- `common.Markdown`, `common.HTMLToMarkdown` — тело заметок и описание.
+- Шаблоны формы: `runpipeline.Form` и `newtag` (overlay, `common.Gen`, кнопка в фокусе, блокировка на время запроса); `bubbles/v2/textarea`.
+
 ## Goals / Non-Goals
 
 **Goals (T34):**
@@ -31,11 +38,24 @@ M0–M2 закрыты (архивы `2026-10-19-m0-foundation`, `2026-10-20-m1-
 - Создание тега формой New tag с предложением версии (`internal/semver`) и confirm; удаление `D` с confirm.
 - Нагрузка workspace — как у MRs/Pipelines: запросы только по раскрытым группам.
 
+**Goals (T24):**
+- Таб Issues проекта по SPEC §3.4 и макету `Issues`: фильтры, связанный MR, превью с описанием и последними комментариями.
+- Полноэкранный просмотр issue с тредами-карточками, как в MR detail (общий код карточек).
+- Один компонент комментария для `c` в Issues (таб и экран issue) и в MR (таб MRs проекта и workspace, MR detail).
+- `x` close (confirm) / reopen.
+
 **Non-Goals (T34):**
 - Ссылки в тредах Discussions (там markdown-ссылки glamour, как сейчас).
 - Ссылки в title списка MR из HTML GitLab (`#12` и т. п. в списке не кликабельны — только правила и голые URL).
 - Разбор ссылок GitLab на клиенте (`#12` → URL issue) — источник истины HTML GitLab: он знает, существует ли объект, и про интеграции трекеров.
 - Ссылки в issues (#24) — позже, тем же пакетом.
+
+**Non-Goals (T24):**
+- Создание issue, правка меток, assignee, milestone, ветка+MR из issue (SPEC §1, «Отличия от макетов»: `n`, `L`, `A`, `b` убраны).
+- Ответ в тред, resolve, редактирование и удаление комментариев; комментарии к строкам кода.
+- Таб Issues в workspace (в SPEC его нет).
+- Предпросмотр markdown в форме комментария.
+- Ссылки OSC 8 в issues (пакет `mrlinks` — позже).
 
 **Non-Goals (T23):**
 - Релизы: создание, правка, просмотр release notes целиком (в превью — только первая строка описания релиза).
@@ -199,6 +219,118 @@ func Suggest(names []string) Suggestion
 ### 14. Правки SPEC (до кода)
 Коммит «SPEC: теги, T23 в change m3-tags-issues-polish (#23)»: §3.1 (Tags: `/`, `y`, `o`), §3.3 (Tags свёрнуты, заголовки, фильтры, действия, `f` → Tags), §3.4 (таб Tags: Message, превью, поиск, пусто), §3.10 (форма целиком: варианты, фокус, кнопка, проверка, confirm, блокировка), §4 (`Comparison`), §5.2 (порядок `version`, `per_page` пайплайнов тегов), §5.8 (`expanded.tags`, `selected.tags`), §6.1 (`screens/tagactions`, `screens/newtag`), §6.3 (`TagService`, `WorkspaceService.Tags`, `MatchTagPipelines`), §11.2 (нет semver-тегов: варианты, по умолчанию minor; prerelease: релиз — вариант по умолчанию).
 
+## Decisions (T24, issues и комментарии)
+
+### 15. API issues — REST
+```go
+type RelatedMR struct {
+    IID    int64
+    Title  string
+    State  MRState
+    WebURL string
+}
+
+// Issue получает поля (остальные — как в SPEC §4):
+//   MergeRequestsCount int         // merge_requests_count из списка: есть ли связанные MR
+//   RelatedMRs         []RelatedMR // вместо []int64; заполняются отдельным запросом
+
+type IssueFilter struct {
+    State     string   // opened (по умолчанию) | closed | all
+    Assignee  string   // "" any | "@me" | "none" | username
+    Milestone string   // "" any | "none" | title
+    Labels    []string // все сразу (AND)
+    Search    string
+}
+
+type IssueService interface {
+    List(ctx context.Context, p ProjectRef, f IssueFilter, cursor string, limit int) (Page[Issue], error)
+    Get(ctx context.Context, p ProjectRef, iid int64) (Issue, error)
+    // Notes: последние last заметок (system тоже), старые первыми: sort=desc&per_page=last, затем разворот.
+    Notes(ctx context.Context, p ProjectRef, iid int64, last int) ([]Note, error)
+    // Discussions: все треды, все страницы (per_page=100), system тоже — фильтрует UI.
+    Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
+    RelatedMRs(ctx context.Context, p ProjectRef, iid int64) ([]RelatedMR, error)
+    Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+    SetState(ctx context.Context, p ProjectRef, iid int64, closed bool) (Issue, error) // state_event=close|reopen
+}
+
+// MergeRequestService: + Comment(ctx, p, iid, body) (Note, error) — POST /merge_requests/:iid/notes.
+// ProjectService:     + Milestones(ctx, p, search) ([]string, error) — GET /projects/:id/milestones?state=active&search&per_page=20 (только проекта).
+```
+- Фильтр → REST `GET /projects/:id/issues`: `state` (`all` — параметр не пишется), `Assignee`: `@me` → `scope=assigned_to_me` (логин не нужен), `none` → `assignee_id=None`, логин → `assignee_username`; `Milestone`: `none` → `milestone=None`, title → `milestone`; `labels=a,b`; `search`; `order_by=updated_at&sort=desc`; `X-Total` → `Total`.
+- `Notes(last)`: в превью `last = 50`; system-заметки отбрасывает UI, поэтому комментариев может быть меньше 50 — допустимо.
+- `Client.Issues()` в `rest`, `hybrid` делегирует в REST; GraphQL не трогается.
+- Фейк: issues в памяти по проекту с выдуманными данными (`#1318 Surge coefficient ignores zone overrides`, `anna.k`, `egor`, `!479`), заметки и треды, связанные MR, `Comment`/`SetState` меняют данные, журнал вызовов, инъекция ошибок.
+- Кэш (`Env.Cache`): `issues:<path>:<фильтр>:<cursor>` 30 с, `issue:<path>:<iid>` 30 с, `inotes:<path>:<iid>` 30 с, `idiscs:<path>:<iid>` 30 с, `irelated:<path>:<iid>` 5 мин. `Comment` и `SetState` сбрасывают `issues:<path>:` и ключи этого issue; комментарий к MR — ключ discussions этого MR.
+
+### 16. Таб Issues проекта (`project/issues.go`)
+Шаблон — таб MRs (страницы 20, подгрузка, курсор по IID, поллинг 30 с, `r` мимо кэша, ленивая загрузка при первом открытии).
+- **Колонки:** IID (`#1318`), Title (+ ` → !479` Muted, если известен связанный MR; несколько — ` → !479 +1`), Labels (через пробел, обрезка `…`), Upd (относительное `UpdatedAt`).
+- **Связанные MR фоном:** после прихода страницы для issues с `MergeRequestsCount > 0` и без свежего кэша — `RelatedMRs` не больше 4 одновременно (`tea.Cmd` на issue с `Gen` таба; общий семафор таба). Ответ дописывает маркер в строку. Тики поллинга не запрашивают, пока кэш 5 мин жив; `r` — мимо кэша.
+- **Строка фильтров** (как у MR): `/ state:opened assignee:any label:any milestone:any` и свободный текст. Ключи: `state` (`opened|closed|all`), `assignee` (`any|@me|none` + участники проекта — `membersSource`), `label` (Multi, метки проекта — `labelsSource`), `milestone` (`any|none` + `Projects().Milestones` с поиском через 300 мс, кэш 5 мин как у прочих подсказок). `s` — `state` по кругу opened → closed → all; `m` — `assignee` any ↔ `@me` (фильтр «я»); `backspace` — сброс к умолчаниям.
+- **Счётчик таба** — `Total` текущего фильтра; статус футера — `<позиция> / <всего>` (макет: `5 / 12`).
+- **Пусто:** без фильтров — «Нет открытых issues»; с `m` — «Нет открытых issues, назначенных тебе · m — снять фильтр «я»»; с прочими фильтрами — «Нет issues по фильтрам · backspace — сбросить».
+- **Раскладка превью:** ширина ≥ 140 — справа (список ~55 %, вертикальный разделитель, как в макете); иначе снизу по правилам `previewShown` таба MRs; не помещается — без превью.
+- **Превью** выбранного issue:
+  1. title (Bold);
+  2. `● open · #1318 · anna.k · assignee: egor · milestone: 2026-Q4` (закрытый — `○ closed`; нет assignee/milestone — часть не пишется; несколько assignee — через запятую);
+  3. связанные MR, если загружены: `→ !479 Fix slot race · opened`;
+  4. описание: `common.Markdown(common.HTMLToMarkdown(desc))`, не больше половины высоты превью, обрезка — строка `…`; пустое — «нет описания» Muted;
+  5. `КОММЕНТАРИИ N` (`UserNotesCount`) и последние не-system заметки из `Notes(last=50)`: снизу вверх, сколько влезает целиком; заметка — `author · ago` и тело markdown не длиннее 6 строк (`…`); пока грузятся — `◐ загрузка…`; ошибка — «комментарии недоступны» Muted, без тоста;
+  6. последняя строка — `c — написать комментарий…` Muted.
+  Заметки — лениво по выбранной строке (`tea.Cmd` с `Gen` и IID, чужие ответы выбрасываются), кэш 30 с.
+- **Действия:** `enter` — экран issue (решение 17); `c` — комментарий (решение 19); `x` — close/reopen (решение 20); `o` — список issues проекта в браузере с фильтрами; `O` — выделенный issue; `y` — ссылка выделенного issue. У архивного проекта `c` и `x` скрыты и не действуют.
+- **URL `o`:** `<проект>/-/issues`, умолчания не пишутся, `url.Values.Encode`: `state=closed|all`; `assignee` `@me` → `assignee_username=<я>` (логин неизвестен — не пишется), `none` → `assignee_id=None`, логин → `assignee_username=`; `label_name[]=` на каждую метку; `milestone_title=` (`none` → `None`); `search=`.
+
+### 17. Экран issue (`screens/issuedetail`)
+Кладётся на стек по `enter`; `esc` — назад, курсор таба сохраняется.
+- **Шапка:** `platform/route-service › Issues › #1318`.
+- **Тело — одна прокрутка:** title (Bold); строка статуса как в превью; `Labels: bug · pricing`; связанные MR (`→ !479 Fix slot race · opened`, каждая отдельной строкой); разделитель; описание (markdown); заголовок `Комментарии N`; треды карточками — общий пакет `screens/threads` (решение 18), system-заметки скрыты. Нет тредов — «Комментариев нет · c — написать».
+- **Данные:** `Issues().Get` и `Issues().Discussions` (оба лениво при открытии, параллельно), `RelatedMRs`; поллинг 30 с (только на вершине стека), `r` — мимо кэша. Ответы с чужим `Gen` выбрасываются; позиция прокрутки и свёрнутость тредов сохраняются при обновлении.
+- **Клавиши:** `j/k`, `↓/↑` — строка; `pgdown`/`pgup`, `ctrl+d`/`ctrl+u`, `space` вне тредов — страница; `g/G`; `J/K` — следующий/предыдущий тред (текущий — толстая рамка Accent, прокрутка к нему); `space` при текущем треде — свернуть/развернуть его; `c` — комментарий; `x` — close/reopen; `o` — issue в браузере; `y` — ссылка issue. Правила сворачивания по умолчанию — как в MR (разрешённые и длинные первые заметки).
+- **После комментария** — перезапрос discussions и `Get` (счётчик), прокрутка в конец, текущий тред — последний. **После `x`** — `Get`, строка статуса меняется, тост.
+
+### 18. Общие карточки тредов (`screens/threads`)
+Перенос из `mrdetail/threads.go` без изменения вида:
+```go
+type Model struct { /* discussions (без system), fold map, md-кэш, current, width */ }
+func New(env *app.Env) *Model
+func (m *Model) SetDiscussions(ds []gitlab.Discussion) // свёрнутость и current — по ID, сохраняются
+func (m *Model) Layout(width int) (lines []string, cards []Card)
+func (m *Model) Next() / Prev() / ToggleCurrent()
+func (m *Model) Current() (Card, bool)
+type Card struct { ID string; Start, H int; Link string }
+```
+`mrdetail` переходит на пакет; вкладка Discussions ведёт себя как раньше. Требование: **все существующие golden и тесты MR detail проходят без изменения снимков**. Ссылка треда (`Link`) считается колбэком от экрана (у MR — `<MR>#note_<id>`, у issue — `<issue>#note_<id>`).
+
+### 19. Форма комментария (`screens/comment`, `app.Overlay`)
+```go
+type Target struct {
+    Project ProjectRef
+    Kind    string // "issue" | "mr"
+    IID     int64
+    Title   string
+}
+func Open(env *app.Env, t Target) tea.Cmd
+type SentMsg struct { Target Target; Note gitlab.Note }
+```
+- **Вид:** модалка; заголовок `Комментарий · #1318 Surge coefficient ignores zone overrides` (MR — `!479 …`, обрезка `…`); `textarea` (bubbles v2) во всю ширину модалки, высота — от 6 строк до половины экрана; под ним `markdown · tab — к кнопке · alt+enter — отправить` Muted; низ — `esc закрыть` и кнопка `enter Отправить` (в фокусе — активный стиль).
+- **Фокус:** `tab`/`shift+tab` — textarea ↔ кнопка. В textarea `enter` — перенос строки; `alt+enter` — отправить сразу (там, где терминал его передаёт). На кнопке `enter` — отправить.
+- **Проверка:** текст из одних пробелов — строка «комментарий пуст» над кнопкой, запроса нет.
+- **Отправка:** снимок текста; форма заблокирована, «отправляем…», `esc` не действует. Успех — форма закрыта, тост «Комментарий добавлен», `SentMsg` экрану (тот перезапрашивает, решение 15 — кэш), черновик стёрт. Ошибка — тост (`Env.Fail`), форма разблокирована с текстом.
+- **Черновик:** `esc` закрывает без отправки и сохраняет текст в памяти сессии (`app.Env`, ключ `<хост>|<проект>|<kind>|<iid>`); повторный `c` на том же объекте восстанавливает его. На диск не пишется (SPEC §13.1 п.17).
+- Все ответы несут `common.Gen` экземпляра; ответ после закрытия формы выбрасывается (но тост успеха и `SentMsg` всё равно отправляются — комментарий уже создан; черновик стирается).
+- **Где `c`:** таб Issues (выделенный issue), экран issue, таб MRs проекта и групповой таб MRs workspace (строка MR, не заголовок группы и не «ещё N»), MR detail (любая вкладка; после отправки — перезапрос discussions, счётчик вкладки `Discussions N`). Архивный проект — `c` скрыт.
+
+### 20. Close / reopen (`x`)
+Общий хелпер (например `screens/issueactions`):
+- открытый issue → confirm «Закрыть issue #1318?», описание — title issue, по умолчанию «Отмена» → `SetState(closed=true)`;
+- закрытый → `SetState(closed=false)` без confirm (обратимо, SPEC §13.1 п.12);
+- `StateMsg{Ref, IID, Closed, Issue, Err}`; успех — тост «Issue #1318 закрыт» / «Issue #1318 открыт снова», инвалидация кэша, перезагрузка списка (в табе с `state:opened` закрытый issue пропадает, курсор — на соседнюю строку) или `Get` на экране issue; ошибка — `Env.Fail` (403 — «Недостаточно прав»).
+
+### 21. Правки SPEC (до кода)
+Коммит «SPEC: issues и комментарии, T24 в change m3-tags-issues-polish (#24)»: §2.6 (экран Issue, оверлей Comment), §3.1 (Issues: `/`, `s`, `m`, `backspace`, `O`, `y`; MR: `c` без пометки M3), §3.4 (таб Issues целиком), §3.5 (`c` в MR detail), новые §3.15 «Issue» и §3.16 «Комментарий», §4 (`Issue.MergeRequestsCount`, `RelatedMR`), §5.2 (эндпоинты issues, milestones, MR note), §6.1 (`issuedetail`, `comment`, `threads`, `issueactions`), §6.3 (`IssueFilter`, `IssueService`, `MergeRequestService.Comment`, `ProjectService.Milestones`).
+
 ## Risks / Trade-offs
 
 - **Ложные вхождения в описании:** текст ссылки может встретиться в блоке кода (GitLab там ссылку не ставит), и наложение сделает его кликабельным. Принято: клик ведёт туда же, куда и ссылка GitLab с тем же текстом.
@@ -208,11 +340,17 @@ func Suggest(names []string) Suggestion
 - **tmux режет OSC 8** без `terminal-features hyperlinks` — для этого и есть `L`.
 - **T23: пайплайны старых тегов не видны** — окно 100 (проект) / 50 (workspace) последних tag-пайплайнов. Принято: старые теги редко нужны с пайплайном; `o` ведёт в веб.
 - **T23: `order_by=version` против semver клиента** — GitLab сортирует по своей версии (`VersionSorter`), `semver.Compare` может расходиться на prerelease. Список показывается в порядке сервера, предложение версии считает клиент по 100 последним — расхождение влияет только на порядок строк.
+- **T24: фоновые `related_merge_requests`** — до 20 запросов на страницу в худшем случае. Ограничено: только issues с `merge_requests_count > 0`, ≤ 4 одновременно, кэш 5 мин, тики не перезапрашивают.
+- **T24: `alt+enter`** не приходит в части терминалов (macOS Terminal без «Option as Meta») — основной путь `tab` → кнопка.
+- **T24: перенос карточек тредов** может незаметно поменять вид MR detail — страхуют существующие golden-снимки, менять их запрещено.
+- **T24: milestones групп** не подсказываются (только проекта): `include_ancestors` есть не во всех поддерживаемых версиях; ввод своего title работает.
 - **T23: compare больших диапазонов** — REST compare отдаёт до сотен коммитов и может быть медленным; запрос ленивый, только по выбранной строке, с кэшем 30 с.
 
 ## Migration Plan
 
 Новое поле конфига необязательное, без правил поведение как раньше плюс ссылки GitLab в MR detail. Миграции данных нет.
+
+T24: миграций нет; черновики комментариев — только в памяти.
 
 T23: `state.json` получает ключи `tags` в `expanded`/`selected` — формат прежний, старые файлы читаются как «всё свёрнуто».
 

@@ -6,7 +6,9 @@ M2 закрыт (архив `2026-10-22-m2-workspace`). Веха «M3 — тег
 
 Теги (#23, T23): табы Tags проекта и workspace — заглушки «появится позже». Нельзя посмотреть теги с пайплайнами, создать тег со следующей версией и удалить тег без браузера — а это частое действие при релизе (SPEC §1, цель 3).
 
-Задачи вехи: #51 (T34) — сделана; #23 (T23) — в работе; #24 (T24), #25 (T25) — добавятся в эту change позже.
+Issues и комментарии (#24, T24): таб Issues — заглушка, комментарий к MR (`c`, SPEC §13.1 п.14) не сделан. Нельзя посмотреть issues проекта, прокомментировать issue или MR и закрыть issue без браузера (SPEC §1, цель 3).
+
+Задачи вехи: #51 (T34), #23 (T23) — сделаны; #24 (T24) — в работе; #25 (T25) — добавится в эту change позже.
 
 ## What Changes
 
@@ -24,16 +26,22 @@ M2 закрыт (архив `2026-10-22-m2-workspace`). Веха «M3 — тег
 - `screens/tagactions`: удаление с confirm, тосты, инвалидация кэша, общее превью (#23).
 - Групповой таб Tags workspace на `groupBase`: свёрнут по умолчанию, `expanded.tags`/`selected.tags` в `state.json`, поиск — режим фильтра, `f` → таб Tags проекта (#23).
 - Строки — i18n en/ru; правки SPEC до кода: §3.1, §3.3, §3.4, §3.10, §4, §5.2, §5.8, §6.1, §6.3, §11.2 (#23).
+- `gitlab.IssueService` (REST): список с фильтрами, `Get`, последние заметки, discussions, связанные MR, комментарий, close/reopen; `MergeRequestService.Comment`, `ProjectService.Milestones`; `Issue.MergeRequestsCount`, `RelatedMR` (#24).
+- Таб Issues проекта: фильтры state/assignee/label/milestone, `s`/`m`/`backspace`, связанный MR в Title фоном, превью справа (≥ 140 колонок) или снизу с описанием и последними комментариями, `o`/`O`/`y` (#24).
+- Экран issue (`screens/issuedetail`): описание и треды карточками; карточки тредов выносятся из `mrdetail` в общий пакет `screens/threads` без изменения вида MR detail (#24).
+- Форма комментария (`screens/comment`): textarea, `tab` → кнопка `enter Отправить`, `alt+enter`, черновик в памяти сессии; `c` в Issues, на экране issue, в табах MRs и MR detail (#24).
+- `x` close (confirm) / reopen (#24).
+- Строки — i18n en/ru; правки SPEC до кода: §2.6, §3.1, §3.4, §3.5, §3.15, §3.16, §4, §5.2, §6.1, §6.3 (#24).
 
 ## Capabilities
 
 ### New Capabilities
-- нет
+- `issues`: таб Issues проекта, фильтры, превью, экран issue, close/reopen, форма комментария (#24).
 
 ### Modified Capabilities
-- `merge-requests`: ссылки MR — источники, OSC 8 в title и описании, оверлей `L` в MR detail.
-- `project-view`: OSC 8 в title списка MR, `L` в табе MRs; таб Tags, предложение версии, форма New tag, удаление тега (#23).
-- `workspace`: то же в групповом табе MRs; групповой таб Tags, свёрнутые группы и `P` для Tags, `f` → Tags (#23).
+- `merge-requests`: ссылки MR — источники, OSC 8 в title и описании, оверлей `L` в MR detail; комментарий `c` к MR (#24).
+- `project-view`: OSC 8 в title списка MR, `L` в табе MRs; таб Tags, предложение версии, форма New tag, удаление тега (#23); заглушек табов больше нет (#24).
+- `workspace`: то же в групповом табе MRs; групповой таб Tags, свёрнутые группы и `P` для Tags, `f` → Tags (#23); `c` в групповом табе MRs (#24).
 - `configuration`: правила `links`.
 
 ## Impact
@@ -44,3 +52,4 @@ M2 закрыт (архив `2026-10-22-m2-workspace`). Веха «M3 — тег
 - `internal/ui/app` (правила в `Env`), `internal/ui/common` (оверлей списка ссылок на рамке `ListModal`), `internal/ui/screens/mrdetail`, `internal/ui/screens/project`, `internal/ui/screens/workspace`, `internal/i18n`.
 - Документы: docs/SPEC.md (см. design.md, решение 7).
 - #23: `internal/gitlab` (`TagService`, `Comparison`, `MatchTagPipelines`, `WorkspaceService.Tags`), `gitlab/rest` (теги, compare, пайплайны тегов, workspace), `gitlab/hybrid`, `gitlab/fake`; новый `internal/semver`; `ui/screens/project` (таб Tags, `Options.TagSearch`), `ui/screens/workspace` (таб Tags), новые `ui/screens/newtag`, `ui/screens/tagactions`; `internal/i18n`. Документы: docs/SPEC.md (design.md, решение 14).
+- #24: `internal/gitlab` (`IssueService`, `IssueFilter`, `RelatedMR`, поля `Issue`, `MergeRequestService.Comment`, `ProjectService.Milestones`), `gitlab/rest` (issues, notes, milestones), `gitlab/hybrid`, `gitlab/fake`; `ui/screens/project` (таб Issues, подсказки milestones, `c` в MRs), `ui/screens/workspace` (`c` в MRs), `ui/screens/mrdetail` (переход на `threads`, `c`); новые `ui/screens/threads`, `ui/screens/issuedetail`, `ui/screens/comment`, `ui/screens/issueactions`; `ui/app` (черновики комментариев в `Env`); `internal/i18n`. Документы: docs/SPEC.md (design.md, решение 21).

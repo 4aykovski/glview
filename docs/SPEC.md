@@ -118,6 +118,7 @@ gitlab-tui — терминальный клиент GitLab на Go + Bubble Tea
      MR detail ── enter на пайплайне ──▶ Pipeline ── enter на джобе ──▶ Job log
                                           │  enter на bridge
                                           └──▶ Pipeline (downstream, другой проект)
+     Issue (enter в табе Issues)
 
 Оверлеи поверх любого экрана: ? Help · p Project picker · F Global search ·
 Confirm · Merge · Run pipeline · Play job · New tag · Comment
@@ -173,7 +174,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | Оверлеи `p` и `F` | `↓/↑` `ctrl+n/ctrl+p` ход, `ctrl+d`/`ctrl+u` и `pgdown`/`pgup` на полстраницы вниз/вверх (в поле ввода не редактируют текст), `enter` открыть, `esc` закрыть |
 | Таб MRs и Pipelines | `s` главный фильтр по кругу (MRs: `state` opened → merged → closed → all; Pipelines: `status` any → running → failed → success → manual), `backspace` сбросить все фильтры таба (включая «я»/«мои», текст и фильтр проектов `P`) |
 | Project с локальной папкой | `u` fetch, `U` pull (ff-only) |
-| MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `L` ссылки MR (оверлей, 3.5), `c` комментарий (M3) |
+| MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `L` ссылки MR (оверлей, 3.5), `c` комментарий (3.16) |
 | Таб MRs (список) | `o` список MR проекта в браузере с текущими фильтрами, `O` выделенный MR в браузере, `y` копировать ссылку выделенного MR |
 | MR detail, вкладка Discussions | `J/K` следующий/предыдущий тред (текущий — толстая рамка Accent), `j/k` построчно, `space` свернуть/развернуть текущий тред (на других вкладках `space` листает, `pgdown`/`ctrl+d` листают везде), `o` открыть текущий тред в браузере (`<ссылка MR>#note_<id>` первой заметки), `y` копировать эту ссылку |
 | MR detail, вкладка Commits | `j/k` коммит, `o` выделенный коммит в браузере (`web_url` коммита), `y` копировать эту ссылку |
@@ -181,7 +182,8 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `a` попытки джобы, `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
 | Job log | `f` follow, `space` свернуть секцию, `z` свернуть/развернуть все, `/` поиск, `n/N` следующее/предыдущее совпадение, `g/G`, `a` попытки джобы, `[`/`]` предыдущая/следующая попытка, `R` retry, `c` cancel |
 | Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега, `y` копировать имя тега, `o` страница тегов в браузере, `/` поиск по имени (`m` и `s` не действуют) |
-| Issues | `enter` открыть, `c` комментарий, `x` close/reopen |
+| Issues (список) | `enter` экран issue (3.15), `c` комментарий (3.16), `x` close/reopen, `s` state по кругу (opened → closed → all), `m` assignee:@me, `backspace` сбросить фильтры, `o` список issues проекта в браузере с фильтрами, `O` выделенный issue в браузере, `y` ссылка выделенного issue |
+| Issue (экран) | `J/K` тред, `space` свернуть тред, `c` комментарий, `x` close/reopen, `o` issue в браузере, `y` ссылка issue |
 
 **Разрешённые конфликты:**
 
@@ -264,7 +266,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
   - MRs — я автор, assignee или ревьюер;
   - Pipelines — `username = me`;
   - Tags — в строке фильтров «я: не применяется к тегам».
-- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над записями — те же, что в списках режима проекта, в контексте проекта строки: MRs — `a`, `M`, `b`, `C` (если у проекта есть локальная папка и найден glab), `o` (список MR проекта с фильтрами таба), `O`, `y`; Pipelines — `l`, `n`, `R`, `c`, `o`, `O`, `y`; Tags (M3) — `n`, `D`, `y` (имя тега), `o` (страница тегов проекта, с поиском). `P` в списках нет: в строке пайплайна нет выбранной джобы. Для `n` в Pipelines и Tags берётся проект выбранной строки; `n` работает на любой строке группы, включая заголовок и «ещё N». На заголовке группы и строке «ещё N» действия над записью недоступны.
+- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над записями — те же, что в списках режима проекта, в контексте проекта строки: MRs — `a`, `M`, `b`, `c` (комментарий, 3.16), `C` (если у проекта есть локальная папка и найден glab), `o` (список MR проекта с фильтрами таба), `O`, `y`; Pipelines — `l`, `n`, `R`, `c`, `o`, `O`, `y`; Tags (M3) — `n`, `D`, `y` (имя тега), `o` (страница тегов проекта, с поиском). `P` в списках нет: в строке пайплайна нет выбранной джобы. Для `n` в Pipelines и Tags берётся проект выбранной строки; `n` работает на любой строке группы, включая заголовок и «ещё N». На заголовке группы и строке «ещё N» действия над записью недоступны.
 - **`f`** с любой строки таба (запись, заголовок, «ещё N») — экран проекта на том же табе (2.7). Фильтры таба (state или status и «я», в Tags — текст поиска) переносятся в экран проекта; `backspace` в проекте их сбрасывает. Локальная папка — первая папка проекта в workspace.
 - **Поллинг:** активный таб — раз в `polling.workspace` (60 с), только раскрытые группы (в режиме фильтра — все показанные) и обзор для заголовков свёрнутых. В Pipelines, пока в раскрытых группах есть running/pending, дополнительно раз в `polling.active` (3 с) перезапрашиваются только проекты с такими пайплайнами. MRs быстрого тика не имеют.
 - **Ленивая загрузка:** таб грузится только при первом открытии (только раскрытые группы), дальше — из кэша с фоновым обновлением.
@@ -287,7 +289,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 - **Как менять фильтры:** `/` открывает строку фильтров в виде `key:value`. Под строкой — список подсказок для слова под курсором: ключи с описанием и текущим значением, после `key:` — значения (для `reviewer` — `@me`, `any` и участники проекта, для `labels` — метки проекта; участники и метки ищутся на сервере через 300 мс после ввода). `↑/↓` выбирают, `tab`/`enter` подставляют, `enter` без списка применяет. Свободный текст ищется по заголовку.
 - **Быстрая смена:** `s` — цикл `state`, `backspace` — сброс фильтров к умолчаниям, без открытия строки.
 - **Превью:** заголовок, mergeable-статус, апрувы с именами, пайплайн с длительностью, `+48 −12 в 3 файлах`, первая строка описания.
-- **Действия:** `enter`, `a`, `M`, `b`, `C`, `L` (ссылки выделенного MR, 3.5), `o` (страница MR проекта в браузере с текущими фильтрами), `O` (выделенный MR в браузере), `y` (ссылка выделенного MR).
+- **Действия:** `enter`, `a`, `M`, `b`, `c` (комментарий, 3.16), `C`, `L` (ссылки выделенного MR, 3.5), `o` (страница MR проекта в браузере с текущими фильтрами), `O` (выделенный MR в браузере), `y` (ссылка выделенного MR).
 - **Фильтры в URL `o`:** `<проект>/-/merge_requests`, значения по умолчанию не пишутся, порядок параметров стабильный (`url.Values.Encode`):
   - `state` → `state=merged|closed|all` (`opened` — умолчание веба, не пишется);
   - `scope: created_by_me` → `author_username=<я>`, `assigned_to_me` → `assignee_username=<я>`;
@@ -308,10 +310,20 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 **Таб Issues** (макет `Issues`):
 
-- **Колонки:** IID, Title (+ `→ !479`, если есть связанный MR), Labels, Upd.
-- **Фильтры:** state, assignee (@me), label, milestone.
-- **Превью справа или снизу:** статус, автор, assignee, milestone, описание в markdown, последние комментарии.
-- **Действия:** `enter` — полноэкранное превью со всеми комментариями, `c`, `x`, `o`.
+- **Колонки:** IID (`#1318`), Title (+ `→ !479` Muted, если есть связанный MR; несколько — `→ !479 +1`), Labels, Upd. Порядок — `order_by=updated_at&sort=desc`; страница 20, подгрузка за 5 строк до конца; поллинг 30 с, курсор держится по IID.
+- **Связанные MR** — фоном: для issues страницы с `merge_requests_count > 0` запрос `related_merge_requests`, не больше 4 одновременно, кэш 5 мин (тики при живом кэше не перезапрашивают, `r` — мимо кэша).
+- **Фильтры** (строка `/`, как у MR — `key:value` с подсказками, свободный текст — поиск): `state` opened (по умолчанию) | closed | all; `assignee` any (по умолчанию) | `@me` | `none` | логин (участники проекта); `label` — метки проекта, все сразу; `milestone` any | `none` | title (активные milestones проекта, поиск через 300 мс). `s` — state по кругу, `m` — assignee any ↔ `@me` (фильтр «я»), `backspace` — сброс.
+- **Фильтры в URL `o`:** `<проект>/-/issues`, умолчания не пишутся: `state=closed|all`; `assignee_username=<логин>` (`@me` — свой логин, неизвестен — не пишется), `none` → `assignee_id=None`; `label_name[]=<метка>`; `milestone_title=<title>` (`none` → `None`); `search=`.
+- **Счётчик и футер:** в табе — число issues текущего фильтра (`X-Total`); справа в футере — `5 / 12`.
+- **Пусто:** «Нет открытых issues»; с `m` — «Нет открытых issues, назначенных тебе · m — снять фильтр «я»»; с прочими фильтрами — «Нет issues по фильтрам · backspace — сбросить».
+- **Превью:** справа при ширине от 140 колонок (вертикальный разделитель, как в макете), иначе снизу, как у MRs; не помещается — нет. Содержимое:
+  1. title (Bold);
+  2. `● open · #1318 · anna.k · assignee: egor · milestone: 2026-Q4` (закрытый — `○ closed`; пустые части не пишутся);
+  3. связанные MR, если загружены: `→ !479 Fix slot race · opened`;
+  4. описание в markdown (HTML переводится, как в комментариях MR), не выше половины превью, обрезка `…`; пустое — «нет описания»;
+  5. `КОММЕНТАРИИ 2` и последние комментарии без системных заметок — сколько влезает целиком, каждый: `author · 1h` и тело не длиннее 6 строк; заметки — лениво для выбранного issue (последние 50), ответ для другого issue выбрасывается, ошибка — «комментарии недоступны» без тоста;
+  6. `c — написать комментарий…`.
+- **Действия:** `enter` (экран issue, 3.15), `c` (3.16), `x` (close с confirm «Закрыть issue #1318?», reopen — сразу; тост «Issue #1318 закрыт» / «открыт снова», перезагрузка), `o`, `O`, `y`. Архивный проект — `c` и `x` скрыты.
 
 **Таб Tags** (макет `Tags`):
 
@@ -371,7 +383,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
     - **MR detail:** список из текущих деталей MR;
     - **таб MRs:** на строке MR (на заголовке группы и «ещё N» в workspace недоступен). `L` запрашивает детали выделенного MR (`MergeRequests().Get` — тот же запрос, что у MR detail; msg с `Gen`; ответ для другого MR или старого поколения выбрасывается) и открывает оверлей по ответу. Ошибка запроса — тост ошибки; если по `MRRow` (правила и голые URL в title и description) ссылки есть, оверлей открывается с ними;
     - **ссылок нет** — оверлей не открывается, тост «В MR нет ссылок» / «No links in the MR».
-- **Действия:** `a`, `M`, `b`, `C`, `L`, `o`, `y`, `c` (M3). `o`/`y` на Discussions — текущий тред, на Commits — выделенный коммит, на остальных вкладках — MR.
+- **Действия:** `a`, `M`, `b`, `C`, `L`, `o`, `y`, `c` (комментарий к MR, 3.16; после отправки discussions перезапрашиваются). `o`/`y` на Discussions — текущий тред, на Commits — выделенный коммит, на остальных вкладках — MR.
 - **Перепроверка `unchecked`:** GitLab считает `detailed_merge_status` лениво, чтение через GraphQL пересчёт не запускает, и открытый MR может долго висеть в `unchecked`. Если у открытого MR (state opened) статус `unchecked`, экран один раз за время жизни на ключ `iid@sha` просит GitLab пересчитать его (`RecheckMergeStatus`); ответ `checking` сразу обновляет чип. Пока статус `unchecked`/`checking`/`preparing`, MR опрашивается раз в `polling.active` (3 с), но не дольше 60 с с момента запроса; потом обычный интервал. Ошибка перепроверки (в т.ч. нет прав) пользователю не показывается, только debug-лог. Список MR не перепроверяет.
 - **Поллинг:** пока экран на вершине — 3 с при running-пайплайне, rebase в процессе или перепроверке статуса (до 60 с), иначе 30 с.
 
@@ -505,6 +517,25 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 - **Состав:** заголовок, описание объекта, кнопки «Да» и «Отмена» (по умолчанию «Отмена»). `y`/`enter` на «Да» подтверждает, `n`/`esc` отменяет.
 - **Где используется:** merge (3.6), cancel пайплайна и джобы, delete tag, rebase, close issue, создание тега, pull (10.4), запуск пайплайна на теге, у которого уже есть пайплайн (3.9). В остальных случаях Run pipeline и play job используют свою форму как подтверждение.
+
+
+### 3.15. Issue (макет `Issues`, полноэкранно)
+
+- **Шапка:** `platform/route-service › Issues › #1318`.
+- **Тело — одна прокрутка:** title (Bold), строка статуса (как в превью 3.4), `Labels: bug · pricing`, связанные MR по строке, разделитель, описание в markdown, `Комментарии N`, треды карточками — тот же вид и правила, что во вкладке Discussions MR detail (3.5: рамки, системные заметки скрыты, сворачивание по умолчанию, HTML → markdown). Код карточек общий (`screens/threads`). Нет тредов — «Комментариев нет · c — написать».
+- **Клавиши:** `j/k`, `pgdown/pgup`, `ctrl+d/ctrl+u`, `g/G` — прокрутка; `J/K` — следующий/предыдущий тред (толстая рамка Accent, прокрутка к нему); `space` — свернуть/развернуть текущий тред; `c` — комментарий; `x` — close/reopen; `o` — issue в браузере; `y` — ссылка issue; `esc` — к списку с тем же курсором.
+- **Данные:** `GET /issues/:iid`, `GET /issues/:iid/discussions` (все страницы), связанные MR; поллинг 30 с на вершине стека, `r` — мимо кэша; прокрутка и свёрнутость тредов сохраняются. После комментария — перезапрос и прокрутка к последнему треду.
+
+### 3.16. Комментарий (оверлей Comment)
+
+Общая форма для `c` в Issues (таб и экран issue) и в MR (таб MRs проекта и workspace, MR detail).
+
+- **Вид:** модалка, заголовок `Комментарий · #1318 Surge coefficient ignores zone overrides` (MR — `!479 …`); многострочное поле (markdown как есть, высота от 6 строк до половины экрана); подсказка `markdown · tab — к кнопке · alt+enter — отправить`; низ — `esc закрыть` и кнопка `enter Отправить`.
+- **Клавиши:** `tab`/`shift+tab` — поле ↔ кнопка. В поле `enter` — перенос строки, `alt+enter` — отправить (если терминал передаёт; основной путь — кнопка). На кнопке `enter` — отправить. `ctrl+s` не используем (tmux, flow control), `ctrl+enter` терминалы не различают.
+- **Пустой текст** (одни пробелы) не отправляется: «комментарий пуст».
+- **Отправка:** форма заблокирована, «отправляем…», `esc` не действует. Успех — форма закрыта, тост «Комментарий добавлен», экран перезапрашивает комментарии; ошибка — тост, форма остаётся с текстом.
+- **Черновик:** `esc` закрывает без отправки, текст хранится в памяти до конца сессии (ключ — хост, проект, issue/MR, IID); повторный `c` восстанавливает, успешная отправка стирает. На диск не пишется.
+- **Ответы закрытой формы** в новую форму не попадают (`common.Gen`, 6.4).
 
 ---
 
@@ -695,9 +726,17 @@ type Issue struct {
     Labels       []string
     Milestone    string
     UserNotesCount int
-    RelatedMRs   []int64 // IID, если известны
+    MergeRequestsCount int     // merge_requests_count: есть ли связанные MR
+    RelatedMRs   []RelatedMR   // отдельным запросом related_merge_requests
     WebURL       string
     UpdatedAt    time.Time
+}
+
+type RelatedMR struct {
+    IID    int64
+    Title  string
+    State  MRState
+    WebURL string
 }
 
 type Group struct {
@@ -803,9 +842,10 @@ type LocalProject struct {
 | Workspace → Pipelines | GraphQL батч: `pipelines(first: $perProject, username: $me?, status?){count nodes{…PipelineRow}}` |
 | Workspace → Tags | REST на проект (≤ 4 параллельно), только раскрытые группы (в режиме фильтра — все показанные): `GET /repository/tags?order_by=version&sort=desc&per_page=<per_project>&search` (+ `X-Total`), если теги есть — `GET /pipelines?scope=tags&per_page=50` → сопоставление по `ref` (новейший пайплайн). GraphQL не отдаёт список тегов репозитория ([gitlab#332144](https://gitlab.com/gitlab-org/gitlab/-/work_items/332144)). |
 | Project → MRs | GraphQL `project{mergeRequests(state, authorUsername?, assigneeUsername?, reviewerUsername?, draft?, labels?, search?, first: 20, after){pageInfo nodes{…MRRow}}}` — тот же фрагмент, что в workspace. С фильтром `m` — три соединения (`a`: author, `s`: assignee, `r`: reviewer) **отдельными параллельными запросами**: в одном запросе три соединения по 20 строк `MRRow` дают сложность ≈300 при лимите 250. Отдельные курсоры (`NextCursor` = `a\|s\|r`), объединение и дедупликация по IID, `Total` — по объединению загруженного (`≥`) |
-| Подсказки фильтров | REST `GET /projects/:id/members/all?query=&per_page=20` (`reviewer`, `user`), `GET /projects/:id/labels?search=&per_page=20` (`labels`), ветки и теги — `GET /repository/branches?search`, `/repository/tags?search`; ответы кэшируются на 5 мин |
+| Подсказки фильтров | REST `GET /projects/:id/members/all?query=&per_page=20` (`reviewer`, `user`, `assignee`), `GET /projects/:id/labels?search=&per_page=20` (`labels`, `label`), `GET /projects/:id/milestones?state=active&search=&per_page=20` (`milestone`, только проекта), ветки и теги — `GET /repository/branches?search`, `/repository/tags?search`; ответы кэшируются на 5 мин |
 | Project → Pipelines | GraphQL `project{pipelines(ref?, status?, source?, username?, first: 20, after){pageInfo nodes{…PipelineRow}}}`; превью — `pipeline(iid){stages{nodes{name detailedStatus{group} jobs{count}}}}` по выбранной строке |
-| Project → Issues | REST `GET /projects/:id/issues?state&assignee_username&labels&milestone&search&per_page=20&page`; превью — `GET /issues/:iid/notes?sort=asc&per_page=20`, `GET /issues/:iid/related_merge_requests` (лениво) |
+| Project → Issues | REST `GET /projects/:id/issues?state&scope=assigned_to_me|assignee_username|assignee_id=None&labels&milestone&search&order_by=updated_at&sort=desc&per_page=20&page` (`state=all` не пишется); `GET /issues/:iid/related_merge_requests` фоном для issues с `merge_requests_count > 0` (≤ 4, кэш 5 мин); превью — `GET /issues/:iid/notes?sort=desc&per_page=50` (разворачиваются старыми первыми) |
+| Issue (экран) | REST `GET /projects/:id/issues/:iid`, `GET /issues/:iid/discussions?per_page=100` (все страницы), `related_merge_requests` |
 | Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100` (первая страница и обновление; теги старше окна — без пайплайна); превью — `GET /repository/compare?from=<tag>&to=<default>` по выбранному тегу. Кэш 30 с; создание и удаление тега сбрасывают списки тегов, пайплайны тегов, compare и последний тег обзора проекта |
 | MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`), `titleHtml descriptionHtml` (опциональные, `#@opt`; без них ссылки MR — только из правил `links` и голых URL) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
 | MR detail → Commits | REST `GET /projects/:id/merge_requests/:iid/commits?per_page=100`, все страницы (`id short_id title author_name web_url created_at` → `CommitSummary`); лениво, при первом открытии вкладки (3.5). REST, а не GraphQL `mergeRequest{commits}`: так же устроены discussions, и `CommitSummary` уже собирается из REST (теги) |
@@ -821,7 +861,7 @@ type LocalProject struct {
 | New tag | REST `GET /repository/tags?order_by=version&sort=desc&per_page=100` (варианты имени), `GET /repository/branches?search` (ref), `GET /repository/compare?from=<последний тег>&to=<ref>`, `POST /repository/tags` (`tag_name`, `ref`, `message`) |
 | Delete tag | REST `DELETE /repository/tags/:name` |
 | Issue comment / close / reopen | REST `POST /issues/:iid/notes`, `PUT /issues/:iid` (`state_event=close\|reopen`) |
-| MR comment (M3) | REST `POST /merge_requests/:iid/notes` |
+| MR comment | REST `POST /merge_requests/:iid/notes` |
 | Picker `p`, starred | REST `GET /projects?starred=true&simple=true&per_page=100` (фон, кэш на диске 1 ч) |
 | Global search `F` | GraphQL одним запросом: `projects(search: $q, searchNamespaces: true, first: 10, sort: "latest_activity_desc"){nodes{…}} groups(search: $q, first: 5){nodes{…}}`. Запасной путь — REST `GET /projects?search&search_namespaces=true` + `GET /groups?search`. |
 | Workspace из группы | REST `GET /groups/:id/projects?include_subgroups=true&archived=false&order_by=last_activity_at&simple=true&per_page=100` (до 100 проектов, раздел 13) |
@@ -967,6 +1007,8 @@ internal/ui/common/grouped/    таблица с группами по прое�
 internal/ui/localgit/      состояние git-операций (fetch/pull, ↑↓) для всех экранов: Tracker в Env
 internal/ui/screens/       setup, start, workspace, project, mrdetail, mractions, pipeactions,
                            tagactions (удаление тега, превью, открытие New tag),
+                           issuedetail, issueactions (close/reopen), comment (форма комментария),
+                           threads (карточки тредов: MR detail и issue),
                            pipeline, joblog, runpipeline, newtag, search (p и F), help
 internal/mrlinks/          ссылки MR: <a href> из HTML, правила links, голые URL, общий список, наложение OSC 8 на отрисованный текст
 internal/joblog/           разбор трейса: секции, ANSI, \r (без зависимостей от UI)
@@ -1036,6 +1078,7 @@ type ProjectService interface {
     ListGroupProjects(ctx context.Context, groupID int64, limit int) (ps []Project, total int, err error)
     Branches(ctx context.Context, p ProjectRef, search string) ([]string, error)
     CIConfigVariables(ctx context.Context, p ProjectRef, ref string) ([]CIConfigVariable, error)
+    Milestones(ctx context.Context, p ProjectRef, search string) ([]string, error) // активные milestones проекта
 }
 
 type MRFilter struct {
@@ -1107,13 +1150,19 @@ type TagService interface {
 func MatchTagPipelines(tags []Tag, pipes []PipelineSummary)
 
 type IssueFilter struct {
-    State, Assignee, Milestone, Search string
-    Labels []string
+    State     string   // opened | closed | all
+    Assignee  string   // "" any | "@me" | "none" | username
+    Milestone string   // "" any | "none" | title
+    Labels    []string // все сразу
+    Search    string
 }
 
 type IssueService interface {
     List(ctx context.Context, p ProjectRef, f IssueFilter, cursor string, limit int) (Page[Issue], error)
-    Notes(ctx context.Context, p ProjectRef, iid int64) ([]Note, error)
+    Get(ctx context.Context, p ProjectRef, iid int64) (Issue, error)
+    Notes(ctx context.Context, p ProjectRef, iid int64, last int) ([]Note, error) // последние last, старые первыми
+    Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
+    RelatedMRs(ctx context.Context, p ProjectRef, iid int64) ([]RelatedMR, error)
     Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
     SetState(ctx context.Context, p ProjectRef, iid int64, closed bool) (Issue, error)
 }
