@@ -21,7 +21,7 @@
 ## 2. Теги (#23, T23)
 
 - [x] 2.0 Правки SPEC по design.md, решение 14; проверка: `make confidential` зелёный, коммит «SPEC: теги, T23 в change m3-tags-issues-polish (#23)»
-- [ ] 2.1 `internal/semver`: `Parse`, `String`, `Compare`, `Suggest` (решение 9); проверка: unit-тесты — с `v` и без, prerelease (`rc2` < `rc10`, prerelease < релиз), `+build` игнорируется, мусорные теги, нет тегов → `v0.1.0`, `1.2.3` → `1.2.4`, prerelease на шаг выше базы (совпал с minor, по умолчанию он) и через версию (четвёртый вариант)
+- [x] 2.1 `internal/semver`: `Parse`, `String`, `Compare`, `Suggest` (решение 9); проверка: unit-тесты — с `v` и без, prerelease (`rc2` < `rc10`, prerelease < релиз), `+build` игнорируется, мусорные теги, нет тегов → `v0.1.0`, `1.2.3` → `1.2.4`, prerelease на шаг выше базы (совпал с minor, по умолчанию он) и через версию (четвёртый вариант)
 - [ ] 2.2 `internal/gitlab`: `TagService` целиком, `Comparison`, `MatchTagPipelines`, `WorkspaceService.Tags` (решение 8); проверка: `go build ./...`, unit-тест `MatchTagPipelines` (берётся новейший пайплайн, чужие ref не матчатся)
 - [ ] 2.3 `gitlab/rest`: `List` с `order_by=version&sort=desc` и `Release`, `Pipelines`, `Create`, `Delete`, `Compare` (коммиты новыми первыми, `Head`), `Workspace().Tags` (≤ 4 параллельно); `hybrid` делегирует; проверка: httptest-тесты на выдуманных данных — параметры запросов, маппинг релиза и сообщения, 403 → `ErrForbidden`, 400 с сообщением сервера, параллельность ≤ 4, ошибка одного проекта не ломает остальные
 - [ ] 2.4 Фейк: теги в памяти, `Create/Delete` меняют их, журнал вызовов, инъекция ошибок (403 на protected, 400 на дубль), `Compare`, `Workspace().Tags`; демо-данные — выдуманные; проверка: `go test ./internal/gitlab/...`
