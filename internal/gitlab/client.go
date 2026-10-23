@@ -81,10 +81,19 @@ type JobService interface {
 	Play(ctx context.Context, p ProjectRef, id int64, vars []CIVariable) (Job, error)
 }
 
-// TagService is limited to List in M1 (ref autocompletion); tag management
-// arrives in M3.
+// TagService lists, creates and deletes tags (REST).
 type TagService interface {
+	// List returns tags newest version first (order_by=version&sort=desc);
+	// Release is filled from the response.
 	List(ctx context.Context, p ProjectRef, search, cursor string, limit int) (Page[Tag], error)
+	// Pipelines returns the newest pipelines of tags first
+	// (scope=tags&order_by=id&sort=desc), at most limit.
+	Pipelines(ctx context.Context, p ProjectRef, limit int) ([]PipelineSummary, error)
+	// Create makes a tag at ref; an empty message makes a lightweight tag.
+	Create(ctx context.Context, p ProjectRef, name, ref, message string) (Tag, error)
+	Delete(ctx context.Context, p ProjectRef, name string) error
+	// Compare is the repository comparison from..to.
+	Compare(ctx context.Context, p ProjectRef, from, to string) (Comparison, error)
 }
 
 type InstanceService interface {
@@ -105,6 +114,10 @@ type WorkspaceService interface {
 	MergeRequests(ctx context.Context, ps []ProjectRef, f MRFilter, perProject int) <-chan BatchResult[MergeRequest]
 	// Pipelines returns the first perProject pipelines of every project.
 	Pipelines(ctx context.Context, ps []ProjectRef, f PipelineFilter, perProject int) <-chan BatchResult[PipelineSummary]
+	// Tags returns the first perProject tags of every project (newest
+	// version first) with their pipelines matched, at most four projects
+	// at a time; search narrows tag names on the server.
+	Tags(ctx context.Context, ps []ProjectRef, search string, perProject int) <-chan BatchResult[Tag]
 }
 
 // OverviewOptions tune ProjectsOverview.

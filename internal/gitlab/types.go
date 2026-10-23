@@ -284,6 +284,29 @@ type Tag struct {
 	Pipeline  *PipelineSummary
 }
 
+// Comparison is the result of comparing two refs: the commits from..to.
+type Comparison struct {
+	Head    *CommitSummary  // last commit of "to"; nil when unknown
+	Commits []CommitSummary // commits from..to, newest first
+}
+
+// MatchTagPipelines sets Tag.Pipeline to the first (newest) pipeline of
+// pipes whose Ref is the tag name; pipes come newest first.
+func MatchTagPipelines(tags []Tag, pipes []PipelineSummary) {
+	first := make(map[string]int, len(pipes))
+	for i, pl := range pipes {
+		if _, ok := first[pl.Ref]; !ok {
+			first[pl.Ref] = i
+		}
+	}
+	for i := range tags {
+		if j, ok := first[tags[i].Name]; ok {
+			pl := pipes[j]
+			tags[i].Pipeline = &pl
+		}
+	}
+}
+
 type ReleaseSummary struct {
 	Name        string
 	Description string

@@ -22,6 +22,7 @@ type data struct {
 	traces     map[int64][]byte
 	branches   map[string][]string
 	tags       map[string][]gitlab.Tag
+	compares   map[string]gitlab.Comparison         // key: compareKey
 	ciVars     map[string][]gitlab.CIConfigVariable // key: path@ref
 	members    map[string][]gitlab.User
 	labels     map[string][]string
@@ -41,6 +42,7 @@ func newData() data {
 		traces:     map[int64][]byte{},
 		branches:   map[string][]string{},
 		tags:       map[string][]gitlab.Tag{},
+		compares:   map[string]gitlab.Comparison{},
 		ciVars:     map[string][]gitlab.CIConfigVariable{},
 		members:    map[string][]gitlab.User{},
 		labels:     map[string][]string{},
@@ -722,19 +724,128 @@ func (s jobService) Play(ctx context.Context, p gitlab.ProjectRef, id int64, var
 
 type tagService struct{ c *Client }
 
+// List serves the tags in the order they were registered (newest version
+// first) without pipelines, like REST.
 func (s tagService) List(ctx context.Context, p gitlab.ProjectRef, search, cursor string, limit int) (gitlab.Page[gitlab.Tag], error) {
 	if err := s.c.enter(ctx, "Tags.List", p.FullPath, search, cursor, limit); err != nil {
 		return gitlab.Page[gitlab.Tag]{}, err
 	}
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
+	return paginate(s.c.matchTags(s.c.pathOf(p), search), cursor, limit), nil
+}
+
+// matchTags returns the tags of path matching search, without pipelines.
+// The caller holds c.mu.
+func (c *Client) matchTags(path, search string) []gitlab.Tag {
 	var all []gitlab.Tag
-	for _, t := range s.c.data.tags[s.c.pathOf(p)] {
+	for _, t := range c.data.tags[path] {
 		if matchSearch(t.Name, search) {
+			t.Pipeline = nil
 			all = append(all, t)
 		}
 	}
-	return paginate(all, cursor, limit), nil
+	return all
+}
+
+// Pipelines serves the pipelines whose ref is a tag, newest first.
+func (s tagService) Pipelines(ctx context.Context, p gitlab.ProjectRef, limit int) ([]gitlab.PipelineSummary, error) {
+	if err := s.c.enter(ctx, "Tags.Pipelines", p.FullPath, limit); err != nil {
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	return s.c.tagPipelines(s.c.pathOf(p), limit), nil
+}
+
+// tagPipelines is the newest-first list of pipelines run for tags. The
+// caller holds c.mu.
+func (c *Client) tagPipelines(path string, limit int) []gitlab.PipelineSummary {
+	names := map[string]bool{}
+	for _, t := range c.data.tags[path] {
+		names[t.Name] = true
+	}
+	var out []gitlab.PipelineSummary
+	for _, pl := range c.data.pipes[path] {
+		if names[pl.Ref] {
+			out = append(out, pl.PipelineSummary)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID > out[j].ID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+// Create adds the tag first in the list. A duplicate name answers 400 like
+// GitLab; the commit is the head of a registered comparison to ref, or a
+// made-up one.
+func (s tagService) Create(ctx context.Context, p gitlab.ProjectRef, name, ref, message string) (gitlab.Tag, error) {
+	if err := s.c.enter(ctx, "Tags.Create", p.FullPath, name, ref, message); err != nil {
+		return gitlab.Tag{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	for _, t := range s.c.data.tags[path] {
+		if t.Name == name {
+			return gitlab.Tag{}, &gitlab.Error{Kind: gitlab.ErrNotPossible, Status: 400, Message: "Tag " + name + " already exists"}
+		}
+	}
+	commit := gitlab.CommitSummary{SHA: "0b7d3e9c1a5f4e2d8b6a0c3f7e9d1b4a6c8e0f2a", ShortSHA: "0b7d3e9", Title: "Merge branch 'fix/slot-race' into '" + ref + "'", CreatedAt: time.Now()}
+	for key, cmp := range s.c.data.compares {
+		if strings.HasSuffix(key, "\x00"+ref) && cmp.Head != nil {
+			commit = *cmp.Head
+		}
+	}
+	tag := gitlab.Tag{Project: p, Name: name, Message: message, Commit: commit}
+	s.c.data.tags[path] = append([]gitlab.Tag{tag}, s.c.data.tags[path]...)
+	return tag, nil
+}
+
+// Delete removes the tag; a protected one answers 403 like GitLab.
+func (s tagService) Delete(ctx context.Context, p gitlab.ProjectRef, name string) error {
+	if err := s.c.enter(ctx, "Tags.Delete", p.FullPath, name); err != nil {
+		return err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	for i, t := range s.c.data.tags[path] {
+		if t.Name != name {
+			continue
+		}
+		if t.Protected {
+			return &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403, Message: "You are not allowed to delete protected tags"}
+		}
+		s.c.data.tags[path] = slices.Delete(slices.Clone(s.c.data.tags[path]), i, i+1)
+		return nil
+	}
+	return notFound("tag " + name)
+}
+
+// Compare serves the comparison registered with SetCompare, an empty one
+// when there is none.
+func (s tagService) Compare(ctx context.Context, p gitlab.ProjectRef, from, to string) (gitlab.Comparison, error) {
+	if err := s.c.enter(ctx, "Tags.Compare", p.FullPath, from, to); err != nil {
+		return gitlab.Comparison{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	cmp := s.c.data.compares[compareKey(s.c.pathOf(p), from, to)]
+	cmp.Commits = slices.Clone(cmp.Commits)
+	return cmp, nil
+}
+
+func compareKey(path, from, to string) string { return path + "\x00" + from + "\x00" + to }
+
+// SetCompare registers the comparison from..to of a project (commits
+// newest first).
+func (c *Client) SetCompare(path, from, to string, cmp gitlab.Comparison) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data.compares[compareKey(path, from, to)] = cmp
 }
 
 func (s projects) Branches(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {

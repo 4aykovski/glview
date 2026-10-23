@@ -206,6 +206,25 @@ func (w workspace) Pipelines(ctx context.Context, ps []gitlab.ProjectRef, f gitl
 	})
 }
 
+func (w workspace) Tags(ctx context.Context, ps []gitlab.ProjectRef, search string, perProject int) <-chan gitlab.BatchResult[gitlab.Tag] {
+	c := w.c
+	if err := c.enter(ctx, "Workspace.Tags", paths(ps), search, perProject); err != nil {
+		return failed[gitlab.Tag](ps, err)
+	}
+	return batches(ctx, c, ps, func(p gitlab.ProjectRef) gitlab.ProjectGroup[gitlab.Tag] {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if _, ok := c.ProjectsByPath[p.FullPath]; !ok {
+			return gitlab.ProjectGroup[gitlab.Tag]{Project: p, Total: -1, Err: notFound("project " + p.FullPath)}
+		}
+		all := c.matchTags(p.FullPath, search)
+		g := gitlab.ProjectGroup[gitlab.Tag]{Project: p, Total: len(all)}
+		g.Items = all[:min(len(all), perProject)]
+		gitlab.MatchTagPipelines(g.Items, c.tagPipelines(p.FullPath, 50))
+		return g
+	})
+}
+
 func paths(ps []gitlab.ProjectRef) []string {
 	out := make([]string, len(ps))
 	for i, p := range ps {

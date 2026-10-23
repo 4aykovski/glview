@@ -251,3 +251,54 @@ func TestMRLinksOnlyInDetails(t *testing.T) {
 		t.Fatalf("get = %+v %v", mr, err)
 	}
 }
+
+func TestFakeTags(t *testing.T) {
+	ctx := context.Background()
+	c := New()
+	p := gitlab.ProjectRef{FullPath: "platform/route-service"}
+	c.AddProject(gitlab.Project{ProjectRef: p, DefaultBranch: "main"})
+	c.SetTags(p.FullPath,
+		gitlab.Tag{Name: "v1.14.2", Protected: true, Commit: gitlab.CommitSummary{ShortSHA: "9fa2c51"}},
+		gitlab.Tag{Name: "v1.14.1"})
+	c.AddPipeline(p.FullPath, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 91761, Ref: "v1.14.2"}})
+	c.AddPipeline(p.FullPath, gitlab.Pipeline{PipelineSummary: gitlab.PipelineSummary{ID: 91790, Ref: "main"}})
+
+	pipes, err := c.Tags().Pipelines(ctx, p, 100)
+	if err != nil || len(pipes) != 1 || pipes[0].ID != 91761 {
+		t.Fatalf("pipes = %+v, %v", pipes, err)
+	}
+	// Protected tags answer 403, duplicates 400, new tags come first.
+	if err := c.Tags().Delete(ctx, p, "v1.14.2"); !errors.Is(err, gitlab.ErrForbidden) {
+		t.Fatalf("delete protected: %v", err)
+	}
+	if _, err := c.Tags().Create(ctx, p, "v1.14.2", "main", ""); !errors.Is(err, gitlab.ErrNotPossible) {
+		t.Fatalf("create duplicate: %v", err)
+	}
+	if _, err := c.Tags().Create(ctx, p, "v1.14.3", "main", "release: v1.14.3"); err != nil {
+		t.Fatal(err)
+	}
+	page, _ := c.Tags().List(ctx, p, "", "", 20)
+	if len(page.Items) != 3 || page.Items[0].Name != "v1.14.3" {
+		t.Fatalf("items = %+v", page.Items)
+	}
+	if err := c.Tags().Delete(ctx, p, "v1.14.1"); err != nil {
+		t.Fatal(err)
+	}
+	page, _ = c.Tags().List(ctx, p, "", "", 20)
+	if len(page.Items) != 2 {
+		t.Fatalf("items = %+v", page.Items)
+	}
+	// Workspace batches match the pipelines of the tags.
+	for res := range c.Workspace().Tags(ctx, []gitlab.ProjectRef{p}, "", 5) {
+		g := res.Groups[0]
+		if g.Total != 2 || g.Items[1].Name != "v1.14.2" || g.Items[1].Pipeline == nil || g.Items[1].Pipeline.ID != 91761 {
+			t.Fatalf("group = %+v", g)
+		}
+	}
+	// Compare serves what was registered.
+	c.SetCompare(p.FullPath, "v1.14.2", "main", gitlab.Comparison{Commits: []gitlab.CommitSummary{{ShortSHA: "aaa"}, {ShortSHA: "bbb"}}})
+	cmp, err := c.Tags().Compare(ctx, p, "v1.14.2", "main")
+	if err != nil || len(cmp.Commits) != 2 {
+		t.Fatalf("cmp = %+v, %v", cmp, err)
+	}
+}

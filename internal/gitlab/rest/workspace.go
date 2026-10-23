@@ -2,9 +2,11 @@ package rest
 
 import (
 	"context"
+	"sync"
 
 	gl "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/4aykovski/glview/internal/debuglog"
 	"github.com/4aykovski/glview/internal/gitlab"
 )
 
@@ -128,9 +130,9 @@ func (s search) Search(ctx context.Context, q string) ([]gitlab.Project, []gitla
 
 // Workspace batches need GraphQL; the REST adapter alone reports every
 // project with errGraphQLOnly.
-func (c *Client) Workspace() gitlab.WorkspaceService { return workspace{} }
+func (c *Client) Workspace() gitlab.WorkspaceService { return workspace{c} }
 
-type workspace struct{}
+type workspace struct{ c *Client }
 
 func failAll[T any](ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[T] {
 	ch := make(chan gitlab.BatchResult[T], 1)
@@ -153,4 +155,61 @@ func (workspace) MergeRequests(_ context.Context, ps []gitlab.ProjectRef, _ gitl
 
 func (workspace) Pipelines(_ context.Context, ps []gitlab.ProjectRef, _ gitlab.PipelineFilter, _ int) <-chan gitlab.BatchResult[gitlab.PipelineSummary] {
 	return failAll[gitlab.PipelineSummary](ps)
+}
+
+// tagParallel bounds the projects whose tags are requested at once.
+const tagParallel = 4
+
+// tagPipelineWindow is how many of the newest tag pipelines are matched to
+// the tags of a workspace group (SPEC §5.2).
+const tagPipelineWindow = 50
+
+// Tags lists the tags of every project over REST, at most four projects at
+// a time; every project is reported as soon as it is ready.
+func (w workspace) Tags(ctx context.Context, ps []gitlab.ProjectRef, search string, perProject int) <-chan gitlab.BatchResult[gitlab.Tag] {
+	out := make(chan gitlab.BatchResult[gitlab.Tag])
+	sem := make(chan struct{}, tagParallel)
+	var wg sync.WaitGroup
+	for _, p := range ps {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			g := w.projectTags(ctx, p, search, perProject)
+			<-sem
+			select {
+			case out <- gitlab.BatchResult[gitlab.Tag]{Groups: []gitlab.ProjectGroup[gitlab.Tag]{g}}:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}
+
+func (w workspace) projectTags(ctx context.Context, p gitlab.ProjectRef, search string, perProject int) gitlab.ProjectGroup[gitlab.Tag] {
+	svc := tags(w)
+	page, err := svc.List(ctx, p, search, "", perProject)
+	if err != nil {
+		return gitlab.ProjectGroup[gitlab.Tag]{Project: p, Total: -1, Err: err}
+	}
+	g := gitlab.ProjectGroup[gitlab.Tag]{Project: p, Items: page.Items, Total: page.Total}
+	if g.Total >= 0 && g.Total < len(g.Items) {
+		g.Total = len(g.Items)
+	}
+	if len(g.Items) > 0 {
+		pipes, err := svc.Pipelines(ctx, p, tagPipelineWindow)
+		if err != nil {
+			debuglog.L().Debug("workspace tags: pipelines failed", "project", p.FullPath, "err", err)
+		}
+		gitlab.MatchTagPipelines(g.Items, pipes)
+	}
+	return g
 }
