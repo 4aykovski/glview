@@ -3,10 +3,12 @@ package newtag
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
@@ -411,4 +413,44 @@ func TestRussian(t *testing.T) {
 		"своё…", "main @ 0b7d3e9 · 2 коммита после v1.14.2", "В теге окажутся:", "enter Создать")
 	d.Key("tab", "tab", "tab", "enter")
 	d.RequireView("Создать тег v1.14.3 на main @ 0b7d3e9?", "Annotated-тег: «release: v1.14.3»")
+}
+
+// The list of commits never takes more rows than it is given, and tells
+// how many commits it hides.
+func TestCommitsViewFitsAvail(t *testing.T) {
+	_, _, f := open(t, fake.New(), i18n.EN)
+	f.cmp, f.cmpRef, f.last = cmpReady, f.Ref(), "v1.14.2"
+	for avail := 1; avail <= 6; avail++ {
+		for n := 0; n <= 12; n++ {
+			f.cmpRes = gitlab.Comparison{Commits: make([]gitlab.CommitSummary, n)}
+			for i := range f.cmpRes.Commits {
+				f.cmpRes.Commits[i] = gitlab.CommitSummary{ShortSHA: fmt.Sprintf("%07d", i), Title: fmt.Sprintf("commit %d", i)}
+			}
+			out := ansi.Strip(f.commitsView(80, avail))
+			lines := strings.Split(out, "\n")
+			if out == "" {
+				lines = nil
+			}
+			if len(lines) > avail {
+				t.Fatalf("avail %d, %d commits: %d rows:\n%s", avail, n, len(lines), out)
+			}
+			if n == 0 || len(lines) == 0 {
+				continue
+			}
+			shown := 0
+			for _, l := range lines {
+				if strings.HasPrefix(l, "0") {
+					shown++
+				}
+			}
+			if hidden := n - shown; hidden > 0 {
+				want := fmt.Sprintf("… %d more", hidden)
+				if !strings.Contains(out, want) {
+					t.Fatalf("avail %d, %d commits: no %q in:\n%s", avail, n, want, out)
+				}
+			} else if strings.Contains(out, "more") {
+				t.Fatalf("avail %d, %d commits: nothing hidden:\n%s", avail, n, out)
+			}
+		}
+	}
 }

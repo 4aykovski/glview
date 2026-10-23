@@ -709,7 +709,7 @@ func (f *Form) commitsView(w, avail int) string {
 	}
 	rows := min(len(cs), maxCommits, room)
 	if more := len(cs) - rows; more > 0 && rows+1 > room { // "more" needs a row too
-		rows = max(1, room-1)
+		rows = room - 1 // none when only one row is left: the "more" line says it all
 	}
 	out := []string{s.Muted.Render(m.LblCommits)}
 	for _, c := range cs[:rows] {
