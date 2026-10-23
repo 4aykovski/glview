@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service · gitlab.example.com                                                    @egor · ⟳ <1m
+ 1 MRs   2 Pipelines   3 Issues 5   4 Tags
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  state:opened  assignee:any  label:any  milestone:any
+  IID     Title                                                                                        Labels        Upd
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› #1318   Surge coefficient ignores zone overrides                                                     bug pricing   20m
+  #1312   Duplicate slot assignment under load → !479                                                  bug slots      1h
+  #1297   Expose route cache hit ratio metric                                                          observ.        3d
+  #1281   Migrate geo client to gRPC v2 API                                                            tech-debt      1w
+  #1260   Courier ETA drifts after midnight UTC+7                                                      bug            2w
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Surge coefficient ignores zone overrides                                                                             │
+│ ● open · #1318 · anna.k · assignee: egor · milestone: 2026-Q4                                                        │
+│                                                                                                                      │
+│ Zones with a manual override use the global coefficient.                                                             │
+│                                                                                                                      │
+│ Steps                                                                                                                │
+│                                                                                                                      │
+│ 1. set override 1.5 for nsk-center                                                                                   │
+│ 2. ask for an estimate at peak hours                                                                                 │
+│ 3. get 1.35 instead of 1.5                                                                                           │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│ COMMENTS 2                                                                                                           │
+│ d.orlov · 1h                                                                                                         │
+│ Override is read before zone cache invalidation.                                                                     │
+│ egor · 20m                                                                                                           │
+│ I take it, related to !482 — will fix it there.                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│ c — write a comment…                                                                                                 │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  c comment  x close/reopen  s state  m me  y copy  1-4 tabs  r refresh  ? help      1 / 5

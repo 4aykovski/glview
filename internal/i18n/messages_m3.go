@@ -95,10 +95,33 @@ type CommentMessages struct {
 // IssueMessages are the strings of the Issues tab, the issue screen and the
 // issue actions (SPEC §3.4, §3.15).
 type IssueMessages struct {
+	// Tab
+	Crumb         string // "Issues" in the breadcrumbs of the issue screen
+	ColLabels     string
+	EmptyOpen     string // no issues, default filters
+	EmptyMine     string // no issues with the "me" filter
+	EmptyFiltered string // no issues with other filters
+	KeyAssignee   string // descriptions of the filter keys
+	KeyLabel      string
+	KeyMilestone  string
+	KeyToggle     string // x: "close/reopen"
+	KeyBrowser    string // O: "issue in browser"
+
+	// Preview and issue screen
+	StatusOpen, StatusClosed string
+	Assignee                 func(names string) string // "assignee: egor"
+	Milestone                func(title string) string // "milestone: 2026-Q4"
+	NoDescription            string
+	PrevComments             func(n int) string // "COMMENTS 2"
+	NotesLoading             string
+	NotesFailed              string
+	WriteHint                string // "c — write a comment…"
+	Labels                   string // "Labels:"
+	Comments                 func(n int) string
+	NoComments               string
+
 	// Close and reopen (x)
 	ConfirmClose func(iid int64) string // confirm title
 	Closed       func(iid int64) string // toast
 	Reopened     func(iid int64) string
-	KeyClose     string
-	KeyReopen    string
 }

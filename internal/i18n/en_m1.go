@@ -42,7 +42,6 @@ func fillM1EN(m *Messages) {
 	m.Plural.Files = func(n int) string { return Count(EN, n, PluralForms{"file", "", "files"}) }
 
 	p := &m.Project
-	p.Later = func(tab string) string { return tab + " will appear here later" }
 	p.LoadingMore = "◐ loading more…"
 	p.LoadFailed = "✗ could not load, r — retry"
 	p.Loading = "◐ loading…"

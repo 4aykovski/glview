@@ -90,7 +90,7 @@ const (
 type Options struct {
 	Path string
 	Repo *gitremote.Repo // local folder of the project, nil if none
-	Tab  int             // TabMRs (default), TabPipelines or TabTags
+	Tab  int             // TabMRs (default), TabPipelines, TabIssues or TabTags
 	// MRFilter and PipelineFilter carry the filters of the workspace tab
 	// (state or status, "me", text); nil keeps the defaults.
 	MRFilter       *gitlab.MRFilter
@@ -121,7 +121,7 @@ func New(env *app.Env, o Options) *Project {
 	}
 	tags := newTagsTab(sh)
 	tags.search = o.TagSearch
-	p.tabs = []tab{mrs, pipes, newPlaceholder(sh, 2), tags}
+	p.tabs = []tab{mrs, pipes, newIssuesTab(sh), tags}
 	if o.Tab > 0 && o.Tab < len(p.tabs) {
 		p.cur = o.Tab
 	}

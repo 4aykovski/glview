@@ -5,7 +5,6 @@ package i18n
 
 // ProjectMessages are the strings of the project screen and its list tabs.
 type ProjectMessages struct {
-	Later func(tab string) string // placeholder tab body
 
 	// Table
 	LoadingMore   string // "◐ loading more…"

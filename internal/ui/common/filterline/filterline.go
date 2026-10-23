@@ -20,6 +20,9 @@ type Key struct {
 	Desc   string   // short description shown in key suggestions
 	Values []string // allowed values; nil = any value
 	Multi  bool     // value is a comma separated list (labels)
+	// Free accepts values outside Values: Values are only suggestions (a
+	// user name or a milestone title next to any/none).
+	Free bool
 	// Source loads suggestions for the value being typed from the server
 	// (members, labels, refs). It runs after a 300ms pause, never blocks
 	// typing, and its errors are ignored. May be nil.
@@ -72,7 +75,7 @@ func Parse(keys []Key, input string) (values map[string]string, free string, err
 		if k == nil {
 			return nil, "", &ParseError{Kind: UnknownKey, Key: name}
 		}
-		if val == "" || (k.Values != nil && !k.Multi && !contains(k.Values, val)) {
+		if val == "" || (k.Values != nil && !k.Multi && !k.Free && !contains(k.Values, val)) {
 			return nil, "", &ParseError{Kind: BadValue, Key: name, Value: val, Allowed: k.Values}
 		}
 		if k.Multi && k.Values != nil {

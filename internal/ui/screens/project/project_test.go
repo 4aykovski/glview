@@ -72,7 +72,7 @@ func TestProjectScreenTabsAndHeader(t *testing.T) {
 		t.Fatal("MRs is the default tab")
 	}
 	d.Key("3")
-	d.RequireView("Issues will appear here later")
+	d.RequireView("No open issues", "state:opened")
 	d.Key("tab")
 	d.RequireView("No tags", "sort: semver ↓")
 	d.Key("shift+tab", "shift+tab")
