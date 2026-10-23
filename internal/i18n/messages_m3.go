@@ -63,4 +63,12 @@ type TagMessages struct {
 	KeysName, KeysCustom, KeysRef string
 	KeysRefList, KeysMessage      string
 	KeysButton, KeysCreating      string
+
+	// Tags tab
+	ColTag, ColMessage     string
+	ReleaseMark            string // "◆ release"
+	SearchLabel, SortLabel string
+	SearchHint             string
+	EmptyNone              string
+	EmptyQuery             func(q string) string
 }

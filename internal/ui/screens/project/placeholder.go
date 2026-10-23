@@ -8,7 +8,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/common"
 )
 
-// placeholderTab is the body of the tabs that have no content yet (Pipelines until T15, Issues and Tags until M3); it makes no requests.
+// placeholderTab is the body of the tabs that have no content yet (Issues until M3); it makes no requests.
 type placeholderTab struct {
 	sh   *shared
 	idx  int

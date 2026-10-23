@@ -5,6 +5,7 @@ import "fmt"
 func fillM3RU(m *Messages) {
 	fillTagsRU(m)
 	fillTagFormRU(m)
+	fillTagsTabRU(m)
 	l := &m.Links
 	l.Key = "ссылки"
 	l.Title = func(ref string) string { return "Ссылки · " + ref }
@@ -88,4 +89,18 @@ func fillTagFormRU(m *Messages) {
 	t.KeysMessage = "пусто — lightweight-тег · enter далее · esc отмена"
 	t.KeysButton = "enter создать · tab поле · esc отмена"
 	t.KeysCreating = "создаём…"
+}
+
+func fillTagsTabRU(m *Messages) {
+	t := &m.Tag
+	t.ColTag = "Tag"
+	t.ColMessage = "Message"
+	t.ReleaseMark = "◆ release"
+	t.SearchLabel = "поиск"
+	t.SortLabel = "сорт: semver ↓"
+	t.SearchHint = "enter искать · esc отмена"
+	t.EmptyNone = "Нет тегов"
+	t.EmptyQuery = func(q string) string {
+		return "Нет тегов по запросу «" + q + "» · backspace — сбросить поиск"
+	}
 }

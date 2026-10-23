@@ -86,6 +86,12 @@ func Box(s *Styles, content string, w, h int, kind BoxKind) string {
 	return st.Render(inner.Render(content))
 }
 
+// FilterBarText renders a filter line from ready-made left text (its "/"
+// included) and right-aligned muted text.
+func FilterBarText(s *Styles, left, right string, width int) string {
+	return spread(left, s.Muted.Render(right), width)
+}
+
 // FilterBar renders the filter line: a "/" prefix in Accent, key:value pairs
 // (keys Muted) and right-aligned text.
 func FilterBar(s *Styles, pairs [][2]string, extra, right string, width int) string {

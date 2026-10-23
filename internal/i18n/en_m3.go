@@ -5,6 +5,7 @@ import "fmt"
 func fillM3EN(m *Messages) {
 	fillTagsEN(m)
 	fillTagFormEN(m)
+	fillTagsTabEN(m)
 	l := &m.Links
 	l.Key = "links"
 	l.Title = func(ref string) string { return "Links · " + ref }
@@ -84,4 +85,16 @@ func fillTagFormEN(m *Messages) {
 	t.KeysMessage = "empty = lightweight tag · enter next · esc cancel"
 	t.KeysButton = "enter create · tab field · esc cancel"
 	t.KeysCreating = "creating…"
+}
+
+func fillTagsTabEN(m *Messages) {
+	t := &m.Tag
+	t.ColTag = "Tag"
+	t.ColMessage = "Message"
+	t.ReleaseMark = "◆ release"
+	t.SearchLabel = "search"
+	t.SortLabel = "sort: semver ↓"
+	t.SearchHint = "enter search · esc cancel"
+	t.EmptyNone = "No tags"
+	t.EmptyQuery = func(q string) string { return "No tags matching “" + q + "” · backspace — reset the search" }
 }

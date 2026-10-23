@@ -74,7 +74,7 @@ func TestProjectScreenTabsAndHeader(t *testing.T) {
 	d.Key("3")
 	d.RequireView("Issues will appear here later")
 	d.Key("tab")
-	d.RequireView("Tags will appear here later")
+	d.RequireView("No tags", "sort: semver ↓")
 	d.Key("shift+tab", "shift+tab")
 	if scr.Current() != 1 {
 		t.Fatalf("current = %d", scr.Current())
