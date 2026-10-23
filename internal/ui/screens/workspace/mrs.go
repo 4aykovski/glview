@@ -325,7 +325,7 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		f := t.filter
-		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabMRs, &f, nil)
+		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabMRs, &f, nil, "")
 	case "o":
 		if path != "" {
 			return app.OpenURL(env, t.listURL(path))

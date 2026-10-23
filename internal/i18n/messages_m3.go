@@ -71,4 +71,10 @@ type TagMessages struct {
 	SearchHint             string
 	EmptyNone              string
 	EmptyQuery             func(q string) string
+
+	// Workspace Tags tab
+	GroupEmpty  string // "no tags"
+	NoMine      string // "me: not applied to tags"
+	PerProject  func(n int) string
+	SortVersion string
 }

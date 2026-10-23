@@ -594,20 +594,24 @@ func (b *groupBase[T]) deactivate() {
 	}
 }
 
-// filterBar renders the filter line (or the open input): the tab's pairs
-// and extra, the P chip ("projects: 3 ✕", "project: route ✕") and on the
-// right how many projects are shown (P) or have records (filter mode).
-func (b *groupBase[T]) filterBar(pairs [][2]string, extra string, errText func(error) string) string {
-	env := b.env()
-	s, w := env.Styles, env.Msg.WS
-	if b.fl.Focused() {
-		lines := strings.Split(b.fl.View(), "\n")
-		if err := b.fl.Err(); err != nil {
-			return strings.Join(lines, "\n") + "\n" + s.Error.Render(errText(err))
-		}
-		lines[0] += "  " + s.Muted.Render(env.Msg.Project.FilterHint)
-		return strings.Join(lines, "\n")
+// filterInput renders the open filter input with its hint or parse error;
+// ok is false while the input is closed.
+func (b *groupBase[T]) filterInput(errText func(error) string) (string, bool) {
+	if !b.fl.Focused() {
+		return "", false
 	}
+	env := b.env()
+	lines := strings.Split(b.fl.View(), "\n")
+	if err := b.fl.Err(); err != nil {
+		return strings.Join(lines, "\n") + "\n" + env.Styles.Error.Render(errText(err)), true
+	}
+	lines[0] += "  " + env.Styles.Muted.Render(env.Msg.Project.FilterHint)
+	return strings.Join(lines, "\n"), true
+}
+
+// chip is the P chip ("projects: 3 ✕", "project: route ✕"), "" without P.
+func (b *groupBase[T]) chip() string {
+	s, w := b.env().Styles, b.env().Msg.WS
 	key, val := "", ""
 	switch {
 	case len(b.psel) == 1:
@@ -619,18 +623,36 @@ func (b *groupBase[T]) filterBar(pairs [][2]string, extra string, errText func(e
 	case b.ptext != "":
 		key, val = w.ProjectKey, b.ptext
 	}
-	if key != "" {
-		chip := s.FilterKey.Render(key+": ") + s.FilterValue.Render(val) + " " + s.Muted.Render("✕")
-		extra = strings.TrimSpace(extra + "  " + chip)
+	if key == "" {
+		return ""
 	}
-	right := ""
+	return s.FilterKey.Render(key+": ") + s.FilterValue.Render(val) + " " + s.Muted.Render("✕")
+}
+
+// shownInfo is how many projects are shown (P) or have records (filter
+// mode); "" when neither applies.
+func (b *groupBase[T]) shownInfo() string {
+	w := b.env().Msg.WS
 	switch {
 	case b.narrow():
-		right = w.FoundIn(b.found(), b.shownCount())
+		return w.FoundIn(b.found(), b.shownCount())
 	case b.pmatch != nil:
-		right = w.ShownProjects(b.shownCount(), len(b.sh.order))
+		return w.ShownProjects(b.shownCount(), len(b.sh.order))
 	}
-	return common.FilterBar(s, pairs, extra, right, b.w)
+	return ""
+}
+
+// filterBar renders the filter line (or the open input): the tab's pairs
+// and extra, the P chip and on the right how many projects are shown (P) or
+// have records (filter mode).
+func (b *groupBase[T]) filterBar(pairs [][2]string, extra string, errText func(error) string) string {
+	if line, ok := b.filterInput(errText); ok {
+		return line
+	}
+	if chip := b.chip(); chip != "" {
+		extra = strings.TrimSpace(extra + "  " + chip)
+	}
+	return common.FilterBar(b.env().Styles, pairs, extra, b.shownInfo(), b.w)
 }
 
 // frame draws the preview box.

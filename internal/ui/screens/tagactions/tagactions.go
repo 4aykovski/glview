@@ -144,8 +144,7 @@ func Suggested(tags []gitlab.Tag) string {
 // ---- comparison with the default branch ----
 
 // CompareMsg carries the comparison of Tag with Branch. Tok is the token of
-// the tab's comparison generation; the tab also checks that Tag is still
-// the selected one.
+// the tab's Comparer.
 type CompareMsg struct {
 	Tok    common.Token
 	Ref    gitlab.ProjectRef
@@ -169,9 +168,7 @@ func Compare(env *app.Env, tok common.Token, ref gitlab.ProjectRef, tag, branch 
 	}, cancel
 }
 
-// ---- preview ----
-
-// CompareState is how far the comparison of the previewed tag is.
+// CompareState is how far the comparison of a tag is.
 type CompareState int
 
 const (
@@ -180,6 +177,93 @@ const (
 	CompareDone
 	CompareFailed
 )
+
+// Entry is the comparison of one tag with the default branch.
+type Entry struct {
+	State CompareState
+	Ahead int // commits of the branch after the tag, with CompareDone
+}
+
+// Comparer asks the comparison of the selected tag lazily, one request at a
+// time: asking for another tag drops the answer still due for the previous
+// one.
+type Comparer struct {
+	gen     common.Gen
+	cancel  context.CancelFunc
+	entries map[string]Entry
+	cur     string // key asked last
+}
+
+// NewComparer returns an empty Comparer.
+func NewComparer() *Comparer { return &Comparer{gen: common.NewGen(), entries: map[string]Entry{}} }
+
+func entryKey(ref gitlab.ProjectRef, tag string) string { return ref.FullPath + "\x00" + tag }
+
+// Token is the token of the latest request (for tests).
+func (c *Comparer) Token() common.Token { return c.gen.Current() }
+
+// Entry returns what is known about the tag of the project.
+func (c *Comparer) Entry(ref gitlab.ProjectRef, tag string) (Entry, bool) {
+	e, ok := c.entries[entryKey(ref, tag)]
+	return e, ok
+}
+
+// Reset forgets every answer and drops the one in flight (the tags or the
+// branch changed).
+func (c *Comparer) Reset() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.gen.Next()
+	c.entries = map[string]Entry{}
+	c.cur = ""
+}
+
+// Stop drops the request in flight (the tab is hidden).
+func (c *Comparer) Stop() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.gen.Next()
+	if e, ok := c.entries[c.cur]; ok && e.State == CompareLoading {
+		delete(c.entries, c.cur)
+	}
+}
+
+// Load asks the comparison of tag with branch unless it is known or in
+// flight; a failed one is asked again.
+func (c *Comparer) Load(env *app.Env, ref gitlab.ProjectRef, tag, branch string) tea.Cmd {
+	key := entryKey(ref, tag)
+	if e, ok := c.entries[key]; ok && e.State != CompareFailed {
+		return nil
+	}
+	if c.cancel != nil {
+		c.cancel()
+	}
+	if e, ok := c.entries[c.cur]; ok && e.State == CompareLoading {
+		delete(c.entries, c.cur) // its answer will be dropped
+	}
+	c.cur = key
+	c.entries[key] = Entry{State: CompareLoading}
+	cmd, cancel := Compare(env, c.gen.Next(), ref, tag, branch, false)
+	c.cancel = cancel
+	return cmd
+}
+
+// OnMsg stores the answer unless it is for another request.
+func (c *Comparer) OnMsg(msg CompareMsg) {
+	key := entryKey(msg.Ref, msg.Tag)
+	if !c.gen.Valid(msg.Tok) || key != c.cur {
+		return
+	}
+	if msg.Err != nil {
+		c.entries[key] = Entry{State: CompareFailed}
+		return
+	}
+	c.entries[key] = Entry{State: CompareDone, Ahead: len(msg.Cmp.Commits)}
+}
+
+// ---- preview ----
 
 // PreviewData is what the preview of a tag shows.
 type PreviewData struct {

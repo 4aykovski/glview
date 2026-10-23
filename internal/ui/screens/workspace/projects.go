@@ -485,7 +485,7 @@ func (t *projectsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			repo = r.Local.Repo
 		}
 		mf := gitlab.MRFilter{State: gitlab.MRStateOpened, Scope: gitlab.MRScopeAll}
-		return t.sh.openProject(r.Ref.FullPath, repo, 0, &mf, nil)
+		return t.sh.openProject(r.Ref.FullPath, repo, 0, &mf, nil, "")
 	case "o":
 		if r := t.selected(); r != nil && !r.Foreign {
 			return app.OpenURL(env, t.sh.projectURL(r.Ref.FullPath))

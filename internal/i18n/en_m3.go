@@ -6,6 +6,7 @@ func fillM3EN(m *Messages) {
 	fillTagsEN(m)
 	fillTagFormEN(m)
 	fillTagsTabEN(m)
+	fillTagsWSEN(m)
 	l := &m.Links
 	l.Key = "links"
 	l.Title = func(ref string) string { return "Links · " + ref }
@@ -97,4 +98,12 @@ func fillTagsTabEN(m *Messages) {
 	t.SearchHint = "enter search · esc cancel"
 	t.EmptyNone = "No tags"
 	t.EmptyQuery = func(q string) string { return "No tags matching “" + q + "” · backspace — reset the search" }
+}
+
+func fillTagsWSEN(m *Messages) {
+	t := &m.Tag
+	t.GroupEmpty = "no tags"
+	t.NoMine = "me: not applied to tags"
+	t.PerProject = func(n int) string { return fmt.Sprintf("per project: %d", n) }
+	t.SortVersion = "sort: version ↓"
 }

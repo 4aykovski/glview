@@ -6,6 +6,7 @@ func fillM3RU(m *Messages) {
 	fillTagsRU(m)
 	fillTagFormRU(m)
 	fillTagsTabRU(m)
+	fillTagsWSRU(m)
 	l := &m.Links
 	l.Key = "ссылки"
 	l.Title = func(ref string) string { return "Ссылки · " + ref }
@@ -103,4 +104,12 @@ func fillTagsTabRU(m *Messages) {
 	t.EmptyQuery = func(q string) string {
 		return "Нет тегов по запросу «" + q + "» · backspace — сбросить поиск"
 	}
+}
+
+func fillTagsWSRU(m *Messages) {
+	t := &m.Tag
+	t.GroupEmpty = "нет тегов"
+	t.NoMine = "я: не применяется к тегам"
+	t.PerProject = func(n int) string { return fmt.Sprintf("на проект: %d", n) }
+	t.SortVersion = "сорт: version ↓"
 }

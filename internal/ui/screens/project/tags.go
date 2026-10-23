@@ -39,17 +39,10 @@ type (
 	projectReadyMsg struct{}
 )
 
-// cmpEntry is the comparison of one tag with the default branch.
-type cmpEntry struct {
-	state tagactions.CompareState
-	ahead int
-}
-
 // tagsTab is the tag list of the project (SPEC §3.4).
 type tagsTab struct {
 	sh   *shared
 	gen  common.Gen
-	cmpG common.Gen
 	poll common.Gen
 	tbl  *table.Model
 
@@ -57,16 +50,14 @@ type tagsTab struct {
 	input   textinput.Model
 	editing bool
 
-	cancel    context.CancelFunc
-	cmpCancel context.CancelFunc
+	cancel context.CancelFunc
+	cmp    *tagactions.Comparer
 
 	items    []gitlab.Tag
 	pipes    []gitlab.PipelineSummary
 	firstLen int
 	next     string
 	total    int
-	cmps     map[string]cmpEntry
-	cmpFor   string // the tag whose comparison was asked for last
 	want     string // put the cursor on this tag once it is listed
 
 	loaded, loading, moreLoading, moreErr bool
@@ -77,8 +68,8 @@ type tagsTab struct {
 }
 
 func newTagsTab(sh *shared) *tagsTab {
-	t := &tagsTab{sh: sh, gen: common.NewGen(), cmpG: common.NewGen(), poll: common.NewGen(), total: -1,
-		cmps: map[string]cmpEntry{}}
+	t := &tagsTab{sh: sh, gen: common.NewGen(), poll: common.NewGen(), total: -1,
+		cmp: tagactions.NewComparer()}
 	t.tbl = table.New(sh.env.Styles)
 	t.input = common.NewInput(sh.env.Styles)
 	t.rebuild()
@@ -236,13 +227,12 @@ func (t *tagsTab) fetch(tok common.Token, cursor string, force, refresh bool) te
 func (t *tagsTab) loadFirst(reset, force bool) tea.Cmd {
 	tok := t.gen.Next()
 	t.moreLoading, t.moreErr, t.err = false, false, nil
-	if force {
-		t.cmps = map[string]cmpEntry{}
+	if force || reset {
+		t.cmp.Reset()
 	}
 	if reset {
 		t.items, t.firstLen, t.next, t.total, t.loaded = nil, 0, "", -1, false
 		t.loading = true
-		t.cmps = map[string]cmpEntry{}
 		t.rebuild()
 	} else {
 		t.loading = !t.loaded
@@ -291,6 +281,7 @@ func (t *tagsTab) Activate() tea.Cmd {
 func (t *tagsTab) Deactivate() {
 	t.active = false
 	t.poll.Next()
+	t.cmp.Stop()
 }
 
 // ---- comparison with the default branch ----
@@ -306,40 +297,15 @@ func (t *tagsTab) selected() *gitlab.Tag {
 }
 
 // loadCompare asks for the comparison of the selected tag with the default
-// branch, once per tag; a request for the previous selection is dropped.
-// It does not wait for the preview to fit: the size may arrive later.
+// branch, once per tag. It does not wait for the preview to fit: the size
+// may arrive later.
 func (t *tagsTab) loadCompare() tea.Cmd {
 	tag := t.selected()
 	branch := t.sh.defaultBranch
 	if tag == nil || branch == "" || !t.active {
 		return nil
 	}
-	if e, ok := t.cmps[tag.Name]; ok && e.state != tagactions.CompareFailed {
-		return nil
-	}
-	if t.cmpCancel != nil {
-		t.cmpCancel()
-	}
-	if prev, ok := t.cmps[t.cmpFor]; ok && prev.state == tagactions.CompareLoading {
-		delete(t.cmps, t.cmpFor) // its answer will be dropped
-	}
-	tok := t.cmpG.Next()
-	t.cmpFor = tag.Name
-	t.cmps[tag.Name] = cmpEntry{state: tagactions.CompareLoading}
-	cmd, cancel := tagactions.Compare(t.env(), tok, t.sh.ref, tag.Name, branch, false)
-	t.cmpCancel = cancel
-	return cmd
-}
-
-func (t *tagsTab) onCompare(msg tagactions.CompareMsg) {
-	if !t.cmpG.Valid(msg.Tok) || msg.Tag != t.cmpFor {
-		return
-	}
-	if msg.Err != nil {
-		t.cmps[msg.Tag] = cmpEntry{state: tagactions.CompareFailed}
-		return
-	}
-	t.cmps[msg.Tag] = cmpEntry{state: tagactions.CompareDone, ahead: len(msg.Cmp.Commits)}
+	return t.cmp.Load(t.env(), t.sh.ref, tag.Name, branch)
 }
 
 // ---- update ----
@@ -350,7 +316,7 @@ func (t *tagsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 	case tagsLoadedMsg:
 		return t, t.onLoaded(msg)
 	case tagactions.CompareMsg:
-		t.onCompare(msg)
+		t.cmp.OnMsg(msg)
 		return t, nil
 	case projectReadyMsg:
 		return t, t.loadCompare()
@@ -564,8 +530,8 @@ func (t *tagsTab) preview() string {
 		return frame("", "", "")
 	}
 	d := tagactions.PreviewData{Tag: *tag, Branch: t.sh.defaultBranch}
-	if e, ok := t.cmps[tag.Name]; ok {
-		d.State, d.Ahead = e.state, e.ahead
+	if e, ok := t.cmp.Entry(t.sh.ref, tag.Name); ok {
+		d.State, d.Ahead = e.State, e.Ahead
 	} else if d.Branch != "" {
 		d.State = tagactions.CompareLoading
 	}

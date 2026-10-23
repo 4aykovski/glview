@@ -123,17 +123,17 @@ func TestTagsCompareForAnotherTagIsDropped(t *testing.T) {
 	client.SetDelay("Tags.Compare", time.Second) // the driver drops the slow answers
 	d, _, tab := openTags(t, client, nil)
 	d.RequireView("◐ comparing… · n suggests v1.14.3")
-	old := tab.cmpG.Current()
+	old := tab.cmp.Token()
 	d.Key("j")
 	d.Send(tagactions.CompareMsg{Tok: old, Ref: tab.sh.ref, Tag: "v1.14.2", Branch: "main",
 		Cmp: gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 9)}})
-	if e := tab.cmps["v1.14.2"]; e.state != tagactions.CompareNone {
+	if e, ok := tab.cmp.Entry(tab.sh.ref, "v1.14.2"); ok {
 		t.Fatalf("the answer for v1.14.2 must be dropped: %+v", e)
 	}
 	d.RequireView("v1.14.1 @ 3e81b07", "◐ comparing…")
 	d.RequireNoView("9 commits")
 	// The answer for the selected tag lands.
-	d.Send(tagactions.CompareMsg{Tok: tab.cmpG.Current(), Ref: tab.sh.ref, Tag: "v1.14.1", Branch: "main",
+	d.Send(tagactions.CompareMsg{Tok: tab.cmp.Token(), Ref: tab.sh.ref, Tag: "v1.14.1", Branch: "main",
 		Cmp: gitlab.Comparison{Commits: make([]gitlab.CommitSummary, 3)}})
 	d.RequireView("main is 3 commits ahead")
 }
