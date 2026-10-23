@@ -180,7 +180,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | Pipelines (список) | `enter` пайплайн, `l` лог первой упавшей (иначе running) джобы, `n` новый пайплайн, `R` retry, `c` cancel, `o` список пайплайнов проекта в браузере с текущими фильтрами, `O` выделенный пайплайн в браузере |
 | Pipeline (детали) | `h/l` `←/→` стейдж, `j/k` джоба, `enter` лог (на bridge — downstream), `a` попытки джобы, `P` play manual, `R` retry, `c` cancel, `o` пайплайн в браузере, `O` выделенная джоба в браузере |
 | Job log | `f` follow, `space` свернуть секцию, `z` свернуть/развернуть все, `/` поиск, `n/N` следующее/предыдущее совпадение, `g/G`, `a` попытки джобы, `[`/`]` предыдущая/следующая попытка, `R` retry, `c` cancel |
-| Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега |
+| Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега, `y` копировать имя тега, `o` страница тегов в браузере, `/` поиск по имени (`m` и `s` не действуют) |
 | Issues | `enter` открыть, `c` комментарий, `x` close/reopen |
 
 **Разрешённые конфликты:**
@@ -237,12 +237,13 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 - Записи сгруппированы по проектам, у группы заголовок `▾ platform/route-service  6 open · 2 ждут тебя · показано 3` (MRs; «ждут тебя» — открытые MR, где я ревьюер, из обзора проектов: точное «моих» счётчиками GraphQL без пересечений не получить; в макете — «2 твоих»). У Pipelines сводка — `показано K`.
 - В группе не больше `per_project` записей (по умолчанию 3), затем строка `↳ ещё N · f фильтр по проекту`.
 - Группы отсортированы по активности. `J/K` прыгают между заголовками групп.
-- **Свёрнуты по умолчанию.** Без фильтров (см. «Режим фильтра» ниже) все группы MRs и Pipelines свёрнуты, пока пользователь их не раскроет. Свёрнутая группа — одна строка без запроса списка:
+- **Свёрнуты по умолчанию.** Без фильтров (см. «Режим фильтра» ниже) все группы MRs, Pipelines и Tags свёрнуты, пока пользователь их не раскроет. Свёрнутая группа — одна строка без запроса списка:
   - MRs: `▸ platform/route-service  6 open · 2 ждут тебя`, при нуле открытых — `▸ qa/e2e-routes  нет открытых`; числа — из обзора проектов (`OpenMRs`, `ReviewMRs`);
   - Pipelines: `▸ platform/route-service  ✓ main #91790 · 2h` — пайплайн default-ветки из обзора; нет пайплайна — `нет пайплайнов`;
+  - Tags: `▸ platform/route-service  v1.14.2` — последний тег из обзора; тегов нет — `нет тегов`;
   - пока обзор проекта не пришёл (и нет снимка) — только путь; `project: null` — `нет доступа`.
 - **Раскрытие.** `space` на любой строке группы или `enter` на заголовке сворачивает и раскрывает группу. Раскрытие запрашивает список только этой группы (несколько раскрытых подряд за 100 мс уходят одной пачкой); пока он идёт — строка `◐ загрузка…` под заголовком. Раскрытая группа без записей — заголовок и строка `нет открытых` / `нет пайплайнов`.
-- **Запоминание.** Набор раскрытых групп хранится отдельно для MRs и Pipelines, для каждого хоста и workspace (папки или группы), в `state.json` (5.8) и восстанавливается при следующем запуске. Запись — сразу после переключения, в фоне. Проекты, которых больше нет в workspace, при записи выбрасываются.
+- **Запоминание.** Набор раскрытых групп хранится отдельно для MRs, Pipelines и Tags, для каждого хоста и workspace (папки или группы), в `state.json` (5.8) и восстанавливается при следующем запуске. Запись — сразу после переключения, в фоне. Проекты, которых больше нет в workspace, при записи выбрасываются.
 - **Запросы только по раскрытым.** Первое открытие таба, поллинг и `r` запрашивают списки только раскрытых групп (батчами, как раньше). Свёрнутые группы обновляют заголовки из обзора проектов: тик таба 60 с и `r` перезапрашивают и обзор (фазы 1 и 2, без тегов).
 - **Счётчики табов.** `2 MRs 6` — сумма открытых MR из обзора проектов; в режиме фильтра — число найденных записей. У Pipelines число показывается только в режиме фильтра: без фильтров оно по свёрнутым группам не известно.
 - **Фильтр проектов `P`** — оверлей выбора проектов (мульти-фильтр), без запросов к GitLab:
@@ -253,18 +254,18 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
   - скрытые группы не меняют свёрнутость; в строке фильтров справа при активном `P` — `показаны 3 из 13 проектов`;
   - у MRs и Pipelines свой фильтр; через `f` в экран проекта не переносится;
   - **отмеченные проекты сохраняются** в `state.json` (5.8) на хост, workspace и таб и восстанавливаются при запуске; проекты, которых больше нет в workspace, выбрасываются, а если не осталось ни одного — фильтра нет. Текстовый вариант `P` не сохраняется. `backspace` сбрасывает `P` вместе с остальными фильтрами таба и стирает сохранённые отметки.
-- **Режим фильтра.** Если в табе активен сужающий фильтр — MRs: текст `/`, `m` или state не `opened`; Pipelines: `status`, `ref` или `m`, — запрос идёт по всем проектам workspace, прошедшим фильтр `P`, как до свёрнутых групп. Группы с результатами показываются раскрытыми, группы без результатов скрыты, в строке фильтров — `найдено в 4 проектах из 13` (13 — проекты, прошедшие `P`). Расширение `P` в этом режиме догружает только проекты, которые ещё не запрашивались, сужение запросов не делает. `space`/`enter` в этом режиме сворачивают группу только до сброса фильтров и в `state.json` не пишутся. Сброс сужающих фильтров (`backspace`) возвращает сохранённый набор раскрытых групп без нового запроса по свёрнутым.
+- **Режим фильтра.** Если в табе активен сужающий фильтр — MRs: текст `/`, `m` или state не `opened`; Pipelines: `status`, `ref` или `m`; Tags: текст поиска `/`, — запрос идёт по всем проектам workspace, прошедшим фильтр `P`, как до свёрнутых групп. Группы с результатами показываются раскрытыми, группы без результатов скрыты, в строке фильтров — `найдено в 4 проектах из 13` (13 — проекты, прошедшие `P`). Расширение `P` в этом режиме догружает только проекты, которые ещё не запрашивались, сужение запросов не делает. `space`/`enter` в этом режиме сворачивают группу только до сброса фильтров и в `state.json` не пишутся. Сброс сужающих фильтров (`backspace`) возвращает сохранённый набор раскрытых групп без нового запроса по свёрнутым.
 - Группы рендерятся по мере прихода пачек GraphQL. Ещё не пришедшие — строкой `◐ platform/x загрузка…`.
 - **MRs:** колонки IID, Title, Author, «Ты» (author/assignee/reviewer), Pipeline, Appr, Upd. Фильтр state (opened по умолчанию).
 - **Строка фильтров табов:** «Проекты» — `/` локальный текстовый фильтр по имени папки и пути проекта без запросов; MRs — `state` и свободный текст (поиск по заголовку), `s` — цикл state; Pipelines — `status` и `ref`, `s` — цикл status; в обоих — фильтр проектов `P`. `backspace` сбрасывает фильтры таба (включая «я» и `P`). Подсказок с сервера в строке фильтров workspace нет.
 - **Pipelines:** Status, ID, Ref, Source, Commit, Dur, Ago. Превью — стейджи выбранного пайплайна.
-- **Tags:** Tag, Commit, Message, Pipeline, Ago. Превью: «main опережает на 2 коммита · n предложит v1.14.3» — compare считается только для выбранного тега.
+- **Tags** (M3): колонки и превью — как в табе Tags проекта (3.4); compare — с default-веткой из обзора, «n предложит» — по тегам группы. Сводка раскрытой группы — `58 тегов · показано 3` (`X-Total`), без тегов — `нет тегов`. Строка фильтров: `P`, «я: не применяется к тегам», `/ поиск`; справа `на проект: 3 · сорт: version ↓`. `/` — свободный текст (`search` на сервере), непустой включает режим фильтра; `s` не действует; `backspace` сбрасывает текст и `P`. Запросы — REST на проект (5.2), только по раскрытым группам; поллинг 60 с без быстрого тика.
 - **Фильтр `m`:**
   - MRs — я автор, assignee или ревьюер;
   - Pipelines — `username = me`;
   - Tags — в строке фильтров «я: не применяется к тегам».
-- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над записями — те же, что в списках режима проекта, в контексте проекта строки: MRs — `a`, `M`, `b`, `C` (если у проекта есть локальная папка и найден glab), `o` (список MR проекта с фильтрами таба), `O`, `y`; Pipelines — `l`, `n`, `R`, `c`, `o`, `O`, `y`; Tags (M3) — `n`, `D`. `P` в списках нет: в строке пайплайна нет выбранной джобы. Для `n` в Pipelines и Tags берётся проект выбранной строки. На заголовке группы и строке «ещё N» действия над записью недоступны.
-- **`f`** с любой строки таба (запись, заголовок, «ещё N») — экран проекта на том же табе (2.7). Фильтры таба (state или status и «я») переносятся в экран проекта; `backspace` в проекте их сбрасывает. Локальная папка — первая папка проекта в workspace.
+- **Действия:** `enter` открывает объект (MR detail / Pipeline / пайплайн тега). Действия над записями — те же, что в списках режима проекта, в контексте проекта строки: MRs — `a`, `M`, `b`, `C` (если у проекта есть локальная папка и найден glab), `o` (список MR проекта с фильтрами таба), `O`, `y`; Pipelines — `l`, `n`, `R`, `c`, `o`, `O`, `y`; Tags (M3) — `n`, `D`, `y` (имя тега), `o` (страница тегов проекта, с поиском). `P` в списках нет: в строке пайплайна нет выбранной джобы. Для `n` в Pipelines и Tags берётся проект выбранной строки; `n` работает на любой строке группы, включая заголовок и «ещё N». На заголовке группы и строке «ещё N» действия над записью недоступны.
+- **`f`** с любой строки таба (запись, заголовок, «ещё N») — экран проекта на том же табе (2.7). Фильтры таба (state или status и «я», в Tags — текст поиска) переносятся в экран проекта; `backspace` в проекте их сбрасывает. Локальная папка — первая папка проекта в workspace.
 - **Поллинг:** активный таб — раз в `polling.workspace` (60 с), только раскрытые группы (в режиме фильтра — все показанные) и обзор для заголовков свёрнутых. В Pipelines, пока в раскрытых группах есть running/pending, дополнительно раз в `polling.active` (3 с) перезапрашиваются только проекты с такими пайплайнами. MRs быстрого тика не имеют.
 - **Ленивая загрузка:** таб грузится только при первом открытии (только раскрытые группы), дальше — из кэша с фоновым обновлением.
 
@@ -314,9 +315,17 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 **Таб Tags** (макет `Tags`):
 
-- **Колонки:** Tag, Commit, Message (+ `◆ release`, если есть релиз), Pipeline, Ago. Сортировка по semver ↓, `/` — поиск.
-- **Превью:** `→ main @ 9fa2c51 · protected`, release notes (первая строка).
-- **Действия:** `n`, `D`, `enter` (пайплайн тега), `y`, `o`.
+- **Колонки:** Tag, Commit (short SHA), Message (первая строка сообщения тега, у lightweight-тега — заголовок коммита; `◆ release`, если есть релиз), Pipeline (последний пайплайн тега: глиф и `#id`, нет — `—`), Ago (время коммита). Порядок — сервера, `order_by=version&sort=desc`; страница 20, подгрузка за 5 строк до конца.
+- **Строка фильтров:** слева `/ поиск: v1.1`, справа `сорт: semver ↓`. `/` — ввод свободного текста без ключей и подсказок, `enter` — поиск на сервере (`search`) с первой страницы, `backspace` вне ввода сбрасывает поиск. `m` и `s` не действуют.
+- **Счётчик и футер:** в табе — общее число тегов (`X-Total`); справа в футере — `6 / 58` (позиция / всего).
+- **Пусто:** «Нет тегов»; с поиском — «Нет тегов по запросу «v9» · backspace — сбросить поиск».
+- **Превью:**
+  1. `v1.14.2 @ 9fa2c51 · release: v1.14.2 · protected` (`protected` — только у защищённого);
+  2. `main опережает на 2 коммита · n предложит v1.14.3`: compare `from=<тег>&to=<default-ветка>` лениво, только для выбранного тега (ответ для другого тега выбрасывается); 0 коммитов — `main совпадает с тегом`, пока идёт — `◐ сравниваем…`, ошибка — `сравнение недоступно` без тоста. «n предложит» — вариант по умолчанию из 3.10 по загруженным тегам, только без активного поиска;
+  3. `Release notes: <первая непустая строка описания релиза>`, если есть релиз.
+- **Действия:** `n` (New tag, 3.10), `D` (удалить, confirm), `enter` (пайплайн тега; нет — тост «У тега нет пайплайна»), `y` (копировать имя тега), `o` (`<проект>/-/tags`, с поиском — `?search=<текст>`). Архивный проект — `n` и `D` скрыты.
+- **Удаление:** confirm «Удалить тег v1.14.2?», описание «Тег удалится в GitLab, коммит 9fa2c51 останется.», у защищённого — плюс «Тег защищён: GitLab, скорее всего, откажет.». Успех — тост «Тег v1.14.2 удалён» и перезагрузка; 403 у защищённого — «Тег v1.14.2 защищён» (11.2).
+- **Поллинг** — 30 с, курсор держится на теге по имени.
 
 ### 3.5. MR detail (макет `MRDetail`)
 
@@ -459,11 +468,16 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 ### 3.10. New tag (макет `Tags`, форма справа)
 
-- **Имя.** Select из трёх вариантов: `v1.14.3 (patch)` (по умолчанию), `v1.15.0 (minor)`, `v2.0.0 (major)`, плюс «своё…» с текстовым полем. Сочетания `ctrl+n`/`ctrl+j` из макета не используем: `ctrl+j` в терминале — это Enter.
-- **Из ref:** по умолчанию default-ветка, автодополнение веток. Подпись `main @ 0b7d3e9 · 2 коммита после v1.14.2`.
-- **Сообщение:** необязательное; если заполнено, создаётся annotated-тег. По умолчанию `release: <имя>`.
-- **«В теге окажутся»:** до 10 коммитов из compare `<последний тег>…<ref>`.
-- **Создание:** `enter` → confirm-модалка «Создать тег v1.14.3 на main @ 0b7d3e9?» → создание.
+Модальная форма (как Run pipeline), заголовок `Новый тег · platform/route-service`.
+
+- **Имя.** Select: `v1.14.3 (patch)` (по умолчанию), `v1.15.0 (minor)`, `v2.0.0 (major)`, плюс «своё…» с текстовым полем (начальное значение — вариант по умолчанию). Под полем — `предложено: patch от v1.14.2` и строка вариантов, текущий выделен. `↑/↓` в фокусе имени меняют вариант (и в режиме «своё…»). Сочетания `ctrl+n`/`ctrl+j` из макета не используем: `ctrl+j` в терминале — это Enter. Варианты считает `internal/semver` по 100 тегам (`order_by=version`), запрошенным при открытии формы; пока они не пришли — `◐ загружаем теги…`, ошибка — тост и только «своё…». Правила — 11.2 («Нет semver-тегов», «Последний тег — prerelease»).
+- **Из ref:** по умолчанию default-ветка, автодополнение веток (`search` через 300 мс, до 5 подсказок под полем, `↑/↓` выбор, `enter` подставить). Подпись `main @ 0b7d3e9 · 2 коммита после v1.14.2` из compare `<последний тег>…<ref>` (через 300 мс после смены ref): SHA — последний коммит `to`, число — коммиты диапазона. Тегов нет — `main · первый тег проекта`; ошибка — `ref не найден или сравнение недоступно`.
+- **Сообщение (annotated):** необязательное; если заполнено, создаётся annotated-тег, пустое — lightweight. По умолчанию `release: <имя>` и следует за именем, пока его не правили.
+- **«В теге окажутся»:** до 10 коммитов из того же compare, новые сверху, больше — `… ещё N`; 0 — «нет новых коммитов после v1.14.2».
+- **Фокус и кнопка:** внизу `esc отмена` и кнопка `enter Создать`. Фокус по кругу `tab`/`shift+tab`: имя → ref → сообщение → кнопка. `enter` в имени и сообщении — следующее поле, в ref — подставить подсказку (если список виден), иначе следующее поле. Создание — только `enter` на кнопке (как в Run pipeline); кнопка в фокусе — активный стиль.
+- **Проверка:** пустое имя — «укажи имя тега»; имя уже есть среди тегов формы — «тег v1.14.2 уже есть»; пустой ref — «укажи ref». Ошибка — строкой над кнопкой, фокус в поле с ошибкой.
+- **Создание:** `enter` на кнопке запоминает снимок (имя, ref, сообщение, SHA) → confirm-модалка «Создать тег v1.14.3 на main @ 0b7d3e9?» (SHA неизвестен — «на main?»), описание «Annotated-тег: «release: v1.14.3»» или «Lightweight-тег без сообщения», по умолчанию «Отмена» → создание со снимком. Пока идёт создание, форма заблокирована, в строке хоткеев «создаём…», `esc` не действует. Успех — форма закрывается, тост «Тег v1.14.3 создан», список перезагружается, курсор на новом теге. Ошибка — тост (у 400 — сообщение GitLab), форма остаётся с теми же значениями.
+- **Ответы закрытой формы** выбрасываются: все запросы несут поколение формы (`common.Gen`, 6.4).
 
 ### 3.11. Project picker `p` (макет `ProjectPicker`)
 
@@ -659,6 +673,11 @@ type Tag struct {
     Pipeline  *PipelineSummary // сопоставляется по ref
 }
 
+type Comparison struct { // REST compare from..to
+    Head    *CommitSummary  // последний коммит to; nil — нет
+    Commits []CommitSummary // коммиты диапазона, новые первыми
+}
+
 type CommitSummary struct {
     SHA, ShortSHA, Title, AuthorName string
     WebURL    string // web_url: ссылка коммита в вебе
@@ -782,12 +801,12 @@ type LocalProject struct {
 | Workspace → Проекты, превью | MR из локальной ветки, лениво по выбранной строке: `project{mergeRequests(sourceBranches: [$b], state: opened, first: 1){nodes{…MRRow}}}` (`MRFilter.SourceBranch`) |
 | Workspace → MRs | GraphQL батч, фрагмент `MRRow`: `mergeRequests(state, first: $perProject, sort: UPDATED_DESC){count nodes{…MRRow}}`. С фильтром `m` — три алиаса на проект (`a: authorUsername`, `s: assigneeUsername`, `r: reviewerUsername`), объединение и дедупликация по IID на клиенте, `Total` — по объединению загруженного (помечается «≥»). |
 | Workspace → Pipelines | GraphQL батч: `pipelines(first: $perProject, username: $me?, status?){count nodes{…PipelineRow}}` |
-| Workspace → Tags | REST на проект (≤ 4 параллельно): `GET /repository/tags?order_by=version&sort=desc&per_page=3` (+ `X-Total`), `GET /pipelines?scope=tags&per_page=50` → сопоставление по `ref`. GraphQL не отдаёт список тегов репозитория ([gitlab#332144](https://gitlab.com/gitlab-org/gitlab/-/work_items/332144)). |
+| Workspace → Tags | REST на проект (≤ 4 параллельно), только раскрытые группы (в режиме фильтра — все показанные): `GET /repository/tags?order_by=version&sort=desc&per_page=<per_project>&search` (+ `X-Total`), если теги есть — `GET /pipelines?scope=tags&per_page=50` → сопоставление по `ref` (новейший пайплайн). GraphQL не отдаёт список тегов репозитория ([gitlab#332144](https://gitlab.com/gitlab-org/gitlab/-/work_items/332144)). |
 | Project → MRs | GraphQL `project{mergeRequests(state, authorUsername?, assigneeUsername?, reviewerUsername?, draft?, labels?, search?, first: 20, after){pageInfo nodes{…MRRow}}}` — тот же фрагмент, что в workspace. С фильтром `m` — три соединения (`a`: author, `s`: assignee, `r`: reviewer) **отдельными параллельными запросами**: в одном запросе три соединения по 20 строк `MRRow` дают сложность ≈300 при лимите 250. Отдельные курсоры (`NextCursor` = `a\|s\|r`), объединение и дедупликация по IID, `Total` — по объединению загруженного (`≥`) |
 | Подсказки фильтров | REST `GET /projects/:id/members/all?query=&per_page=20` (`reviewer`, `user`), `GET /projects/:id/labels?search=&per_page=20` (`labels`), ветки и теги — `GET /repository/branches?search`, `/repository/tags?search`; ответы кэшируются на 5 мин |
 | Project → Pipelines | GraphQL `project{pipelines(ref?, status?, source?, username?, first: 20, after){pageInfo nodes{…PipelineRow}}}`; превью — `pipeline(iid){stages{nodes{name detailedStatus{group} jobs{count}}}}` по выбранной строке |
 | Project → Issues | REST `GET /projects/:id/issues?state&assignee_username&labels&milestone&search&per_page=20&page`; превью — `GET /issues/:iid/notes?sort=asc&per_page=20`, `GET /issues/:iid/related_merge_requests` (лениво) |
-| Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100`; превью — `GET /repository/compare?from=<tag>&to=<default>` |
+| Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100` (первая страница и обновление; теги старше окна — без пайплайна); превью — `GET /repository/compare?from=<tag>&to=<default>` по выбранному тегу. Кэш 30 с; создание и удаление тега сбрасывают списки тегов, пайплайны тегов, compare и последний тег обзора проекта |
 | MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`), `titleHtml descriptionHtml` (опциональные, `#@opt`; без них ссылки MR — только из правил `links` и голых URL) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
 | MR detail → Commits | REST `GET /projects/:id/merge_requests/:iid/commits?per_page=100`, все страницы (`id short_id title author_name web_url created_at` → `CommitSummary`); лениво, при первом открытии вкладки (3.5). REST, а не GraphQL `mergeRequest{commits}`: так же устроены discussions, и `CommitSummary` уже собирается из REST (теги) |
 | Перепроверка статуса MR | REST `GET /merge_requests/:iid?with_merge_status_recheck=true` → `detailed_merge_status` (запускает пересчёт, обычно возвращает `checking`; роль ниже Developer GitLab игнорирует). Единственное чтение деталей MR через REST |
@@ -799,7 +818,7 @@ type LocalProject struct {
 | retry / cancel / play джобы | REST `POST /jobs/:id/retry`, `POST /jobs/:id/cancel`, `POST /jobs/:id/play` (`job_variables_attributes`) |
 | Job log | REST `GET /jobs/:id/trace` (поллинг), `GET /jobs/:id` (статус) |
 | Run pipeline | REST `GET /repository/branches?search`, `GET /repository/tags?search`; GraphQL `project{ciConfigVariables(ref){key value valueOptions description}}`; для тега — REST `GET /pipelines?ref=<tag>&scope=tags&per_page=1` (3.9); REST `POST /projects/:id/pipeline` |
-| New tag | REST `GET /repository/compare?from&to`, `POST /repository/tags` (`tag_name`, `ref`, `message`) |
+| New tag | REST `GET /repository/tags?order_by=version&sort=desc&per_page=100` (варианты имени), `GET /repository/branches?search` (ref), `GET /repository/compare?from=<последний тег>&to=<ref>`, `POST /repository/tags` (`tag_name`, `ref`, `message`) |
 | Delete tag | REST `DELETE /repository/tags/:name` |
 | Issue comment / close / reopen | REST `POST /issues/:iid/notes`, `PUT /issues/:iid` (`state_event=close\|reopen`) |
 | MR comment (M3) | REST `POST /merge_requests/:iid/notes` |
@@ -915,7 +934,7 @@ fragment WsMRGroup on Project {
 
 - **Stale-while-revalidate:** устаревшее значение отдаётся сразу (`Stale: true`), фоновый запрос обновляет его, экран перерисовывается по приходу.
 - **На диске** (`$XDG_CACHE_HOME/gitlab-tui/`): только starred (`starred/<sha256(хост)[:16]>.json`, 1 ч, свой файл на хост) и метаданные проектов workspace (для мгновенного старта): `workspace/<sha256(хост + "\n" + источник)[:16]>.json` — список `ProjectOverview` без MR, со статусом пайплайна default-ветки, `rootRef` и временем снимка; без токенов. Недавние проекты — в `$XDG_STATE_HOME/gitlab-tui/state.json`, отдельный список на хост (последние 20 на хост); старое поле `recent` без хоста игнорируется и удаляется при следующей записи.
-- **Раскрытые группы workspace** — там же, в `state.json`: `hosts.<хост>.workspaces.<источник>` = `{"at": <время последнего открытия>, "expanded": {"mrs": [пути проектов], "pipelines": [...]}, "selected": {"mrs": [пути проектов], "pipelines": [...]}}` (`selected` — отмеченные в `P`); источник — тот же, что в ключе снимка workspace (папка или группа). На хост хранится не больше 50 workspace, при переполнении выбрасываются давно не открывавшиеся. Нет записи — все группы свёрнуты. Повреждённый файл — пустое состояние, как для недавних.
+- **Раскрытые группы workspace** — там же, в `state.json`: `hosts.<хост>.workspaces.<источник>` = `{"at": <время последнего открытия>, "expanded": {"mrs": [пути проектов], "pipelines": [...], "tags": [...]}, "selected": {"mrs": [пути проектов], "pipelines": [...], "tags": [...]}}` (`selected` — отмеченные в `P`); источник — тот же, что в ключе снимка workspace (папка или группа). На хост хранится не больше 50 workspace, при переполнении выбрасываются давно не открывавшиеся. Нет записи — все группы свёрнуты. Повреждённый файл — пустое состояние, как для недавних.
 - **Инвалидация:** любое действие сбрасывает ключи этого объекта и его списков.
 
 ---
@@ -947,10 +966,11 @@ internal/ui/common/vartable/   таблица переменных KEY | VALUE |
 internal/ui/common/grouped/    таблица с группами по проектам (workspace): заголовки, «ещё N», сворачивание
 internal/ui/localgit/      состояние git-операций (fetch/pull, ↑↓) для всех экранов: Tracker в Env
 internal/ui/screens/       setup, start, workspace, project, mrdetail, mractions, pipeactions,
+                           tagactions (удаление тега, превью, открытие New tag),
                            pipeline, joblog, runpipeline, newtag, search (p и F), help
 internal/mrlinks/          ссылки MR: <a href> из HTML, правила links, голые URL, общий список, наложение OSC 8 на отрисованный текст
 internal/joblog/           разбор трейса: секции, ANSI, \r (без зависимостей от UI)
-internal/semver/           предложение следующей версии тега
+internal/semver/           разбор и сравнение версий, предложение следующей версии тега (patch/minor/major/release)
 ```
 
 **Правила зависимостей:**
@@ -1076,11 +1096,15 @@ type JobService interface {
 }
 
 type TagService interface {
-    List(ctx context.Context, p ProjectRef, search, cursor string, limit int) (Page[Tag], error)
-    Create(ctx context.Context, p ProjectRef, name, ref, message string) (Tag, error)
+    List(ctx context.Context, p ProjectRef, search, cursor string, limit int) (Page[Tag], error) // order_by=version, sort=desc
+    Pipelines(ctx context.Context, p ProjectRef, limit int) ([]PipelineSummary, error)          // scope=tags, новые первыми
+    Create(ctx context.Context, p ProjectRef, name, ref, message string) (Tag, error)           // message "" — lightweight
     Delete(ctx context.Context, p ProjectRef, name string) error
-    Compare(ctx context.Context, p ProjectRef, from, to string) ([]CommitSummary, error)
+    Compare(ctx context.Context, p ProjectRef, from, to string) (Comparison, error)
 }
+
+// MatchTagPipelines ставит Tag.Pipeline — первый (новейший) пайплайн с Ref == имя тега.
+func MatchTagPipelines(tags []Tag, pipes []PipelineSummary)
 
 type IssueFilter struct {
     State, Assignee, Milestone, Search string
@@ -1099,7 +1123,8 @@ type WorkspaceService interface {
     ProjectsOverview(ctx context.Context, ps []ProjectRef, o OverviewOptions) <-chan BatchResult[ProjectOverview]
     MergeRequests(ctx context.Context, ps []ProjectRef, f MRFilter, perProject int) <-chan BatchResult[MergeRequest]
     Pipelines(ctx context.Context, ps []ProjectRef, f PipelineFilter, perProject int) <-chan BatchResult[PipelineSummary]
-    // Tags(ctx, ps, perProject) — в M3 (#23).
+    // Tags: REST на проект, не больше 4 одновременно; группа на проект по мере готовности.
+    Tags(ctx context.Context, ps []ProjectRef, search string, perProject int) <-chan BatchResult[Tag]
 }
 
 type OverviewOptions struct {
@@ -1699,8 +1724,8 @@ type Runner interface {
 | `ciConfigVariables` вернул `null` | Сервер считает конфиг асинхронно: повтор через 1, 2, 4 с, потом «подсказки недоступны» без блокировки формы |
 | Нет прав Developer для запуска пайплайна, тега | Действие видно; ответ 403 → тост «недостаточно прав» |
 | Protected tag | Удаление → 403 → «тег защищён» |
-| Нет semver-тегов | Предложение `v0.1.0`; есть только тег без `v` → сохраняем стиль (`1.2.3` → `1.2.4`) |
-| Последний тег — prerelease (`v1.14.0-rc2`) | База — последний не-prerelease; в Select добавляется вариант «release v1.14.0» |
+| Нет semver-тегов | Варианты `v0.0.1`, `v0.1.0`, `v1.0.0`, по умолчанию `v0.1.0`; есть только тег без `v` → сохраняем стиль (`1.2.3` → `1.2.4`). Теги не вида `[v]X.Y.Z[-pre][+build]` (`latest`, `v1.2`) не учитываются |
+| Последний тег — prerelease (`v1.14.0-rc2`) | База — последний не-prerelease; релиз `v1.14.0` — вариант по умолчанию: совпал с patch/minor/major — у варианта пометка `release` (`v1.14.0 (minor · release)`), не совпал — отдельный вариант `v1.16.0 (release)` |
 | Rebase долго в процессе | Чип `◐ rebase…`, поллинг 2 с до 2 мин, потом тост «rebase ещё идёт» и обычный поллинг |
 | Узкий терминал (< 80) | Сообщение «расширь терминал до 80×24», без попытки отрисовать |
 | Смена ветки снаружи TUI | `.git/HEAD` перечитывается на каждом обновлении экрана (`r`, тики), дешёвое чтение файла |
