@@ -545,6 +545,13 @@ func (b *groupBase[T]) count() int {
 	return n
 }
 
+// archived reports an archived project: it takes no writes (new tag, delete,
+// comment).
+func (b *groupBase[T]) archived(path string) bool {
+	ov, ok := b.sh.overview(path)
+	return ok && ov.Archived
+}
+
 // cursorGroup returns the project path of the line under the cursor.
 func (b *groupBase[T]) cursorGroup() string {
 	g, _, _ := b.tbl.Cursor()

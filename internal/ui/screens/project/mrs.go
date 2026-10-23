@@ -518,7 +518,7 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 	case "enter":
 		if mr := t.selected(); mr != nil {
-			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr))
+			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived))
 		}
 	case "o":
 		return app.OpenURL(env, t.listURL())

@@ -89,9 +89,11 @@ func (c *commitsTab) current(sha string) bool {
 // Screen is the MR detail screen.
 type Screen struct {
 	env *app.Env
-	ref gitlab.ProjectRef
-	iid int64
-	mr  gitlab.MergeRequest
+	// archived: the project is archived, no comments.
+	archived bool
+	ref      gitlab.ProjectRef
+	iid      int64
+	mr       gitlab.MergeRequest
 
 	discs       []gitlab.Discussion
 	discLoaded  bool
@@ -134,10 +136,11 @@ type Screen struct {
 }
 
 // New opens MR iid of project ref; initial (from a list row) is shown
-// until the details arrive.
-func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest) *Screen {
+// until the details arrive. archived hides and disables the comment action
+// (SPEC §11.2).
+func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest, archived bool) *Screen {
 	s := &Screen{
-		env: env, ref: ref, iid: initial.IID, mr: initial,
+		env: env, ref: ref, iid: initial.IID, mr: initial, archived: archived,
 		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), commitGen: common.NewGen(),
 		rechecked: map[string]bool{},
 		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{},
@@ -182,8 +185,12 @@ func (s *Screen) KeyMap() common.KeyMap {
 		browser = k.BrowserCommit
 	}
 	short = append(short, s.act.Bindings()...)
+	hide := func(b common.Binding) common.Binding {
+		b.Hidden = s.archived
+		return b
+	}
 	short = append(short,
-		common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow),
+		hide(common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
@@ -481,7 +488,10 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "L":
 		return s.openLinks()
 	case "c":
-		return comment.Open(s.env, comment.Target{Project: s.ref, Kind: comment.KindMR, IID: s.iid, Title: s.mr.Title})
+		if !s.archived {
+			return comment.Open(s.env, comment.Target{Project: s.ref, Kind: comment.KindMR, IID: s.iid, Title: s.mr.Title})
+		}
+		return nil
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":

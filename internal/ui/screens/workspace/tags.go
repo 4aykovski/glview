@@ -189,12 +189,6 @@ func (t *tagsTab) selected() *gitlab.Tag {
 	return nil
 }
 
-// archived reports a project that cannot get or lose tags.
-func (t *tagsTab) archived(path string) bool {
-	ov, ok := t.sh.overview(path)
-	return ok && ov.Archived
-}
-
 // loadCompare asks the comparison of the selected tag with the default
 // branch of its project (from the overview).
 func (t *tagsTab) loadCompare() tea.Cmd {

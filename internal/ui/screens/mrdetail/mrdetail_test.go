@@ -43,6 +43,12 @@ func baseMR() gitlab.MergeRequest {
 
 func setup(t *testing.T, mr gitlab.MergeRequest) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
 	t.Helper()
+	return setupIn(t, mr, false)
+}
+
+// setupIn opens the MR in a project that is archived or not.
+func setupIn(t *testing.T, mr gitlab.MergeRequest, archived bool) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
+	t.Helper()
 	client := fake.New()
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	client.AddMR(path, mr)
@@ -62,7 +68,7 @@ func setup(t *testing.T, mr gitlab.MergeRequest) (*uitest.Driver, *app.Model, *S
 	env := app.NewEnv(i18n.EN)
 	env.Client, env.User, env.Host = client, client.User, "https://gitlab.example.com"
 	env.Now = func() time.Time { return now }
-	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr)
+	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr, archived)
 	root := app.New(env, scr, app.Options{})
 	return uitest.New(t, root), root, scr, client
 }
@@ -694,7 +700,7 @@ func TestRecheckErrorIsSilentAndWindowExpires(t *testing.T) {
 	env.Now = func() time.Time { return cur }
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	client.AddMR(path, uncheckedMR())
-	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, uncheckedMR())
+	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, uncheckedMR(), false)
 	d := uitest.New(t, app.New(env, scr, app.Options{}))
 
 	d.RequireView("unchecked")
@@ -756,6 +762,23 @@ func TestCommentFromMRDetail(t *testing.T) {
 	if client.CallCount("MergeRequests.Discussions") != n+1 {
 		t.Fatal("the discussions must be asked again")
 	}
+}
+
+func TestCommentIsHiddenAndDisabledInArchivedProject(t *testing.T) {
+	d, _, _, client := setupIn(t, baseMR(), true)
+	d.RequireView("Discussions 2")
+	d.RequireNoView("comment")
+	d.Key("c")
+	d.RequireNoView("Comment · !479")
+	d.Key("?")
+	d.RequireNoView("comment")
+	d.Key("esc")
+	if client.CallCount("MergeRequests.Comment") != 0 {
+		t.Fatal("nothing is sent")
+	}
+	// A project that is not archived shows it.
+	d, _, _, _ = setupIn(t, baseMR(), false)
+	d.RequireView("comment")
 }
 
 func TestCommentFromOtherTab(t *testing.T) {

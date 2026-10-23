@@ -426,3 +426,43 @@ func TestCommentOnMRRowsOnly(t *testing.T) {
 		t.Fatal("nothing is sent before the form is submitted")
 	}
 }
+
+// An archived project takes no writes: no comment from its MR row, none in
+// its MR detail.
+func TestCommentIsHiddenForArchivedProjects(t *testing.T) {
+	client := newFake()
+	for _, p := range projects {
+		client.AddProject(gitlab.Project{
+			ProjectRef: gitlab.ProjectRef{ID: p.id, FullPath: p.path}, Name: p.folder, DefaultBranch: "main", Archived: true,
+			LastActivityAt: now.Add(-p.ago), WebURL: "https://gitlab.example.com/" + p.path,
+		})
+	}
+	d, root, _ := openExpanded(t, client, testScope(), allPaths, nil)
+	d.Key("2", "j", "?")
+	d.RequireNoView("comment")
+	d.Key("esc", "c")
+	d.RequireNoView("Comment · !")
+	d.Key("enter")
+	if _, ok := root.Top().(*Screen); ok {
+		t.Fatal("the MR screen must open")
+	}
+	d.RequireNoView("c comment")
+	d.Key("c")
+	d.RequireNoView("Comment · !")
+	if client.CallCount("MergeRequests.Comment") != 0 {
+		t.Fatal("nothing is sent")
+	}
+}
+
+func TestCommentIsShownForLiveProjects(t *testing.T) {
+	d, root, _ := openExpanded(t, newFake(), testScope(), allPaths, nil)
+	d.Key("2", "j", "?")
+	d.RequireView("comment")
+	d.Key("esc", "enter")
+	if _, ok := root.Top().(*Screen); ok {
+		t.Fatal("the MR screen must open")
+	}
+	d.RequireView("comment")
+	d.Key("c")
+	d.RequireView("Comment · !")
+}

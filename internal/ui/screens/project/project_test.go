@@ -585,3 +585,23 @@ func TestMRsCommentFromTheList(t *testing.T) {
 	}
 	d.RequireView("Comment added")
 }
+
+// The MR detail of an archived project has no comment action.
+func TestMRDetailOfArchivedProjectHasNoComment(t *testing.T) {
+	for _, archived := range []bool{false, true} {
+		client := newFake(3)
+		client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}, Archived: archived, WebURL: "https://gitlab.example.com/" + path})
+		d, _, _ := open(t, client, nil)
+		d.Key("enter")
+		d.RequireView("Discussions")
+		if archived {
+			d.RequireNoView("comment")
+			d.Key("c")
+			d.RequireNoView("Comment · !")
+		} else {
+			d.RequireView("comment")
+			d.Key("c")
+			d.RequireView("Comment · !")
+		}
+	}
+}

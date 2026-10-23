@@ -341,9 +341,11 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	switch k.String() {
 	case "enter":
-		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr))
+		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path)))
 	case "c":
-		return comment.Open(env, comment.Target{Project: t.ref(path), Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
+		if !t.archived(path) {
+			return comment.Open(env, comment.Target{Project: t.ref(path), Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
+		}
 	case "L":
 		return linkslist.Load(env, t.linksGen.Next(), t.ref(path), mr.IID)
 	case "a", "M", "b", "C":
@@ -438,7 +440,9 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 	}
 	short = append(short, t.act.Bindings()...)
 	if t.selected() != nil { // not on a group header or "N more"
-		short = append(short, common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow), common.NewBinding([]string{"L"}, "", env.Msg.Links.Key, common.PriorityLinks))
+		c := common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)
+		c.Hidden = t.archived(t.cursorGroup()) // an archived project takes no writes
+		short = append(short, c, common.NewBinding([]string{"L"}, "", env.Msg.Links.Key, common.PriorityLinks))
 	}
 	short = append(short,
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
