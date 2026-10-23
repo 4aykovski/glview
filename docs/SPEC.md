@@ -173,7 +173,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 | Оверлеи `p` и `F` | `↓/↑` `ctrl+n/ctrl+p` ход, `ctrl+d`/`ctrl+u` и `pgdown`/`pgup` на полстраницы вниз/вверх (в поле ввода не редактируют текст), `enter` открыть, `esc` закрыть |
 | Таб MRs и Pipelines | `s` главный фильтр по кругу (MRs: `state` opened → merged → closed → all; Pipelines: `status` any → running → failed → success → manual), `backspace` сбросить все фильтры таба (включая «я»/«мои», текст и фильтр проектов `P`) |
 | Project с локальной папкой | `u` fetch, `U` pull (ff-only) |
-| MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `c` комментарий (M3) |
+| MR (список и детали) | `a` approve/unapprove, `M` merge (диалог), `b` rebase, `C` checkout через glab, `L` ссылки MR (оверлей, 3.5), `c` комментарий (M3) |
 | Таб MRs (список) | `o` список MR проекта в браузере с текущими фильтрами, `O` выделенный MR в браузере, `y` копировать ссылку выделенного MR |
 | MR detail, вкладка Discussions | `J/K` следующий/предыдущий тред (текущий — толстая рамка Accent), `j/k` построчно, `space` свернуть/развернуть текущий тред (на других вкладках `space` листает, `pgdown`/`ctrl+d` листают везде), `o` открыть текущий тред в браузере (`<ссылка MR>#note_<id>` первой заметки), `y` копировать эту ссылку |
 | MR detail, вкладка Commits | `j/k` коммит, `o` выделенный коммит в браузере (`web_url` коммита), `y` копировать эту ссылку |
@@ -189,7 +189,8 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 - **`l`: лог vs `h/l` в пайплайне.** Внутри Pipeline `h/l` — навигация по стейджам-колонкам (как в макете), лог открывается `enter`. В списке пайплайнов `l` — короткий путь к логу первой упавшей или running джобы.
 - **Checkout — `C`.** Не занят ни в одном контексте MR и совпадает с примером custom command из брифа. `c` в MR — комментарий, `C` — checkout.
 - **`a` в Pipeline — попытки джобы.** В макете `a` — артефакты, но они убраны из MVP, а к прежним попыткам обращаются чаще. Артефакты после MVP получат другой хоткей.
-- **Язык — `ctrl+l`.** `L` зарезервирован под метки issue после MVP. `ctrl+l` не используется в полях ввода bubbles. Тему после MVP повесим на `ctrl+t`.
+- **Язык — `ctrl+l`.** `ctrl+l` не используется в полях ввода bubbles. Тему после MVP повесим на `ctrl+t`.
+- **`L`: ссылки MR vs метки issue.** Хоткеи контекстные: в контексте MR (таб MRs, MR detail) `L` открывает список ссылок MR, в Issues после MVP `L` остаётся за метками issue. Метки MR после MVP получат другой хоткей.
 - **Пайплайны «мои/все».** В макете Pipelines это `f`. Заменяем на общий `m` (`user=@me`).
 
 **Отличия от макетов (MVP):**
@@ -274,7 +275,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 
 **Таб MRs** (макет `Main`):
 
-- **Колонки:** IID, Title (с префиксом `Draft:` и маркером `⚠ conflicts`), Author, Branch → target, Pipeline, Appr (`1/2` пока апрувов меньше нужного, `3 ✓` когда набрано или больше, `2` без требования), Thr (неразрешённые треды), Upd.
+- **Колонки:** IID, Title (с префиксом `Draft:` и маркером `⚠ conflicts`; совпадения правил `links` конфига и голые `http(s)://` — OSC 8, см. «Ссылки MR» в 3.5), Author, Branch → target, Pipeline, Appr (`1/2` пока апрувов меньше нужного, `3 ✓` когда набрано или больше, `2` без требования), Thr (неразрешённые треды), Upd.
 - **Превью не открытого MR:** вместо `detailed_merge_status` (`not_open`) — состояние: `✓ merged`, `○ closed`, `○ locked`.
 - **Фильтры:**
   - `state`: opened | merged | closed | all;
@@ -285,7 +286,7 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 - **Как менять фильтры:** `/` открывает строку фильтров в виде `key:value`. Под строкой — список подсказок для слова под курсором: ключи с описанием и текущим значением, после `key:` — значения (для `reviewer` — `@me`, `any` и участники проекта, для `labels` — метки проекта; участники и метки ищутся на сервере через 300 мс после ввода). `↑/↓` выбирают, `tab`/`enter` подставляют, `enter` без списка применяет. Свободный текст ищется по заголовку.
 - **Быстрая смена:** `s` — цикл `state`, `backspace` — сброс фильтров к умолчаниям, без открытия строки.
 - **Превью:** заголовок, mergeable-статус, апрувы с именами, пайплайн с длительностью, `+48 −12 в 3 файлах`, первая строка описания.
-- **Действия:** `enter`, `a`, `M`, `b`, `C`, `o` (страница MR проекта в браузере с текущими фильтрами), `O` (выделенный MR в браузере), `y` (ссылка выделенного MR).
+- **Действия:** `enter`, `a`, `M`, `b`, `C`, `L` (ссылки выделенного MR, 3.5), `o` (страница MR проекта в браузере с текущими фильтрами), `O` (выделенный MR в браузере), `y` (ссылка выделенного MR).
 - **Фильтры в URL `o`:** `<проект>/-/merge_requests`, значения по умолчанию не пишутся, порядок параметров стабильный (`url.Values.Encode`):
   - `state` → `state=merged|closed|all` (`opened` — умолчание веба, не пишется);
   - `scope: created_by_me` → `author_username=<я>`, `assigned_to_me` → `assignee_username=<я>`;
@@ -320,14 +321,14 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
 ### 3.5. MR detail (макет `MRDetail`)
 
 - **Шапка:** `platform/route-service › MRs › !479`.
-- **Блок заголовка:** title, `author · source → target · открыт 1h назад · +48 −12 в 3 файлах`. Вместо «открыт …» по состоянию: смерженный — `смержил d.orlov 5ч назад` (без `mergeUser` — `смержен 5ч назад`), закрытый — `закрыт 3д назад`; время берётся из `MergedAt`/`ClosedAt`.
+- **Блок заголовка:** title, `author · source → target · открыт 1h назад · +48 −12 в 3 файлах`. Вместо «открыт …» по состоянию: смерженный — `смержил d.orlov 5ч назад` (без `mergeUser` — `смержен 5ч назад`), закрытый — `закрыт 3д назад`; время берётся из `MergedAt`/`ClosedAt`. Ссылки в title (`#12`, `!45`, `@anna.k`, `ABC-123`, URL) — OSC 8, текст не меняется (см. «Ссылки MR» ниже).
 - **Чипы статуса:**
   - mergeable-статус из `detailed_merge_status`: `● mergeable`, `⚠ conflict`, `◐ ci_still_running`, `✗ not_approved`, `discussions_not_resolved` и т.д.; текст статуса не переводится, к нему добавляется понятная подпись; у merged/closed/locked MR вместо него чип состояния без подписи: `✓ merged`, `○ closed`, `○ locked`;
   - апрувы `✓ 1/2 approved`, при наборе и сверх нужного — `✓ 3 approved`;
   - пайплайн;
   - число неразрешённых тредов.
 - **Вкладки** (`tab` переключает):
-  - **Overview:** описание через glamour слева. Справа колонка: APPROVALS, LABELS, PIPELINE (стейджи и джобы кратко), последний тред.
+  - **Overview:** описание через glamour слева; ссылки GitLab в тексте (`#12`, `!45`, `@anna.k`, ключи трекера) и совпадения правил `links` — тоже OSC 8 (см. «Ссылки MR»). Справа колонка: APPROVALS, LABELS, PIPELINE (стейджи и джобы кратко), последний тред.
   - **Discussions:** треды карточками: каждый тред — рамка во всю ширину (неразрешённый — цвет Warning, разрешённый и неразрешаемый — Border, текущий — толстая рамка `┏━┓` цвета Accent: форма отличает его и там, где Accent и Warning совпадают или цветов нет), между карточками пустая строка. Внутри: у каждой заметки строка-заголовок (автор жирным, время Muted; у первой — статус треда `● unresolved`/`✓ resolved` и `путь:строка` для diff-тредов, без диффа), тело в markdown, между заметками тонкая линия, ответы с отступом. Системные заметки не показываются. Только чтение.
     - **HTML в комментариях:** перед рендером тело переводится в markdown (боты пишут HTML): `<table>` — таблица, `<br>` — перенос, `<details><summary>X` — `▸ X` и содержимое, `<b>/<i>/<code>/<a href>` — разметка, прочие теги вырезаются с сохранением текста; соседние ячейки не склеиваются.
     - **Сворачивание:** свёрнутый тред — одна строка: заголовок первой заметки, её первая строка текста и `N ответов`. По умолчанию свёрнуты разрешённые треды и треды с телом первой заметки длиннее 20 строк; выбор пользователя сохраняется при обновлении данных.
@@ -339,7 +340,29 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
     - **Клавиши:** `j/k`, `g/G`, листание — как в других таблицах; `enter` ничего не делает (диффы после MVP) и в футере не показывается; `o` — выделенный коммит в браузере, `y` — копировать его ссылку. Пока список пуст или не загружен, `o`/`y` работают со ссылкой MR.
     - **Ссылка коммита:** `CommitSummary.WebURL` (поле `web_url` ответа REST). Если оно пустое — ссылка MR, как при пустом списке.
     - **Колонка «когда»** (здесь и на Pipelines) пересчитывается при каждом ответе деталей MR, то есть раз в цикл поллинга, а не только при загрузке списка; выделенная строка при этом не сбрасывается.
-- **Действия:** `a`, `M`, `b`, `C`, `o`, `y`, `c` (M3). `o`/`y` на Discussions — текущий тред, на Commits — выделенный коммит, на остальных вкладках — MR.
+- **Ссылки MR:**
+  - **Источники:**
+    - `TitleLinks`/`DescriptionLinks` — `<a href>` из GraphQL `titleHtml`/`descriptionHtml`: в них GitLab уже проставил ссылки на `#12`, `!45`, `@user`, URL и ключи внешнего трекера, если интеграция настроена в проекте. Из HTML берутся только `href` и текст ссылки (пробелы схлопнуты, сущности раскрыты). Пропускаются ссылки без текста, якоря заголовков (`href="#…"`) и схемы кроме `http(s)` (`mailto:` и т. п.); относительный `href` (`/anna.k`, `/platform/route-service/uploads/…`) дополняется origin'ом инстанса (схема + хост; path-prefix GitLab уже пишет в `href`). Только в деталях MR (`MRDetail`), не в `MRRow`;
+    - правила `links` конфига (раздел 7) по тексту title и description (description — markdown-источник как есть);
+    - голые `http(s)://` в title и description; хвостовая пунктуация `.,;:!?` и непарные закрывающие `)]}>'"` в ссылку не входят.
+  - **Общий список:** сначала ссылки title, потом description. Внутри каждого — по позиции первого вхождения текста ссылки в исходный текст; не найденные — в конце, в порядке HTML. Дубли по URL схлопываются, остаётся первое вхождение. При одинаковом тексте с разными URL ссылка из HTML GitLab важнее правил, правила — в порядке конфига.
+  - **OSC 8** (cmd/ctrl+клик открывает в браузере) накладывается на уже отрисованный текст:
+    - вхождение текста ссылки ищется по видимому тексту без учёта ANSI-стилей, целым токеном (соседние символы — не буква, не цифра и не `_`), в пределах одной строки;
+    - участки, уже лежащие внутри OSC 8 (ссылки glamour), не трогаются; при пересечении вхождений побеждает более длинный текст;
+    - видимый текст не меняется: терминал без OSC 8 показывает то же, что раньше, golden-снимки (простой текст) не меняются;
+    - ссылка, разорванная переносом строки или обрезанная `…`, не кликабельна — она есть в оверлее `L`.
+  - **Где:**
+    - MR detail — title и описание на Overview: все источники;
+    - таб MRs (режим проекта и workspace) — колонка Title и title в превью: только правила `links` и голые URL (`MRRow` без `titleHtml`, раздел 5.2); в ячейке таблицы OSC 8 накладывается после обрезки по ширине;
+    - треды Discussions — без изменений.
+  - **Оверлей `L`** — для терминалов, где клик не работает (tmux без `terminal-features hyperlinks`, терминал без OSC 8):
+    - рамка списочных оверлеев (`p`, `F`, `P`) без поля ввода: заголовок `Ссылки · !479` / `Links · !479`, строки `текст — URL` (URL — Muted, обрезка `…` справа; если текст совпадает с URL — только URL), справа в футере `3/7`;
+    - `j/k` `↓/↑` `ctrl+n/ctrl+p` — ход, `g/G` — начало/конец, `enter` — открыть в браузере и закрыть оверлей, `y` — скопировать URL (тост «Скопировано: ссылка») и закрыть, `esc` — закрыть;
+    - обновление MR при открытом оверлее перестраивает список, выделение держится по URL;
+    - **MR detail:** список из текущих деталей MR;
+    - **таб MRs:** на строке MR (на заголовке группы и «ещё N» в workspace недоступен). `L` запрашивает детали выделенного MR (`MergeRequests().Get` — тот же запрос, что у MR detail; msg с `Gen`; ответ для другого MR или старого поколения выбрасывается) и открывает оверлей по ответу. Ошибка запроса — тост ошибки; если по `MRRow` (правила и голые URL в title и description) ссылки есть, оверлей открывается с ними;
+    - **ссылок нет** — оверлей не открывается, тост «В MR нет ссылок» / «No links in the MR».
+- **Действия:** `a`, `M`, `b`, `C`, `L`, `o`, `y`, `c` (M3). `o`/`y` на Discussions — текущий тред, на Commits — выделенный коммит, на остальных вкладках — MR.
 - **Перепроверка `unchecked`:** GitLab считает `detailed_merge_status` лениво, чтение через GraphQL пересчёт не запускает, и открытый MR может долго висеть в `unchecked`. Если у открытого MR (state opened) статус `unchecked`, экран один раз за время жизни на ключ `iid@sha` просит GitLab пересчитать его (`RecheckMergeStatus`); ответ `checking` сразу обновляет чип. Пока статус `unchecked`/`checking`/`preparing`, MR опрашивается раз в `polling.active` (3 с), но не дольше 60 с с момента запроса; потом обычный интервал. Ошибка перепроверки (в т.ч. нет прав) пользователю не показывается, только debug-лог. Список MR не перепроверяет.
 - **Поллинг:** пока экран на вершине — 3 с при running-пайплайне, rebase в процессе или перепроверке статуса (до 60 с), иначе 30 с.
 
@@ -519,6 +542,8 @@ type MergeRequest struct {
     Discussions    DiscussionStats
     Diff           *DiffStats // additions, deletions, files; может отсутствовать
     CommitCount    int        // только в деталях (commitCount); 0 — неизвестно
+    TitleLinks       []Link   // только в деталях: <a href> из titleHtml (3.5, «Ссылки MR»)
+    DescriptionLinks []Link   // только в деталях: <a href> из descriptionHtml
     WebURL         string
     CreatedAt      time.Time
     UpdatedAt      time.Time
@@ -529,6 +554,11 @@ type MergeRequest struct {
     MergeError     string // причина неудачного rebase/merge (merge_error)
     Squash         bool   // умолчание squash в диалоге merge
     ForceRemoveSourceBranch bool // умолчание «удалить ветку» в диалоге merge
+}
+
+type Link struct {
+    Text string // видимый текст: "#12", "ABC-123", "@anna.k" или сам URL
+    URL  string // абсолютный http(s) URL
 }
 
 type Approvals struct {
@@ -758,7 +788,7 @@ type LocalProject struct {
 | Project → Pipelines | GraphQL `project{pipelines(ref?, status?, source?, username?, first: 20, after){pageInfo nodes{…PipelineRow}}}`; превью — `pipeline(iid){stages{nodes{name detailedStatus{group} jobs{count}}}}` по выбранной строке |
 | Project → Issues | REST `GET /projects/:id/issues?state&assignee_username&labels&milestone&search&per_page=20&page`; превью — `GET /issues/:iid/notes?sort=asc&per_page=20`, `GET /issues/:iid/related_merge_requests` (лениво) |
 | Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100`; превью — `GET /repository/compare?from=<tag>&to=<default>` |
-| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
+| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`), `titleHtml descriptionHtml` (опциональные, `#@opt`; без них ссылки MR — только из правил `links` и голых URL) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
 | MR detail → Commits | REST `GET /projects/:id/merge_requests/:iid/commits?per_page=100`, все страницы (`id short_id title author_name web_url created_at` → `CommitSummary`); лениво, при первом открытии вкладки (3.5). REST, а не GraphQL `mergeRequest{commits}`: так же устроены discussions, и `CommitSummary` уже собирается из REST (теги) |
 | Перепроверка статуса MR | REST `GET /merge_requests/:iid?with_merge_status_recheck=true` → `detailed_merge_status` (запускает пересчёт, обычно возвращает `checking`; роль ниже Developer GitLab игнорирует). Единственное чтение деталей MR через REST |
 | approve / unapprove | REST `POST /merge_requests/:iid/approve` (`sha`), `POST …/unapprove` |
@@ -918,6 +948,7 @@ internal/ui/common/grouped/    таблица с группами по прое�
 internal/ui/localgit/      состояние git-операций (fetch/pull, ↑↓) для всех экранов: Tracker в Env
 internal/ui/screens/       setup, start, workspace, project, mrdetail, mractions, pipeactions,
                            pipeline, joblog, runpipeline, newtag, search (p и F), help
+internal/mrlinks/          ссылки MR: <a href> из HTML, правила links, голые URL, общий список, наложение OSC 8 на отрисованный текст
 internal/joblog/           разбор трейса: секции, ANSI, \r (без зависимостей от UI)
 internal/semver/           предложение следующей версии тега
 ```
@@ -1252,12 +1283,18 @@ git:
   timeout: 60s                       # на один репозиторий
   fetch_on_start: false              # фоновый fetch всех проектов workspace при старте
 
+links:                               # свои ссылки в title и description MR (3.5, «Ссылки MR»)
+  - pattern: '[A-Z][A-Z0-9]+-\d+'     # регулярное выражение Go (RE2)
+    url: 'https://tracker.example.com/browse/$0'  # $0 — всё совпадение, $1…, ${name} — группы
+
 # После MVP:
 # custom_commands:
 #   - key: "X"
 #     context: mr
 #     command: "glab mr view {{.MR.IID}} --web"
 ```
+
+**Правила `links`:** для трекеров без интеграции в GitLab (с интеграцией ссылки уже приходят в `titleHtml`/`descriptionHtml`). `url` — шаблон `regexp.Expand`. Правило с пустым `pattern` или `url`, с ошибкой в регулярке или с `url`, который не начинается с `http://` или `https://`, пропускается с тостом-предупреждением с ключом (`links[0].pattern`); остальные правила работают. По умолчанию правил нет.
 
 **Цепочка источников:**
 
@@ -1728,6 +1765,7 @@ type Runner interface {
 4. **Хоткеи:**
    - `m` — фильтр «я» везде, `M` — merge с выбором «сейчас / auto-merge» в диалоге;
    - checkout — `C`, язык — `ctrl+l`;
+   - `L` в контексте MR — список ссылок MR (метки issue после MVP — `L` в Issues);
    - в Pipeline `h/l` — стейджи, лог — `enter`; в списке пайплайнов `l` — лог упавшей джобы.
 5. **Списки MR и пайплайнов идут через GraphQL в обоих режимах.** REST-списки не отдают head pipeline, апрувы и длительность, которые нужны в колонках. Один фрагмент на оба режима. Остальное (детали пайплайна, лог, теги, issues, мутации) — REST.
 6. **Теги — только REST** (в GraphQL нет списка тегов). Workspace Tags делает до 2 REST-запросов на проект, параллельно не больше 4.
