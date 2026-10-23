@@ -89,6 +89,8 @@ type PreviewData struct {
 	Notes   []gitlab.Note      // oldest first, system ones included
 	State   NotesState
 	Hint    bool // show "c — write a comment…" (not in an archived project)
+	// Cache memoises the markdown renders; nil renders every time.
+	Cache *RenderCache
 }
 
 // Preview renders the preview of the issue into exactly h lines of at most w
@@ -97,6 +99,7 @@ type PreviewData struct {
 func Preview(env *app.Env, d PreviewData, w, h int) []string {
 	s, m := env.Styles, env.Msg.Issue
 	i := d.Issue
+	d.Cache.use(i.IID)
 	var out []string
 	out = append(out, s.Bold.Render(i.Title), StatusLine(env, i))
 	for _, r := range d.Related {
@@ -111,7 +114,7 @@ func Preview(env *app.Env, d PreviewData, w, h int) []string {
 	// Description.
 	if room() > 1 {
 		out = append(out, "")
-		desc := strings.Split(common.Markdown(s, common.HTMLToMarkdown(i.Description), w), "\n")
+		desc := strings.Split(d.Cache.markdown(s, common.HTMLToMarkdown(i.Description), w), "\n")
 		if strings.TrimSpace(i.Description) == "" {
 			desc = []string{s.Muted.Render(m.NoDescription)}
 		}
@@ -135,7 +138,7 @@ func Preview(env *app.Env, d PreviewData, w, h int) []string {
 				out = append(out, s.Muted.Render(m.NotesFailed))
 			}
 		default:
-			out = append(out, lastNotes(env, d.Notes, w, room())...)
+			out = append(out, lastNotes(env, d.Cache, d.Notes, w, room())...)
 		}
 	}
 
@@ -154,7 +157,7 @@ func Preview(env *app.Env, d PreviewData, w, h int) []string {
 
 // lastNotes lays out the newest comments from the bottom up, as many as fit
 // whole into room lines, oldest of them first.
-func lastNotes(env *app.Env, notes []gitlab.Note, w, room int) []string {
+func lastNotes(env *app.Env, cache *RenderCache, notes []gitlab.Note, w, room int) []string {
 	s := env.Styles
 	var blocks [][]string
 	used := 0
@@ -163,7 +166,7 @@ func lastNotes(env *app.Env, notes []gitlab.Note, w, room int) []string {
 		if n.System {
 			continue
 		}
-		body := strings.Split(common.Markdown(s, common.HTMLToMarkdown(n.Body), w), "\n")
+		body := strings.Split(cache.markdown(s, common.HTMLToMarkdown(n.Body), w), "\n")
 		if len(body) > NoteLines {
 			body = append(body[:NoteLines-1:NoteLines-1], s.Muted.Render("…"))
 		}

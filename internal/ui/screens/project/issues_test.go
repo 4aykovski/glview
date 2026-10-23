@@ -327,6 +327,95 @@ func TestIssuesCloseAndReopen(t *testing.T) {
 	o.d.RequireView("Issue #1318 reopened")
 }
 
+func manyIssues(n int) *fake.Client {
+	c := fake.New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}, DefaultBranch: "main", WebURL: "https://gitlab.example.com/" + path})
+	for i := n; i >= 1; i-- {
+		c.AddIssue(path, gitlab.Issue{IID: int64(i), Title: fmt.Sprintf("Issue number %d", i), Author: anna,
+			UpdatedAt: now.Add(-time.Duration(n-i) * time.Minute)})
+	}
+	return c
+}
+
+// listedCursors are the page cursors of the Issues.List calls, "" for a
+// first page.
+func listedCursors(c *fake.Client) []string {
+	var out []string
+	for _, call := range c.CallsOf("Issues.List") {
+		out = append(out, call[2].(string))
+	}
+	return out
+}
+
+// An issue closed from the second page leaves the list at once, and the
+// refresh neither brings it back with the old tail nor asks the loaded
+// pages again.
+func TestIssuesCloseFromSecondPageLeavesNoStaleTail(t *testing.T) {
+	c := manyIssues(45)
+	o := openIssues(t, c, nil)
+	for range 16 {
+		o.d.Key("j")
+	}
+	if len(o.tab.Items()) != 40 {
+		t.Fatalf("two pages must be loaded: %d", len(o.tab.Items()))
+	}
+	for range 6 {
+		o.d.Key("j")
+	}
+	iid := o.tab.selected().IID
+	if o.tab.tbl.Cursor() < 20 {
+		t.Fatalf("the cursor must be on the second page: %d", o.tab.tbl.Cursor())
+	}
+	o.d.Key("x", "y")
+	for _, is := range o.tab.Items() {
+		if is.IID == iid {
+			t.Fatalf("#%d is back in the list", iid)
+		}
+	}
+	if len(o.tab.Items()) != 39 || o.tab.Count() != 44 {
+		t.Fatalf("items = %d count = %d", len(o.tab.Items()), o.tab.Count())
+	}
+	if o.tab.selected() == nil || o.tab.selected().IID == iid {
+		t.Fatalf("the cursor must go to a neighbour: %+v", o.tab.selected())
+	}
+	for range 14 { // within 5 rows of the end
+		o.d.Key("j")
+	}
+	seen := map[string]int{}
+	for _, cur := range listedCursors(c) {
+		seen[cur]++
+	}
+	for cur, n := range seen {
+		if cur != "" && n > 1 {
+			t.Fatalf("page %q was asked %d times: %v", cur, n, listedCursors(c))
+		}
+	}
+	// Offset paging: the third page starts where the server's second one
+	// ended, so the row that shifted into the gap is the price of not
+	// asking the loaded pages again.
+	if len(o.tab.Items()) != 43 {
+		t.Fatalf("the third page must be appended once: %d", len(o.tab.Items()))
+	}
+}
+
+// With state:all the closed issue stays in place with its new status.
+func TestIssuesCloseKeepsTheRowUnderStateAll(t *testing.T) {
+	o := openIssues(t, issuesFake(), nil)
+	o.d.Key("s", "s") // closed, all
+	o.d.RequireView("state:all")
+	o.d.Key("x", "y")
+	o.d.RequireView("Issue #1318 closed")
+	var got *gitlab.Issue
+	for i := range o.tab.Items() {
+		if o.tab.Items()[i].IID == 1318 {
+			got = &o.tab.Items()[i]
+		}
+	}
+	if got == nil || got.State != "closed" {
+		t.Fatalf("#1318 must stay, closed: %+v", got)
+	}
+}
+
 func TestIssuesCommentFromTheList(t *testing.T) {
 	o := openIssues(t, issuesFake(), nil)
 	o.d.Key("c")
@@ -411,4 +500,71 @@ func TestIssuesRussian(t *testing.T) {
 	d.RequireView("● открыт · #1318 · anna.k · исполнитель: egor", "КОММЕНТАРИИ 2", "c — написать комментарий…", "закрыть/открыть")
 	d.Key("m", "m", "s", "s")
 	d.RequireView("state:all")
+}
+
+// Closing from the issue screen: it asked, so it toasts once; the covered
+// tab follows on return.
+func TestIssuesCloseFromTheIssueScreenToastsOnce(t *testing.T) {
+	o := openIssues(t, issuesFake(), nil)
+	o.d.Key("enter")
+	lists := o.fake.CallCount("Issues.List")
+	o.d.Key("x", "y")
+	n := 0
+	for _, m := range o.d.Msgs {
+		if tm, ok := m.(app.ToastMsg); ok && tm.Text == "Issue #1318 closed" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("toasts = %d", n)
+	}
+	if got := o.fake.CallCount("Issues.List"); got != lists {
+		t.Fatalf("the covered tab must wait: %d -> %d", lists, got)
+	}
+	o.d.Key("esc")
+	if got := o.fake.CallCount("Issues.List"); got != lists+1 {
+		t.Fatalf("the tab reloads on return: %d -> %d", lists, got)
+	}
+	for _, is := range o.tab.Items() {
+		if is.IID == 1318 {
+			t.Fatal("the closed issue must leave the list")
+		}
+	}
+}
+
+// merge_requests_count > 0 is the only reason to ask the related MRs of the
+// list; an issue without it gets no marker and no request.
+func TestIssuesWithoutClosingMRHaveNoMarkerAndNoRequest(t *testing.T) {
+	c := issuesFake()
+	c.SetRelatedMRs(path, 1318, gitlab.RelatedMR{IID: 479, State: gitlab.MRStateOpened})
+	o := openIssues(t, c, nil)
+	requireRow(t, o.d, "#1318 Surge coefficient ignores zone overrides bug pricing 20m")
+	o.d.RequireNoView("→ !479 bug pricing")
+	for _, call := range c.CallsOf("Issues.RelatedMRs") {
+		if call[1] == int64(1318) {
+			t.Fatal("related MRs of #1318 must not be asked from the list")
+		}
+	}
+}
+
+// View repeats the same preview on every frame: glamour runs once.
+func TestIssuesPreviewDoesNotRenderMarkdownOnEveryView(t *testing.T) {
+	o := openIssues(t, issuesFake(), nil)
+	o.d.Send(tea.WindowSizeMsg{Width: 150, Height: 40})
+	o.d.View()
+	renders := o.tab.md.Renders
+	if renders == 0 {
+		t.Fatal("the preview renders markdown")
+	}
+	for range 3 {
+		o.d.View()
+	}
+	if o.tab.md.Renders != renders {
+		t.Fatalf("renders %d -> %d", renders, o.tab.md.Renders)
+	}
+	o.d.Key("j")
+	o.d.View()
+	if o.tab.md.Renders == renders {
+		t.Fatal("another issue renders its own markdown")
+	}
 }

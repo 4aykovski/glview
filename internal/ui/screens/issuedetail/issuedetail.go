@@ -167,9 +167,8 @@ func (s *Screen) loadDiscussions(force bool) tea.Cmd {
 }
 
 func (s *Screen) loadRelated(force bool) tea.Cmd {
-	if s.issue.MergeRequestsCount == 0 && !force {
-		return nil // nothing is related as far as the list knows; r asks anyway
-	}
+	// Always asked: merge_requests_count only counts the MRs that close the
+	// issue, a "Related to" one is not in it.
 	tok := s.relGen.Next()
 	env, ref, iid := s.env, s.ref, s.iid
 	key := issueactions.RelatedKey(ref.FullPath, iid)
@@ -259,14 +258,20 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 		return s, tea.Batch(s.loadIssue(true), s.loadDiscussions(true))
 	case issueactions.StateMsg:
-		if msg.Ref.FullPath != s.ref.FullPath || msg.IID != s.iid || !s.active {
-			if msg.Ref.FullPath == s.ref.FullPath && msg.IID == s.iid {
-				s.dirty = true
-			}
+		if msg.Ref.FullPath != s.ref.FullPath || msg.IID != s.iid {
 			return s, nil
 		}
-		cmd := issueactions.Done(env, msg)
+		// Only the screen that asked toasts; another one showing the same
+		// issue just reloads.
+		var cmd tea.Cmd
+		if s.issueGen.Owns(msg.Owner) {
+			cmd = issueactions.Done(env, msg)
+		}
 		if msg.Err != nil {
+			return s, cmd
+		}
+		if !s.active {
+			s.dirty = true
 			return s, cmd
 		}
 		return s, tea.Batch(cmd, s.loadIssue(true))
@@ -312,7 +317,7 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "x":
 		if !s.archived {
-			return issueactions.Toggle(env, s.ref, s.issue)
+			return issueactions.Toggle(env, s.issueGen.Current(), s.ref, s.issue)
 		}
 		return nil
 	}

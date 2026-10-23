@@ -90,6 +90,9 @@ type issuesTab struct {
 	relForce  bool // the next page brings everything again (r)
 	forceRel  map[int64]bool
 
+	// md keeps the markdown renders of the selected issue's preview.
+	md *issueactions.RenderCache
+
 	// Comments of the selected issue for the preview.
 	notesGen common.Gen
 	notesIID int64 // issue of the request in flight
@@ -105,7 +108,7 @@ type issuesTab struct {
 
 func newIssuesTab(sh *shared) *issuesTab {
 	t := &issuesTab{sh: sh, gen: common.NewGen(), poll: common.NewGen(), relGen: common.NewGen(), notesGen: common.NewGen(), total: -1,
-		filter: gitlab.IssueFilter{State: "opened"}, related: map[int64]relatedEntry{}, notes: map[int64]notesEntry{}, forceRel: map[int64]bool{}}
+		filter: gitlab.IssueFilter{State: "opened"}, related: map[int64]relatedEntry{}, notes: map[int64]notesEntry{}, forceRel: map[int64]bool{}, md: &issueactions.RenderCache{}}
 	t.tbl = table.New(sh.env.Styles)
 	t.fl = filterline.New(sh.env.Styles, t.filterKeys())
 	t.rebuild()
@@ -515,13 +518,19 @@ func (t *issuesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if msg.Ref.FullPath != t.sh.ref.FullPath {
 			return t, nil
 		}
-		if !t.active {
-			// The issue screen on top did it and showed the toast.
-			t.dirty = t.dirty || msg.Err == nil
-			return t, nil
+		// Only the screen that asked toasts (the issue screen on top does);
+		// the tab follows the change and reloads at once or on return.
+		own := t.gen.Owns(msg.Owner)
+		var cmd tea.Cmd
+		if own {
+			cmd = issueactions.Done(env, msg)
 		}
-		cmd := issueactions.Done(env, msg)
 		if msg.Err != nil {
+			return t, cmd
+		}
+		t.applyState(msg.Issue)
+		if !own && !t.active {
+			t.dirty = true
 			return t, cmd
 		}
 		return t, tea.Batch(cmd, t.loadFirst(false, true))
@@ -545,6 +554,7 @@ func (t *issuesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 			return t, t.loadFirst(false, true)
 		}
 	case app.LangChangedMsg, app.ThemeChangedMsg:
+		t.md.Reset()
 		t.fl.SetKeys(t.filterKeys())
 		t.rebuild()
 	case tea.KeyPressMsg:
@@ -581,7 +591,7 @@ func (t *issuesTab) onLoaded(msg issuesLoadedMsg) tea.Cmd {
 		tail := t.items[t.firstLen:]
 		t.items = appendUniqueIssues(slices.Clone(page.Items), tail)
 		t.firstLen = len(page.Items)
-		t.next = page.NextCursor
+		// t.next stays: it continues after the tail that is already loaded.
 	default:
 		t.items = slices.Clone(page.Items)
 		t.firstLen = len(page.Items)
@@ -600,6 +610,33 @@ func (t *issuesTab) onLoaded(msg issuesLoadedMsg) tea.Cmd {
 		cmds = append(cmds, t.loadMore())
 	}
 	return tea.Batch(cmds...)
+}
+
+// applyState puts the issue just closed or reopened into the loaded pages,
+// or drops it when its new state no longer passes the state filter: the
+// refresh merges a fresh first page with the old tail, which would keep the
+// old row.
+func (t *issuesTab) applyState(is gitlab.Issue) {
+	i := slices.IndexFunc(t.items, func(x gitlab.Issue) bool { return x.IID == is.IID })
+	if i < 0 {
+		return
+	}
+	want := t.filter.State
+	if want == "" {
+		want = "opened"
+	}
+	if want != "all" && is.State != want {
+		t.items = slices.Delete(t.items, i, i+1)
+		if i < t.firstLen {
+			t.firstLen--
+		}
+		if t.total > 0 {
+			t.total--
+		}
+	} else {
+		t.items[i] = is
+	}
+	t.rebuild()
 }
 
 func appendUniqueIssues(dst, src []gitlab.Issue) []gitlab.Issue {
@@ -669,7 +706,7 @@ func (t *issuesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 	case "x":
 		if !t.sh.archived {
-			return issueactions.Toggle(env, t.sh.ref, *is)
+			return issueactions.Toggle(env, t.gen.Current(), t.sh.ref, *is)
 		}
 	case "O":
 		if is.WebURL != "" {
@@ -783,7 +820,7 @@ func (t *issuesTab) filterLine() string {
 
 func (t *issuesTab) previewData() issueactions.PreviewData {
 	is := t.selected()
-	d := issueactions.PreviewData{Issue: *is, Hint: !t.sh.archived}
+	d := issueactions.PreviewData{Issue: *is, Hint: !t.sh.archived, Cache: t.md}
 	if e, ok := t.related[is.IID]; ok {
 		d.Related = e.mrs
 	}

@@ -123,8 +123,18 @@ func TestOpenJAndBack(t *testing.T) {
 func TestQuietIssueHasNoCommentsHint(t *testing.T) {
 	s := open(t, newFake(), 1300, false, i18n.RU)
 	s.d.RequireView("Комментариев нет · c — написать", "нет описания")
-	if s.c.CallCount("Issues.RelatedMRs") != 0 {
-		t.Fatal("no related MRs are asked for an issue without them")
+}
+
+// merge_requests_count only counts the MRs that close the issue: a
+// "Related to" MR is found by the always-sent related_merge_requests.
+func TestRelatedMRsAreAskedEvenWithZeroCount(t *testing.T) {
+	c := newFake()
+	c.AddIssue(path, gitlab.Issue{IID: 1301, Title: "Mentioned only", Author: anna, UpdatedAt: now})
+	c.SetRelatedMRs(path, 1301, gitlab.RelatedMR{IID: 479, Title: "Fix slot race", State: gitlab.MRStateOpened})
+	s := open(t, c, 1301, false, i18n.EN)
+	s.d.RequireView("→ !479 Fix slot race")
+	if c.CallCount("Issues.RelatedMRs") != 1 {
+		t.Fatal("related MRs are asked once, whatever the count says")
 	}
 }
 

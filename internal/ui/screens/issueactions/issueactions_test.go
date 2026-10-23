@@ -61,7 +61,7 @@ func issue(t *testing.T, c *fake.Client, iid int64) gitlab.Issue {
 
 func TestCloseAsksAndCloses(t *testing.T) {
 	d, env, c := start(t, i18n.EN)
-	d.Run(Toggle(env, project, issue(t, c, 1318)))
+	d.Run(Toggle(env, common.Token{}, project, issue(t, c, 1318)))
 	d.RequireView("Close issue #1318?", "Surge coefficient ignores zone overrides")
 	if c.CallCount("Issues.SetState") != 0 {
 		t.Fatal("nothing happens before the confirm")
@@ -79,7 +79,7 @@ func TestCloseAsksAndCloses(t *testing.T) {
 
 func TestEnterIsCancel(t *testing.T) {
 	d, env, c := start(t, i18n.EN)
-	d.Run(Toggle(env, project, issue(t, c, 1318)))
+	d.Run(Toggle(env, common.Token{}, project, issue(t, c, 1318)))
 	d.Key("enter")
 	if c.CallCount("Issues.SetState") != 0 {
 		t.Fatal("enter in the confirm is Cancel")
@@ -89,7 +89,7 @@ func TestEnterIsCancel(t *testing.T) {
 
 func TestReopenWithoutConfirm(t *testing.T) {
 	d, env, c := start(t, i18n.RU)
-	d.Run(Toggle(env, project, issue(t, c, 1260)))
+	d.Run(Toggle(env, common.Token{}, project, issue(t, c, 1260)))
 	d.RequireNoView("Закрыть issue")
 	calls := c.CallsOf("Issues.SetState")
 	if len(calls) != 1 || calls[0][1] != int64(1260) || calls[0][2] != false {
@@ -104,7 +104,7 @@ func TestReopenWithoutConfirm(t *testing.T) {
 func TestForbiddenIsToast(t *testing.T) {
 	d, env, c := start(t, i18n.EN)
 	c.FailNext("Issues.SetState", &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403})
-	d.Run(Toggle(env, project, issue(t, c, 1318)))
+	d.Run(Toggle(env, common.Token{}, project, issue(t, c, 1318)))
 	d.Key("y")
 	d.RequireView("Not enough permissions")
 	if issue(t, c, 1318).State != "opened" {

@@ -15,6 +15,7 @@ const requestTimeout = 15 * time.Second
 
 // StateMsg reports a finished close or reopen of issue IID of Ref.
 type StateMsg struct {
+	Owner  common.Token // the screen that asked: it alone toasts
 	Ref    gitlab.ProjectRef
 	IID    int64
 	Closed bool // the issue was closed (false: reopened)
@@ -25,22 +26,22 @@ type StateMsg struct {
 // Toggle closes an open issue after a confirm (the default is "Cancel") and
 // reopens a closed one at once: reopening can be undone, closing is asked
 // about (SPEC §13.1, item 12).
-func Toggle(env *app.Env, ref gitlab.ProjectRef, i gitlab.Issue) tea.Cmd {
+func Toggle(env *app.Env, owner common.Token, ref gitlab.ProjectRef, i gitlab.Issue) tea.Cmd {
 	closing := i.State != "closed"
-	set := setState(env, ref, i.IID, closing)
+	set := setState(env, owner, ref, i.IID, closing)
 	if !closing {
 		return set
 	}
 	return app.OpenOverlay(app.NewConfirm(env, env.Msg.Issue.ConfirmClose(i.IID), i.Title, set))
 }
 
-func setState(env *app.Env, ref gitlab.ProjectRef, iid int64, closed bool) tea.Cmd {
+func setState(env *app.Env, owner common.Token, ref gitlab.ProjectRef, iid int64, closed bool) tea.Cmd {
 	client := env.Client
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
 		issue, err := client.Issues().SetState(ctx, ref, iid, closed)
-		return StateMsg{Ref: ref, IID: iid, Closed: closed, Issue: issue, Err: err}
+		return StateMsg{Owner: owner, Ref: ref, IID: iid, Closed: closed, Issue: issue, Err: err}
 	}
 }
 
