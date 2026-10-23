@@ -14,6 +14,7 @@ import (
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/glab"
 	"github.com/4aykovski/glview/internal/i18n"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/localgit"
 )
@@ -35,6 +36,9 @@ type Settings struct {
 	// PrefillLocalBranch puts the local branch into the Run pipeline ref
 	// field and first among the suggestions (run_pipeline.prefill_local_branch).
 	PrefillLocalBranch bool
+
+	// LinkRules are the compiled links rules of the config (MR links).
+	LinkRules []mrlinks.Rule
 }
 
 // Defaults of Settings (SPEC §7).

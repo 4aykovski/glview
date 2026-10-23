@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/4aykovski/glview/internal/cache"
@@ -19,6 +20,7 @@ import (
 	"github.com/4aykovski/glview/internal/gitremote"
 	"github.com/4aykovski/glview/internal/glab"
 	"github.com/4aykovski/glview/internal/i18n"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/startup"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
@@ -193,6 +195,7 @@ func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPat
 		FetchOnStart:       cfg.Git.FetchOnStart,
 		RefsTagsFirst:      cfg.RunPipeline.RefsFirst == config.RefsTagsFirst,
 		PrefillLocalBranch: cfg.RunPipeline.PrefillLocalBranch,
+		LinkRules:          linkRules(cfg.Links),
 	}
 	var toasts []app.ToastMsg
 	for _, w := range warns {
@@ -200,6 +203,8 @@ func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPat
 		switch w.Kind {
 		case config.WarnPermissions:
 			text = env.Msg.Toast.ConfigPermissions(cfgPath)
+		case config.WarnLink:
+			text = env.Msg.Links.BadRule(w.Text)
 		case config.WarnValue:
 			text = env.Msg.Toast.ConfigBadValue(w.Key, w.Value, w.Default)
 		default:
@@ -208,4 +213,16 @@ func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPat
 		toasts = append(toasts, app.ToastMsg{Level: common.ToastWarn, Text: text})
 	}
 	return toasts
+}
+
+// linkRules compiles the links rules of the config; Load has already
+// dropped the invalid ones.
+func linkRules(rules []config.LinkRule) []mrlinks.Rule {
+	var out []mrlinks.Rule
+	for _, r := range rules {
+		if re, err := regexp.Compile(r.Pattern); err == nil {
+			out = append(out, mrlinks.Rule{Re: re, URL: r.URL})
+		}
+	}
+	return out
 }

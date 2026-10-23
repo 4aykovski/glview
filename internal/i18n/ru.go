@@ -139,5 +139,6 @@ var ru = func() Messages {
 	m.Plural.Lines = func(n int) string { return Count(RU, n, PluralForms{"строка", "строки", "строк"}) }
 	fillM1RU(&m)
 	fillM2RU(&m)
+	fillM3RU(&m)
 	return m
 }()

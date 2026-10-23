@@ -105,6 +105,7 @@ type Messages struct {
 	WS      WorkspaceMessages
 	Search  SearchMessages
 	Git     GitMessages
+	Links   LinksMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

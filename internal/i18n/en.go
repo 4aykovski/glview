@@ -131,5 +131,6 @@ var en = func() Messages {
 	m.Plural.Lines = func(n int) string { return Count(EN, n, PluralForms{"line", "", "lines"}) }
 	fillM1EN(&m)
 	fillM2EN(&m)
+	fillM3EN(&m)
 	return m
 }()
