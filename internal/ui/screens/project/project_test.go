@@ -569,3 +569,19 @@ func TestCheckoutNonZeroExit(t *testing.T) {
 	d.Key("C")
 	d.RequireView("glab exited with an error (code 3)")
 }
+
+func TestMRsCommentFromTheList(t *testing.T) {
+	client := newFake(3)
+	d, _, _ := open(t, client, nil)
+	d.Key("c")
+	d.RequireView("Comment · !1 MR number 1")
+	for _, r := range "Nice" {
+		d.Key(string(r))
+	}
+	d.Key("alt+enter")
+	calls := client.CallsOf("MergeRequests.Comment")
+	if len(calls) != 1 || calls[0][1] != int64(1) || calls[0][2] != "Nice" {
+		t.Fatalf("Comment calls = %v", calls)
+	}
+	d.RequireView("Comment added")
+}

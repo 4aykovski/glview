@@ -19,6 +19,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/screens/comment"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
@@ -182,6 +183,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 	}
 	short = append(short, s.act.Bindings()...)
 	short = append(short,
+		common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
@@ -393,6 +395,11 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 		s.discs, s.discLoaded = msg.discs, true
 		s.threads.SetDiscussions(msg.discs)
+	case comment.SentMsg:
+		if msg.Target.Kind != comment.KindMR || msg.Target.Project.FullPath != s.ref.FullPath || msg.Target.IID != s.iid {
+			return s, nil
+		}
+		return s, tea.Batch(s.loadDiscussions(true), s.loadMR(true))
 	case pipesLoadedMsg:
 		if !s.pipeGen.Valid(msg.tok) {
 			return s, nil
@@ -473,6 +480,8 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return s.loadAll(true)
 	case "L":
 		return s.openLinks()
+	case "c":
+		return comment.Open(s.env, comment.Target{Project: s.ref, Kind: comment.KindMR, IID: s.iid, Title: s.mr.Title})
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":

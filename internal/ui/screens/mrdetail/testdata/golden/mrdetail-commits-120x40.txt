@@ -37,4 +37,4 @@ anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-tab next tab  j/k down  a approve  M merge  b rebase  r refresh  o commit in browser  y copy  esc back  ? help  poll 30s
+tab next tab  j/k down  a approve  M merge  b rebase  c comment  r refresh  o commit in browser  ? help         poll 30s

@@ -412,3 +412,17 @@ func TestGroupHeaderShownOfMany(t *testing.T) {
 	d.Key("ctrl+l")
 	d.RequireView("показаны 2 из многих")
 }
+
+func TestCommentOnMRRowsOnly(t *testing.T) {
+	client := newFake()
+	d, _, _ := openExpanded(t, client, testScope(), allPaths, nil)
+	d.Key("2")
+	d.Key("c") // the cursor is on a group header
+	d.RequireNoView("Comment · !")
+	d.Key("j", "c")
+	d.RequireView("Comment · !")
+	d.Key("esc")
+	if client.CallCount("MergeRequests.Comment") != 0 {
+		t.Fatal("nothing is sent before the form is submitted")
+	}
+}

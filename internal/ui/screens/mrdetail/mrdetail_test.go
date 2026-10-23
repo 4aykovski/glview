@@ -737,3 +737,30 @@ func curThread(s *Screen) string {
 	c, _ := s.threads.Current()
 	return c.ID
 }
+
+func TestCommentFromMRDetail(t *testing.T) {
+	d, _, _, client := setup(t, baseMR())
+	d.RequireView("Discussions 2")
+	n := client.CallCount("MergeRequests.Discussions")
+	d.Key("c")
+	d.RequireView("Comment · !479")
+	for _, r := range "Looks fine" {
+		d.Key(string(r))
+	}
+	d.Key("tab", "enter")
+	calls := client.CallsOf("MergeRequests.Comment")
+	if len(calls) != 1 || calls[0][1] != int64(479) || calls[0][2] != "Looks fine" {
+		t.Fatalf("Comment calls = %v", calls)
+	}
+	d.RequireView("Comment added", "Discussions 3")
+	if client.CallCount("MergeRequests.Discussions") != n+1 {
+		t.Fatal("the discussions must be asked again")
+	}
+}
+
+func TestCommentFromOtherTab(t *testing.T) {
+	d, _, _, _ := setup(t, baseMR())
+	d.Key("tab", "tab") // Pipelines
+	d.Key("c")
+	d.RequireView("Comment · !479")
+}

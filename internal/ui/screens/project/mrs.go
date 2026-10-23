@@ -17,6 +17,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/filterline"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/screens/comment"
 	"github.com/4aykovski/glview/internal/ui/screens/linkslist"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/mrdetail"
@@ -353,6 +354,10 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		return t, nil
 	case mrsLoadedMsg:
 		return t, t.onLoaded(msg)
+	case comment.SentMsg:
+		if msg.Target.Kind == comment.KindMR && msg.Target.Project.FullPath == t.sh.ref.FullPath && t.active && t.loaded {
+			return t, t.loadFirst(false, true) // the thread counters changed
+		}
 	case linkslist.LoadedMsg:
 		// The answer counts only for the request in flight and while the
 		// cursor still stands on its MR.
@@ -502,6 +507,10 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if mr := t.selected(); mr != nil {
 			cmd, _ := t.act.Key(k.String(), *mr)
 			return cmd
+		}
+	case "c":
+		if mr := t.selected(); mr != nil && !t.sh.archived {
+			return comment.Open(env, comment.Target{Project: t.sh.ref, Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
 		}
 	case "L":
 		if mr := t.selected(); mr != nil {
@@ -679,6 +688,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"s"}, "", k.State, common.PriorityNormal),
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
+		hideArchived(t.sh, common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
 		common.NewBinding([]string{"L"}, "", t.env().Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),
@@ -739,4 +749,10 @@ func filterInputView(fl *filterline.Model, s *common.Styles, hint string, errTex
 	}
 	lines[0] += "  " + s.Muted.Render(hint)
 	return strings.Join(lines, "\n")
+}
+
+// hideArchived hides a binding that does not work in an archived project.
+func hideArchived(sh *shared, b common.Binding) common.Binding {
+	b.Hidden = sh.archived
+	return b
 }
