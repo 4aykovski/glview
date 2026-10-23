@@ -217,6 +217,9 @@ func TestIssuesEmptyStates(t *testing.T) {
 	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}, WebURL: "https://gitlab.example.com/" + path})
 	o := openIssues(t, c, nil)
 	o.d.RequireView("No open issues")
+	if o.tab.Count() != 0 { // X-Total: 0 is a count, not "unknown"
+		t.Fatalf("count = %d", o.tab.Count())
+	}
 	o.d.RequireNoView("backspace — reset")
 	o.d.Key("m")
 	o.d.RequireView("No open issues assigned to you · m — drop the “me” filter")

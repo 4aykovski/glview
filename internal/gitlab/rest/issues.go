@@ -62,10 +62,7 @@ func (s issues) List(ctx context.Context, p gitlab.ProjectRef, f gitlab.IssueFil
 	if err != nil {
 		return gitlab.Page[gitlab.Issue]{}, mapError(err)
 	}
-	page := gitlab.Page[gitlab.Issue]{Total: -1}
-	if resp.TotalItems > 0 {
-		page.Total = int(resp.TotalItems)
-	}
+	page := gitlab.Page[gitlab.Issue]{Total: totalOf(resp)}
 	if resp.NextPage > 0 {
 		page.NextCursor = strconv.FormatInt(resp.NextPage, 10)
 	}

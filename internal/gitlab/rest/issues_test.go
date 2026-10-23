@@ -232,3 +232,32 @@ func readBody(r *http.Request) string {
 	b, _ := io.ReadAll(r.Body)
 	return string(b)
 }
+
+// X-Total: 0 is a real zero; no header means unknown.
+func TestListTotalFollowsTheHeader(t *testing.T) {
+	for _, tt := range []struct {
+		name, header string
+		want         int
+	}{{"zero", "0", 0}, {"seven", "7", 7}, {"absent", "", -1}} {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				if tt.header != "" {
+					w.Header().Set("X-Total", tt.header)
+				}
+				jsonReply(200, "[]")(w, r)
+			}
+			c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
+				"GET " + issuesBase: handler,
+				"GET /api/v4/projects/platform%2Froute-service/repository/tags": handler,
+			})
+			is, err := c.Issues().List(context.Background(), issueProject, gitlab.IssueFilter{}, "", 20)
+			if err != nil || is.Total != tt.want {
+				t.Fatalf("issues: total = %d err = %v, want %d", is.Total, err, tt.want)
+			}
+			tags, err := c.Tags().List(context.Background(), issueProject, "", "", 20)
+			if err != nil || tags.Total != tt.want {
+				t.Fatalf("tags: total = %d err = %v, want %d", tags.Total, err, tt.want)
+			}
+		})
+	}
+}

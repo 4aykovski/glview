@@ -71,10 +71,7 @@ func (s tags) List(ctx context.Context, p gitlab.ProjectRef, search, cursor stri
 	if err != nil {
 		return gitlab.Page[gitlab.Tag]{}, mapError(err)
 	}
-	page := gitlab.Page[gitlab.Tag]{Total: -1}
-	if resp.TotalItems > 0 {
-		page.Total = int(resp.TotalItems)
-	}
+	page := gitlab.Page[gitlab.Tag]{Total: totalOf(resp)}
 	if resp.NextPage > 0 {
 		page.NextCursor = strconv.FormatInt(resp.NextPage, 10)
 	}
