@@ -15,6 +15,7 @@ import (
 	"github.com/4aykovski/glview/internal/debuglog"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/table"
@@ -114,7 +115,16 @@ type Screen struct {
 	active  bool
 	w, h    int
 
-	md map[string]string // rendered markdown by width|lang|text
+	md map[string]string // rendered markdown by width|lang|links|text
+
+	// links is the MR link list (title and description, SPEC 3.5), built
+	// lazily and dropped when the details change; linksKey identifies it
+	// in the markdown cache. linksOpen is set once the L overlay was opened:
+	// fresh details are then sent to it.
+	links     []gitlab.Link
+	linksOK   bool
+	linksKey  string
+	linksOpen bool
 
 	// Discussions tab: the current thread and the folds the user toggled
 	// (overriding the default rule); both are keyed by discussion ID so
@@ -173,6 +183,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 	short = append(short, s.act.Bindings()...)
 	short = append(short,
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
+		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
 		common.NewBinding([]string{"esc"}, "", k.Back, common.PriorityLow),
@@ -354,12 +365,13 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, tea.Batch(env.Fail(msg.err), s.reloadCommits(false), s.schedulePoll())
 		}
 		s.mr = msg.mr
+		s.linksOK = false
 		s.updated = env.Now()
 		// Once per poll cycle: refresh the relative times of the tables.
 		s.rebuildTable()
 		s.rebuildCommits()
 		recheck := s.maybeRecheck()
-		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll())
+		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll(), s.refreshLinks())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -457,6 +469,8 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return s.setTab(s.tab + tabCount - 1)
 	case "r":
 		return s.loadAll(true)
+	case "L":
+		return s.openLinks()
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":
@@ -651,7 +665,7 @@ func (s *Screen) View() string {
 		metaLine += st.Muted.Render(" · ") + st.DiffAdd.Render(fmt.Sprintf("+%d", d.Additions)) + " " + st.DiffDel.Render(fmt.Sprintf("−%d", d.Deletions)) + " " + st.Muted.Render(m.Plural.Files(d.Files))
 	}
 
-	lines := []string{head, render.Clip(st.Bold.Render(title), s.w), render.Clip(metaLine, s.w)}
+	lines := []string{head, mrlinks.Apply(render.Clip(st.Bold.Render(title), s.w), s.linkList()), render.Clip(metaLine, s.w)}
 	if s.boxedChips() {
 		lines = append(lines, s.chipRow())
 	} else {
@@ -832,10 +846,11 @@ func (s *Screen) window(lines []string) string {
 }
 
 func (s *Screen) markdown(text string, width int) []string {
-	key := fmt.Sprintf("%d|%s|%s", width, s.env.Lang, text)
+	links := s.linkList()
+	key := fmt.Sprintf("%d|%s|%s|%s", width, s.env.Lang, s.linksKey, text)
 	out, ok := s.md[key]
 	if !ok {
-		out = common.Markdown(s.env.Styles, text, width)
+		out = mrlinks.Apply(common.Markdown(s.env.Styles, text, width), links)
 		s.md[key] = out
 	}
 	return strings.Split(out, "\n")
@@ -939,4 +954,44 @@ func lastThread(ds []gitlab.Discussion) *gitlab.Discussion {
 		return nil
 	}
 	return &us[len(us)-1]
+}
+
+// ---- links ----
+
+// linkList is the link list of the MR: GitLab's links from the details,
+// the config rules and bare URLs (SPEC 3.5, "MR links").
+func (s *Screen) linkList() []gitlab.Link {
+	if !s.linksOK {
+		mr := s.mr
+		s.links = mrlinks.Collect(mrlinks.Source{
+			Title: mr.Title, Description: mr.Description,
+			TitleLinks: mr.TitleLinks, DescriptionLinks: mr.DescriptionLinks,
+		}, s.env.Settings.LinkRules)
+		var b strings.Builder
+		for _, l := range s.links {
+			b.WriteString(l.Text + "\x00" + l.URL + "\x00")
+		}
+		s.linksKey, s.linksOK = b.String(), true
+	}
+	return s.links
+}
+
+func (s *Screen) linksOverlayKey() string { return s.key("links") }
+
+// openLinks shows the L overlay, or a toast when the MR has no links.
+func (s *Screen) openLinks() tea.Cmd {
+	links := s.linkList()
+	if len(links) == 0 {
+		return app.Toast(common.ToastInfo, s.env.Msg.Links.NoLinks, "")
+	}
+	s.linksOpen = true
+	return app.OpenOverlay(app.NewLinksOverlay(s.env, s.linksOverlayKey(), fmt.Sprintf("!%d", s.iid), links))
+}
+
+// refreshLinks sends the current list to the overlay, if one was opened.
+func (s *Screen) refreshLinks() tea.Cmd {
+	if !s.linksOpen {
+		return nil
+	}
+	return app.LinksRefresh(s.linksOverlayKey(), s.linkList())
 }

@@ -29,13 +29,22 @@ func ListModalRows(height int) int { return max(3, min(listModalMaxH, height-4)-
 // list lines (the caller pads them to ListModalRows); counter goes to the
 // right of the hints.
 func ListModal(s *Styles, w int, head, input string, rows []string, hints, counter string) string {
+	return listModal(s, w, []string{head, input}, rows, hints, counter)
+}
+
+// ListModalPlain is ListModal without the input line.
+func ListModalPlain(s *Styles, w int, head string, rows []string, hints, counter string) string {
+	return listModal(s, w, []string{head}, rows, hints, counter)
+}
+
+func listModal(s *Styles, w int, top, rows []string, hints, counter string) string {
 	inner := w - 4
 	foot := s.Muted.Render(hints)
 	if counter != "" {
 		gap := max(1, inner-lipgloss.Width(foot)-lipgloss.Width(counter))
 		foot += strings.Repeat(" ", gap) + s.Muted.Render(counter)
 	}
-	body := head + "\n" + input + "\n" + Rule(s, inner) + "\n" + strings.Join(rows, "\n") + "\n" + Rule(s, inner) + "\n" + foot
+	body := strings.Join(top, "\n") + "\n" + Rule(s, inner) + "\n" + strings.Join(rows, "\n") + "\n" + Rule(s, inner) + "\n" + foot
 	return s.Modal.Width(w).Render(body)
 }
 
