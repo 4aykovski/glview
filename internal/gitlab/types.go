@@ -80,9 +80,13 @@ type MergeRequest struct {
 	Discussions  DiscussionStats
 	Diff         *DiffStats
 	CommitCount  int // detail views only (commitCount); 0 = unknown
-	WebURL       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// TitleLinks and DescriptionLinks are the <a href> links GitLab put into
+	// titleHtml/descriptionHtml; detail views only (SPEC 3.5, "MR links").
+	TitleLinks       []Link
+	DescriptionLinks []Link
+	WebURL           string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 	// MergedAt, ClosedAt and MergedBy are filled in detail views only (zero/nil
 	// otherwise, and when the MR was not merged/closed).
 	MergedAt         time.Time
@@ -94,6 +98,12 @@ type MergeRequest struct {
 	// defaults of the merge dialog.
 	Squash                  bool
 	ForceRemoveSourceBranch bool
+}
+
+// Link is a hyperlink found in an MR title or description.
+type Link struct {
+	Text string // visible text: "#12", "ABC-123", "@anna.k" or the URL itself
+	URL  string // absolute http(s) URL
 }
 
 // MRScope narrows MR lists to the user's own MRs.
