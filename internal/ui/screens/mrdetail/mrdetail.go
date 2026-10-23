@@ -22,6 +22,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
+	"github.com/4aykovski/glview/internal/ui/screens/threads"
 )
 
 const (
@@ -126,11 +127,9 @@ type Screen struct {
 	linksKey  string
 	linksOpen bool
 
-	// Discussions tab: the current thread and the folds the user toggled
-	// (overriding the default rule); both are keyed by discussion ID so
-	// they survive reloads.
-	curThread string
-	fold      map[string]bool
+	// Discussions tab: thread cards with the current thread and the folds
+	// the user toggled; both survive reloads.
+	threads *threads.Model
 }
 
 // New opens MR iid of project ref; initial (from a list row) is shown
@@ -140,8 +139,9 @@ func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitl
 		env: env, ref: ref, iid: initial.IID, mr: initial,
 		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), commitGen: common.NewGen(),
 		rechecked: map[string]bool{},
-		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{}, fold: map[string]bool{},
+		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{},
 	}
+	s.threads = threads.New(env, s.threadLink)
 	s.act = mractions.New(env, func() gitlab.ProjectRef { return s.ref }, func() *gitremote.Repo { return repo })
 	s.rebuildTable()
 	s.rebuildCommits()
@@ -392,6 +392,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, env.Fail(msg.err)
 		}
 		s.discs, s.discLoaded = msg.discs, true
+		s.threads.SetDiscussions(msg.discs)
 	case pipesLoadedMsg:
 		if !s.pipeGen.Valid(msg.tok) {
 			return s, nil
@@ -448,6 +449,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 	case app.LangChangedMsg, app.ThemeChangedMsg:
 		s.md = map[string]string{}
+		s.threads.ClearCache()
 		s.tbl.SetStyles(env.Styles)
 		s.rebuildTable()
 		s.rebuildCommits()
@@ -513,7 +515,7 @@ func (s *Screen) selectedPipeline() *gitlab.PipelineSummary {
 func (s *Screen) setTab(i int) tea.Cmd {
 	s.tab = i % tabCount
 	s.scroll = 0
-	s.curThread = ""
+	s.threads.Reset()
 	if s.tab != tabCommits {
 		return nil
 	}
@@ -807,7 +809,7 @@ func (s *Screen) tabBar() string {
 	st, m := s.env.Styles, s.env.Msg.MR
 	discs := ""
 	if s.discLoaded {
-		discs = fmt.Sprintf(" %d", len(userDiscussions(s.discs)))
+		discs = fmt.Sprintf(" %d", s.threads.Count())
 	}
 	pipes := ""
 	if s.pipesLoaded {
@@ -930,26 +932,8 @@ func (s *Screen) side() []string {
 	return out
 }
 
-// userDiscussions drops discussions that only hold system notes.
-func userDiscussions(ds []gitlab.Discussion) []gitlab.Discussion {
-	var out []gitlab.Discussion
-	for _, d := range ds {
-		var notes []gitlab.Note
-		for _, n := range d.Notes {
-			if !n.System {
-				notes = append(notes, n)
-			}
-		}
-		if len(notes) > 0 {
-			d.Notes = notes
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
 func lastThread(ds []gitlab.Discussion) *gitlab.Discussion {
-	us := userDiscussions(ds)
+	us := threads.User(ds)
 	if len(us) == 0 {
 		return nil
 	}

@@ -540,8 +540,8 @@ func TestJMovesCurrentThread(t *testing.T) {
 	lightTheme(scr)
 	first := corners(scr.View())[0]
 	d.Key("J")
-	if scr.curThread != "r2" {
-		t.Fatalf("current = %q", scr.curThread)
+	if curThread(scr) != "r2" {
+		t.Fatalf("current = %q", curThread(scr))
 	}
 	c := corners(scr.View())
 	if c[1] != first || c[0] == first {
@@ -549,8 +549,8 @@ func TestJMovesCurrentThread(t *testing.T) {
 	}
 	d.RequireView("LGTM overall")
 	d.Key("K", "K")
-	if scr.curThread != "r1" {
-		t.Fatalf("K must stop at the first thread: %q", scr.curThread)
+	if curThread(scr) != "r1" {
+		t.Fatalf("K must stop at the first thread: %q", curThread(scr))
 	}
 }
 
@@ -558,12 +558,12 @@ func TestJKRepicksCurrentThread(t *testing.T) {
 	d, _, scr, _ := richSetup(t)
 	d.Send(tea.WindowSizeMsg{Width: 120, Height: 14})
 	d.Key(strings.Split(strings.Repeat("j,", 10), ",")[:10]...)
-	if scr.curThread != "r2" {
-		t.Fatalf("after scrolling past the first card current = %q", scr.curThread)
+	if curThread(scr) != "r2" {
+		t.Fatalf("after scrolling past the first card current = %q", curThread(scr))
 	}
 	d.Key("k", "k", "k")
-	if scr.curThread != "r1" {
-		t.Fatalf("scrolling back: current = %q", scr.curThread)
+	if curThread(scr) != "r1" {
+		t.Fatalf("scrolling back: current = %q", curThread(scr))
 	}
 }
 
@@ -730,4 +730,10 @@ func TestMergedAndOtherStatusesAreNotRechecked(t *testing.T) {
 			t.Errorf("%s/%s: poll %v", mr.State, mr.MergeStatus, got)
 		}
 	}
+}
+
+// curThread is the ID of the current thread card.
+func curThread(s *Screen) string {
+	c, _ := s.threads.Current()
+	return c.ID
 }
