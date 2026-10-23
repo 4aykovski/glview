@@ -3,6 +3,7 @@ package common
 import (
 	"image/color"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/glamour/v2/ansi"
@@ -221,4 +222,21 @@ func NewInput(s *Styles) textinput.Model {
 	in.SetStyles(s.Input)
 	in.Prompt = ""
 	return in
+}
+
+// NewTextArea returns a multi-line input styled from the theme: no line
+// numbers, no prompt, no cursor-line highlight.
+func NewTextArea(s *Styles) textarea.Model {
+	ta := textarea.New()
+	ta.ShowLineNumbers = false
+	ta.Prompt = ""
+	ta.CharLimit = 0
+	ta.MaxHeight = 0
+	plain := lipgloss.NewStyle()
+	ta.SetStyles(textarea.Styles{
+		Focused: textarea.StyleState{Base: plain, Text: s.Text, Placeholder: s.Muted, EndOfBuffer: plain, CursorLine: plain},
+		Blurred: textarea.StyleState{Base: plain, Text: s.Muted, Placeholder: s.Muted, EndOfBuffer: plain, CursorLine: plain},
+		Cursor:  textarea.CursorStyle{Color: s.Input.Cursor.Color, Shape: tea.CursorBlock},
+	})
+	return ta
 }

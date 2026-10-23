@@ -7,6 +7,7 @@ func fillM3EN(m *Messages) {
 	fillTagFormEN(m)
 	fillTagsTabEN(m)
 	fillTagsWSEN(m)
+	fillIssuesEN(m)
 	l := &m.Links
 	l.Key = "links"
 	l.Title = func(ref string) string { return "Links · " + ref }
@@ -106,4 +107,16 @@ func fillTagsWSEN(m *Messages) {
 	t.NoMine = "me: not applied to tags"
 	t.PerProject = func(n int) string { return fmt.Sprintf("per project: %d", n) }
 	t.SortVersion = "sort: version ↓"
+}
+
+func fillIssuesEN(m *Messages) {
+	c := &m.Comment
+	c.Title = func(ref, title string) string { return "Comment · " + ref + " " + title }
+	c.Hint = "markdown · tab — to the button · alt+enter — send"
+	c.Close = "esc close"
+	c.Send = "Send"
+	c.Empty = "comment is empty"
+	c.Sending = "sending…"
+	c.Added = "Comment added"
+	c.Key = "comment"
 }

@@ -7,6 +7,7 @@ func fillM3RU(m *Messages) {
 	fillTagFormRU(m)
 	fillTagsTabRU(m)
 	fillTagsWSRU(m)
+	fillIssuesRU(m)
 	l := &m.Links
 	l.Key = "ссылки"
 	l.Title = func(ref string) string { return "Ссылки · " + ref }
@@ -112,4 +113,16 @@ func fillTagsWSRU(m *Messages) {
 	t.NoMine = "я: не применяется к тегам"
 	t.PerProject = func(n int) string { return fmt.Sprintf("на проект: %d", n) }
 	t.SortVersion = "сорт: version ↓"
+}
+
+func fillIssuesRU(m *Messages) {
+	c := &m.Comment
+	c.Title = func(ref, title string) string { return "Комментарий · " + ref + " " + title }
+	c.Hint = "markdown · tab — к кнопке · alt+enter — отправить"
+	c.Close = "esc закрыть"
+	c.Send = "Отправить"
+	c.Empty = "комментарий пуст"
+	c.Sending = "отправляем…"
+	c.Added = "Комментарий добавлен"
+	c.Key = "комментарий"
 }

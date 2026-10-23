@@ -158,6 +158,11 @@ func KeyPress(k string) tea.KeyPressMsg {
 	if key, ok := named[k]; ok {
 		return tea.KeyPressMsg(key)
 	}
+	if rest, ok := strings.CutPrefix(k, "alt+"); ok {
+		key := KeyPress(rest).Key()
+		key.Mod |= tea.ModAlt
+		return tea.KeyPressMsg(key)
+	}
 	if rest, ok := strings.CutPrefix(k, "ctrl+"); ok && len([]rune(rest)) == 1 {
 		return tea.KeyPressMsg(tea.Key{Code: []rune(rest)[0], Mod: tea.ModCtrl})
 	}

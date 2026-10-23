@@ -107,6 +107,8 @@ type Messages struct {
 	Git     GitMessages
 	Links   LinksMessages
 	Tag     TagMessages
+	Issue   IssueMessages
+	Comment CommentMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

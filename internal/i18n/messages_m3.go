@@ -1,6 +1,6 @@
 package i18n
 
-// M3 message groups: MR links (T34), tags (T23). Filled by fillM3EN / fillM3RU; the
+// M3 message groups: MR links (T34), tags (T23), issues and comments (T24). Filled by fillM3EN / fillM3RU; the
 // completeness test covers every field.
 
 // LinksMessages are the strings of the MR link overlay (L) and the links
@@ -78,3 +78,20 @@ type TagMessages struct {
 	PerProject  func(n int) string
 	SortVersion string
 }
+
+// CommentMessages are the strings of the comment form (SPEC §3.16), shared
+// by issues and merge requests.
+type CommentMessages struct {
+	Title   func(ref, title string) string // "Comment · #1318 Surge…"
+	Hint    string                         // under the field
+	Close   string                         // "esc close"
+	Send    string                         // button label
+	Empty   string                         // "comment is empty"
+	Sending string
+	Added   string // toast
+	Key     string // footer and help label of c
+}
+
+// IssueMessages are the strings of the Issues tab, the issue screen and the
+// issue actions (SPEC §3.4, §3.15).
+type IssueMessages struct{}

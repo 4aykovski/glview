@@ -96,6 +96,9 @@ func (m *Model) Env() *Env { return m.env }
 // Top returns the screen on top of the stack.
 func (m *Model) Top() Screen { return m.stack[len(m.stack)-1] }
 
+// Overlay returns the open overlay, nil when none.
+func (m *Model) Overlay() Overlay { return m.overlay }
+
 // Depth returns the stack size.
 func (m *Model) Depth() int { return len(m.stack) }
 
