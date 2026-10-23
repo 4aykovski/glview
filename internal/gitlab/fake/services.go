@@ -188,6 +188,13 @@ func (c *Client) withMe(mr gitlab.MergeRequest) gitlab.MergeRequest {
 	return mr
 }
 
+// row strips what a list row (MRRow) does not carry: the real API gives the
+// HTML links in MR details only.
+func row(mr gitlab.MergeRequest) gitlab.MergeRequest {
+	mr.TitleLinks, mr.DescriptionLinks = nil, nil
+	return mr
+}
+
 type mrService struct{ c *Client }
 
 func (s mrService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab.MRFilter, cursor string, limit int) (gitlab.Page[gitlab.MergeRequest], error) {
@@ -204,7 +211,7 @@ func (s mrService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab.MRFil
 	var all []gitlab.MergeRequest
 	for _, mr := range s.c.data.mrs[path] {
 		if matchMR(mr, f, me) {
-			all = append(all, s.c.withMe(mr))
+			all = append(all, row(s.c.withMe(mr)))
 		}
 	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].UpdatedAt.After(all[j].UpdatedAt) })

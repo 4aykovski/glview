@@ -1,5 +1,5 @@
 {"data":{"project":{"mergeRequest":
-{"iid":"479","title":"Fix race in courier slot allocator","description":"## Why\n\n- slot map raced\n","draft":false,"state":"opened",
+{"iid":"479","title":"ABC-123: Fix race in courier slot allocator","titleHtml":"<a href=\"https://tracker.example.com/browse/ABC-123\">ABC-123</a>: Fix race in courier slot allocator","descriptionHtml":"<h2 dir=\"auto\"><a href=\"#why\" class=\"anchor\"></a>Why</h2><p>Closes <a href=\"/platform/route-service/-/issues/12\">#12</a> by <a href=\"/anna.k\">@anna.k</a></p>","description":"## Why\n\n- slot map raced\n","draft":false,"state":"opened",
  "createdAt":"2026-10-19T09:00:00Z","updatedAt":"2026-10-19T11:00:00Z","webUrl":"https://gitlab.example.com/platform/route-service/-/merge_requests/479",
  "sourceBranch":"fix/slot-race","targetBranch":"main","diffHeadSha":"a91f2c0d","detailedMergeStatus":"NOT_APPROVED","conflicts":false,
  "squash":false,"forceRemoveSourceBranch":true,

@@ -234,3 +234,20 @@ func TestFakeMRCommits(t *testing.T) {
 		t.Errorf("calls = %d", n)
 	}
 }
+
+func TestMRLinksOnlyInDetails(t *testing.T) {
+	c := New()
+	c.AddMR("platform/route-service", gitlab.MergeRequest{
+		IID: 479, Title: "ABC-123: fix", State: gitlab.MRStateOpened,
+		TitleLinks: []gitlab.Link{{Text: "ABC-123", URL: "https://tracker.example.com/browse/ABC-123"}},
+	})
+	p := gitlab.ProjectRef{FullPath: "platform/route-service"}
+	page, err := c.MergeRequests().List(context.Background(), p, gitlab.MRFilter{State: gitlab.MRStateAll}, "", 10)
+	if err != nil || len(page.Items) != 1 || page.Items[0].TitleLinks != nil {
+		t.Fatalf("list = %+v %v", page.Items, err)
+	}
+	mr, err := c.MergeRequests().Get(context.Background(), p, 479)
+	if err != nil || len(mr.TitleLinks) != 1 || c.CallCount("MergeRequests.Get") != 1 {
+		t.Fatalf("get = %+v %v", mr, err)
+	}
+}

@@ -171,7 +171,7 @@ func (w workspace) MergeRequests(ctx context.Context, ps []gitlab.ProjectRef, f 
 		var all []gitlab.MergeRequest
 		for _, mr := range c.data.mrs[p.FullPath] {
 			if matchMR(mr, f, c.User.Username) {
-				all = append(all, c.withMe(mr))
+				all = append(all, row(c.withMe(mr)))
 			}
 		}
 		sort.SliceStable(all, func(i, j int) bool { return all[i].UpdatedAt.After(all[j].UpdatedAt) })
