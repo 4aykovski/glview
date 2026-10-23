@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › Issues › #1318                @egor · ⟳ <1m
+────────────────────────────────────────────────────────────────────────────────
+  Surge coefficient ignores zone overrides
+  ● open · #1318 · anna.k · assignee: egor · milestone: 2026-Q4
+  Labels: bug · pricing
+  → !479 Fix slot race · opened
+────────────────────────────────────────────────────────────────────────────────
+  Zones with a manual override use the global coefficient.
+
+  1. set override 1.5
+  2. ask for an estimate
+
+  Comments 2
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ d.orlov 1h                                                                   │
+│ Override is read before zone cache invalidation.                             │
+│ ──────────────────────────────────────────────────────────────────────────── │
+│   egor 50m                                                                   │
+│   Confirmed, will fix.                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+────────────────────────────────────────────────────────────────────────────────
+j/k down  J/K threads  space fold  c comment  x close/reopen  ? help    poll 30s

@@ -99,6 +99,7 @@ type issuesTab struct {
 	err                                   error
 	updated                               time.Time
 	active                                bool
+	dirty                                 bool // changed behind the tab's back: reload on activation
 	w, h                                  int
 }
 
@@ -337,6 +338,9 @@ func (t *issuesTab) Activate() tea.Cmd {
 	switch {
 	case !t.loaded && !t.loading:
 		return t.loadFirst(true, false)
+	case t.loaded && t.dirty && !t.env().AuthLost:
+		t.dirty = false
+		return tea.Batch(t.loadFirst(false, true), t.loadNotes(true))
 	case t.loaded && t.env().Now().Sub(t.updated) >= issuesPollInterval && !t.env().AuthLost:
 		return t.loadFirst(false, true)
 	}
@@ -502,9 +506,18 @@ func (t *issuesTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 			return t, nil
 		}
 		delete(t.notes, msg.Target.IID)
+		if !t.active {
+			t.dirty = true // covered by the issue screen: reload on return
+			return t, nil
+		}
 		return t, tea.Batch(t.loadFirst(false, true), t.loadNotes(true))
 	case issueactions.StateMsg:
 		if msg.Ref.FullPath != t.sh.ref.FullPath {
+			return t, nil
+		}
+		if !t.active {
+			// The issue screen on top did it and showed the toast.
+			t.dirty = t.dirty || msg.Err == nil
 			return t, nil
 		}
 		cmd := issueactions.Done(env, msg)
@@ -649,7 +662,7 @@ func (t *issuesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	switch k.String() {
 	case "enter":
-		return app.Push(issuedetail.New(env, t.sh.ref, *is))
+		return app.Push(issuedetail.New(env, t.sh.ref, *is, t.sh.archived))
 	case "c":
 		if !t.sh.archived {
 			return comment.Open(env, comment.Target{Project: t.sh.ref, Kind: comment.KindIssue, IID: is.IID, Title: is.Title})
