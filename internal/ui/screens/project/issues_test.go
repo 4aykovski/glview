@@ -11,6 +11,7 @@ import (
 	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
+	"github.com/4aykovski/glview/internal/i18n"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/screens/comment"
@@ -398,4 +399,16 @@ func TestIssuesCommentSentRefreshesTheList(t *testing.T) {
 	if o.fake.CallCount("Issues.List") != n+1 {
 		t.Fatalf("list calls = %d", o.fake.CallCount("Issues.List"))
 	}
+}
+
+func TestIssuesRussian(t *testing.T) {
+	env := newEnv(issuesFake())
+	env.Msg, env.Lang = i18n.Get(i18n.RU), i18n.RU
+	env.Cache = cache.New()
+	scr := New(env, Options{Path: path, Tab: TabIssues})
+	d := uitest.New(t, app.New(env, scr, app.Options{}))
+	d.Send(tea.WindowSizeMsg{Width: 150, Height: 40})
+	d.RequireView("● открыт · #1318 · anna.k · исполнитель: egor", "КОММЕНТАРИИ 2", "c — написать комментарий…", "закрыть/открыть")
+	d.Key("m", "m", "s", "s")
+	d.RequireView("state:all")
 }

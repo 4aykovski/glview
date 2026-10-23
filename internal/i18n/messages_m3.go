@@ -89,7 +89,6 @@ type CommentMessages struct {
 	Empty   string                         // "comment is empty"
 	Sending string
 	Added   string // toast
-	Key     string // footer and help label of c
 }
 
 // IssueMessages are the strings of the Issues tab, the issue screen and the
