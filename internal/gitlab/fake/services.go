@@ -28,8 +28,14 @@ type data struct {
 	labels     map[string][]string
 	recheck    map[string]string // key: path!iid -> final status after a recheck
 	rechecking map[string]bool
+	issues     map[string][]gitlab.Issue // by project path
+	inotes     map[string][]gitlab.Note  // key: path#iid, oldest first
+	idiscs     map[string][]gitlab.Discussion
+	irelated   map[string][]gitlab.RelatedMR
+	milestones map[string][]string
 	nextJobID  int64
 	nextPipeID int64
+	nextNoteID int64
 }
 
 func newData() data {
@@ -48,8 +54,14 @@ func newData() data {
 		labels:     map[string][]string{},
 		recheck:    map[string]string{},
 		rechecking: map[string]bool{},
+		issues:     map[string][]gitlab.Issue{},
+		inotes:     map[string][]gitlab.Note{},
+		idiscs:     map[string][]gitlab.Discussion{},
+		irelated:   map[string][]gitlab.RelatedMR{},
+		milestones: map[string][]string{},
 		nextJobID:  900000,
 		nextPipeID: 900000,
+		nextNoteID: 700000,
 	}
 }
 
@@ -311,6 +323,23 @@ func (s mrService) Discussions(ctx context.Context, p gitlab.ProjectRef, iid int
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
 	return slices.Clone(s.c.data.discs[mrKey(s.c.pathOf(p), iid)]), nil
+}
+
+// Comment adds a note to the MR as a one-note discussion by the fake user.
+func (s mrService) Comment(ctx context.Context, p gitlab.ProjectRef, iid int64, body string) (gitlab.Note, error) {
+	if err := s.c.enter(ctx, "MergeRequests.Comment", p.FullPath, iid, body); err != nil {
+		return gitlab.Note{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	if _, err := s.c.findMR(path, iid); err != nil {
+		return gitlab.Note{}, err
+	}
+	n := s.c.newNote(body)
+	k := mrKey(path, iid)
+	s.c.data.discs[k] = append(s.c.data.discs[k], gitlab.Discussion{ID: fmt.Sprintf("n%d", n.ID), Notes: []gitlab.Note{n}})
+	return n, nil
 }
 
 func (s mrService) Pipelines(ctx context.Context, p gitlab.ProjectRef, iid int64) ([]gitlab.PipelineSummary, error) {
@@ -962,4 +991,32 @@ func (s projects) Labels(ctx context.Context, p gitlab.ProjectRef, search string
 		}
 	}
 	return out, nil
+}
+
+// SetMilestones registers the active milestone titles of a project.
+func (c *Client) SetMilestones(path string, titles ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data.milestones[path] = titles
+}
+
+func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
+	if err := s.c.enter(ctx, "Projects.Milestones", p.FullPath, search); err != nil {
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	var out []string
+	for _, m := range s.c.data.milestones[s.c.pathOf(p)] {
+		if matchSearch(m, search) {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+// newNote makes a note by the fake user; the caller holds c.mu.
+func (c *Client) newNote(body string) gitlab.Note {
+	c.data.nextNoteID++
+	return gitlab.Note{ID: c.data.nextNoteID, Author: c.User, Body: body, CreatedAt: c.now()}
 }

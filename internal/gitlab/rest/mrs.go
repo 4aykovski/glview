@@ -43,6 +43,15 @@ func (s mrs) Discussions(ctx context.Context, p gitlab.ProjectRef, iid int64) ([
 	}
 }
 
+// Comment adds a plain note to the MR.
+func (s mrs) Comment(ctx context.Context, p gitlab.ProjectRef, iid int64, body string) (gitlab.Note, error) {
+	n, _, err := s.c.api.Notes.CreateMergeRequestNote(pid(p), iid, &gl.CreateMergeRequestNoteOptions{Body: &body}, gl.WithContext(ctx))
+	if err != nil {
+		return gitlab.Note{}, mapError(err)
+	}
+	return mapNote(n), nil
+}
+
 func mapDiscussion(d *gl.Discussion) gitlab.Discussion {
 	out := gitlab.Discussion{ID: d.ID}
 	for i, n := range d.Notes {

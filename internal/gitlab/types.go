@@ -332,9 +332,40 @@ type Issue struct {
 	Labels         []string
 	Milestone      string
 	UserNotesCount int
-	RelatedMRs     []int64
-	WebURL         string
-	UpdatedAt      time.Time
+	// MergeRequestsCount is merge_requests_count of the list response: zero
+	// means there is nothing to fetch with RelatedMRs.
+	MergeRequestsCount int
+	// RelatedMRs is filled by a separate request (IssueService.RelatedMRs).
+	RelatedMRs []RelatedMR
+	WebURL     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+// RelatedMR is a merge request related to an issue.
+type RelatedMR struct {
+	IID    int64
+	Title  string
+	State  MRState
+	WebURL string
+}
+
+// IssueFilter selects issues of a project.
+type IssueFilter struct {
+	State     string   // opened (default, also "") | closed | all
+	Assignee  string   // "" any | "@me" | "none" | username
+	Milestone string   // "" any | "none" | title
+	Labels    []string // all of them
+	Search    string
+}
+
+// Key is a canonical signature of the filter for cache keys and equality.
+func (f IssueFilter) Key() string {
+	state := f.State
+	if state == "" {
+		state = "opened"
+	}
+	return strings.Join([]string{state, f.Assignee, f.Milestone, strings.Join(f.Labels, ","), f.Search}, "|")
 }
 
 // ProjectOverview is a row of the workspace Projects tab, filled in two

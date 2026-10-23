@@ -28,6 +28,24 @@ func (s projects) Branches(ctx context.Context, p gitlab.ProjectRef, search stri
 	return out, nil
 }
 
+// Milestones lists titles of the project's active milestones for filter
+// suggestions.
+func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
+	opt := &gl.ListMilestonesOptions{ListOptions: gl.ListOptions{PerPage: refListSize}, State: gl.Ptr("active")}
+	if search != "" {
+		opt.Search = &search
+	}
+	list, _, err := s.c.api.Milestones.ListMilestones(pid(p), opt, gl.WithContext(ctx))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	out := make([]string, len(list))
+	for i, m := range list {
+		out[i] = m.Title
+	}
+	return out, nil
+}
+
 func (s projects) CIConfigVariables(context.Context, gitlab.ProjectRef, string) ([]gitlab.CIConfigVariable, error) {
 	return nil, errGraphQLOnly
 }

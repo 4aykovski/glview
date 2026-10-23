@@ -3,6 +3,7 @@ package fake
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -300,5 +301,92 @@ func TestFakeTags(t *testing.T) {
 	cmp, err := c.Tags().Compare(ctx, p, "v1.14.2", "main")
 	if err != nil || len(cmp.Commits) != 2 {
 		t.Fatalf("cmp = %+v, %v", cmp, err)
+	}
+}
+
+func TestFakeIssues(t *testing.T) {
+	c := New()
+	ctx := context.Background()
+	p := gitlab.ProjectRef{FullPath: "platform/route-service"}
+	c.AddProject(gitlab.Project{ProjectRef: p})
+	t0 := time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC)
+	c.AddIssue(p.FullPath, gitlab.Issue{IID: 1318, Title: "Surge coefficient ignores zone overrides", Assignees: []gitlab.User{c.User}, Labels: []string{"bug"}, Milestone: "2026-Q4", UpdatedAt: t0, MergeRequestsCount: 1})
+	c.AddIssue(p.FullPath, gitlab.Issue{IID: 1312, Title: "Duplicate slot assignment under load", UpdatedAt: t0.Add(time.Hour)})
+	c.AddIssue(p.FullPath, gitlab.Issue{IID: 1260, Title: "Old report", State: "closed", UpdatedAt: t0.Add(-time.Hour)})
+	c.SetRelatedMRs(p.FullPath, 1318, gitlab.RelatedMR{IID: 479, Title: "Fix slot race", State: gitlab.MRStateOpened})
+
+	page, err := c.Issues().List(ctx, p, gitlab.IssueFilter{}, "", 20)
+	if err != nil || len(page.Items) != 2 || page.Items[0].IID != 1312 || page.Total != 2 {
+		t.Fatalf("opened = %+v, err = %v", page, err)
+	}
+	for _, tc := range []struct {
+		f    gitlab.IssueFilter
+		want []int64
+	}{
+		{gitlab.IssueFilter{State: "all"}, []int64{1312, 1318, 1260}},
+		{gitlab.IssueFilter{State: "closed"}, []int64{1260}},
+		{gitlab.IssueFilter{Assignee: "@me"}, []int64{1318}},
+		{gitlab.IssueFilter{Assignee: "none"}, []int64{1312}},
+		{gitlab.IssueFilter{Milestone: "2026-Q4"}, []int64{1318}},
+		{gitlab.IssueFilter{Milestone: "none"}, []int64{1312}},
+		{gitlab.IssueFilter{Labels: []string{"bug"}}, []int64{1318}},
+		{gitlab.IssueFilter{Search: "slot"}, []int64{1312}},
+	} {
+		page, _ := c.Issues().List(ctx, p, tc.f, "", 20)
+		var got []int64
+		for _, i := range page.Items {
+			got = append(got, i.IID)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%+v: got %v, want %v", tc.f, got, tc.want)
+		}
+	}
+
+	if _, err := c.Issues().Comment(ctx, p, 1318, "Беру"); err != nil {
+		t.Fatal(err)
+	}
+	notes, _ := c.Issues().Notes(ctx, p, 1318, 50)
+	ds, _ := c.Issues().Discussions(ctx, p, 1318)
+	i, _ := c.Issues().Get(ctx, p, 1318)
+	if len(notes) != 1 || notes[0].Body != "Беру" || notes[0].Author.Username != "egor" || len(ds) != 1 || i.UserNotesCount != 1 {
+		t.Fatalf("notes = %+v, ds = %+v, issue = %+v", notes, ds, i)
+	}
+	if i, err = c.Issues().SetState(ctx, p, 1318, true); err != nil || i.State != "closed" {
+		t.Fatalf("issue = %+v, err = %v", i, err)
+	}
+	if rel, _ := c.Issues().RelatedMRs(ctx, p, 1318); len(rel) != 1 || rel[0].IID != 479 {
+		t.Fatalf("rel = %+v", rel)
+	}
+	c.FailNext("Issues.Comment", &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403})
+	if _, err := c.Issues().Comment(ctx, p, 1318, "x"); !errors.Is(err, gitlab.ErrForbidden) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := c.Issues().Get(ctx, p, 1); !errors.Is(err, gitlab.ErrNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+	if n := c.CallCount("Issues.Comment"); n != 2 {
+		t.Fatalf("calls = %d", n)
+	}
+}
+
+func TestFakeMRCommentAndMilestones(t *testing.T) {
+	c := New()
+	ctx := context.Background()
+	p := gitlab.ProjectRef{FullPath: "platform/route-service"}
+	c.AddMR(p.FullPath, gitlab.MergeRequest{IID: 479, Title: "Fix slot race"})
+	if _, err := c.MergeRequests().Comment(ctx, p, 479, "LGTM"); err != nil {
+		t.Fatal(err)
+	}
+	ds, _ := c.MergeRequests().Discussions(ctx, p, 479)
+	if len(ds) != 1 || ds[0].Notes[0].Body != "LGTM" {
+		t.Fatalf("ds = %+v", ds)
+	}
+	if _, err := c.MergeRequests().Comment(ctx, p, 1, "x"); !errors.Is(err, gitlab.ErrNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+	c.SetMilestones(p.FullPath, "2026-Q4", "2026-Q3", "backlog")
+	ms, _ := c.Projects().Milestones(ctx, p, "2026")
+	if !slices.Equal(ms, []string{"2026-Q4", "2026-Q3"}) {
+		t.Fatalf("ms = %v", ms)
 	}
 }

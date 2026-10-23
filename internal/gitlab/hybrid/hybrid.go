@@ -41,6 +41,7 @@ func (c *Client) Users() gitlab.UserService        { return c.rest.Users() }
 func (c *Client) Instance() gitlab.InstanceService { return c.rest.Instance() }
 func (c *Client) Jobs() gitlab.JobService          { return c.rest.Jobs() }
 func (c *Client) Tags() gitlab.TagService          { return c.rest.Tags() }
+func (c *Client) Issues() gitlab.IssueService      { return c.rest.Issues() }
 
 func (c *Client) Projects() gitlab.ProjectService {
 	return projects{ProjectService: c.rest.Projects(), gql: c.gql}

@@ -3,11 +3,12 @@ package gitlab
 import "context"
 
 // Client is the entry point the UI uses. Services are added as screens need
-// them (M3: issues, tag mutations) — see SPEC §6.3 for the target shape.
+// them — see SPEC §6.3 for the target shape.
 type Client interface {
 	Users() UserService
 	Projects() ProjectService
 	MergeRequests() MergeRequestService
+	Issues() IssueService
 	Pipelines() PipelineService
 	Jobs() JobService
 	Tags() TagService
@@ -35,6 +36,9 @@ type ProjectService interface {
 	Members(ctx context.Context, p ProjectRef, search string) ([]User, error)
 	// Labels returns project label names matching search.
 	Labels(ctx context.Context, p ProjectRef, search string) ([]string, error)
+	// Milestones returns titles of the project's active milestones matching
+	// search (the project's own only, no group ancestors).
+	Milestones(ctx context.Context, p ProjectRef, search string) ([]string, error)
 	// CIConfigVariables returns the variable hints declared in
 	// .gitlab-ci.yml for gitRef. GitLab computes them asynchronously: a
 	// result that is not ready yet is reported as ErrNotReady.
@@ -59,6 +63,24 @@ type MergeRequestService interface {
 	// with_merge_status_recheck=true) and returns detailed_merge_status,
 	// usually "checking". GitLab ignores the flag for roles below Developer.
 	RecheckMergeStatus(ctx context.Context, p ProjectRef, iid int64) (string, error)
+	// Comment adds a plain note to the MR.
+	Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+}
+
+// IssueService reads and changes issues (REST).
+type IssueService interface {
+	List(ctx context.Context, p ProjectRef, f IssueFilter, cursor string, limit int) (Page[Issue], error)
+	Get(ctx context.Context, p ProjectRef, iid int64) (Issue, error)
+	// Notes returns the last `last` notes (system ones included), oldest
+	// first.
+	Notes(ctx context.Context, p ProjectRef, iid int64, last int) ([]Note, error)
+	// Discussions returns all discussions of the issue (all pages), system
+	// notes included (the UI filters them).
+	Discussions(ctx context.Context, p ProjectRef, iid int64) ([]Discussion, error)
+	RelatedMRs(ctx context.Context, p ProjectRef, iid int64) ([]RelatedMR, error)
+	Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+	// SetState closes (state_event=close) or reopens the issue.
+	SetState(ctx context.Context, p ProjectRef, iid int64, closed bool) (Issue, error)
 }
 
 type PipelineService interface {
