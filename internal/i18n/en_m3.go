@@ -119,4 +119,10 @@ func fillIssuesEN(m *Messages) {
 	c.Sending = "sending…"
 	c.Added = "Comment added"
 	c.Key = "comment"
+	i := &m.Issue
+	i.ConfirmClose = func(iid int64) string { return fmt.Sprintf("Close issue #%d?", iid) }
+	i.Closed = func(iid int64) string { return fmt.Sprintf("Issue #%d closed", iid) }
+	i.Reopened = func(iid int64) string { return fmt.Sprintf("Issue #%d reopened", iid) }
+	i.KeyClose = "close"
+	i.KeyReopen = "reopen"
 }

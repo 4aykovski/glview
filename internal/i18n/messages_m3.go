@@ -94,4 +94,11 @@ type CommentMessages struct {
 
 // IssueMessages are the strings of the Issues tab, the issue screen and the
 // issue actions (SPEC §3.4, §3.15).
-type IssueMessages struct{}
+type IssueMessages struct {
+	// Close and reopen (x)
+	ConfirmClose func(iid int64) string // confirm title
+	Closed       func(iid int64) string // toast
+	Reopened     func(iid int64) string
+	KeyClose     string
+	KeyReopen    string
+}
