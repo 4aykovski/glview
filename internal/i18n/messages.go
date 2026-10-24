@@ -109,6 +109,7 @@ type Messages struct {
 	Links   LinksMessages
 	Tag     TagMessages
 	Issue   IssueMessages
+	Todo    TodoMessages
 	Comment CommentMessages
 
 	Plural struct {

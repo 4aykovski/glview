@@ -38,6 +38,10 @@ type Model struct {
 	toastID int
 
 	starredTried bool // the background starred refresh ran this session
+
+	// The To-Do counter of the header (todos.go).
+	todoStarted       bool
+	todoTick, todoReq common.Gen
 }
 
 // New creates the root with a first screen.
@@ -48,7 +52,7 @@ func New(env *Env, first Screen, opts Options) *Model {
 	if env.Msg == nil {
 		env.Msg = i18n.Get(env.Lang)
 	}
-	m := &Model{env: env, opts: opts, isDark: true}
+	m := &Model{env: env, opts: opts, isDark: true, todoTick: common.NewGen(), todoReq: common.NewGen()}
 	if env.Styles == nil {
 		env.Styles = common.NewStyles(common.ThemeByName(env.ThemeName, true))
 	} else {
@@ -103,7 +107,7 @@ func (m *Model) Overlay() Overlay { return m.overlay }
 func (m *Model) Depth() int { return len(m.stack) }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.listenNet(), m.refreshStarred()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.listenNet(), m.refreshStarred(), m.startTodoCount()}
 	for _, t := range m.opts.InitialToasts {
 		cmds = append(cmds, msgCmd(t))
 	}
@@ -186,6 +190,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.env.Catalog.onStarred(msg)
 		return m, nil
 
+	case todoTickMsg:
+		return m, m.onTodoTick(msg)
+	case todoPendingMsg:
+		m.onTodoPending(msg)
+		return m, nil
+	case TodoCountMsg:
+		m.onTodoCount(msg)
+		return m, nil
+
 	case localgit.ProgressMsg, localgit.DoneMsg, localgit.AheadBehindMsg:
 		return m, m.onGit(msg)
 
@@ -248,6 +261,10 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 			m.overlay = m.env.Search(k.String() == "F")
 			return nil
 		}
+	case "T":
+		if m.env.Todos != nil && m.env.Client != nil {
+			return m.openTodos()
+		}
 	case "ctrl+l":
 		return m.toggleLanguage()
 	case "q":
@@ -304,7 +321,7 @@ func (m *Model) replaceRoot(s Screen) tea.Cmd {
 	m.stack = []Screen{s}
 	m.registerWorkspace()
 	s.SetSize(m.contentSize())
-	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred())...)
+	return tea.Batch(append(cmds, s.Init(), m.sendTop(ActivatedMsg{}), m.refreshStarred(), m.startTodoCount())...)
 }
 
 // openProject puts a project chosen in search above the topmost
@@ -380,6 +397,10 @@ func (m *Model) globalBindings() []common.Binding {
 		b.Hidden = m.env.Search == nil
 		return b
 	}
+	todos := func(b common.Binding) common.Binding {
+		b.Hidden = m.env.Todos == nil
+		return b
+	}
 	return []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k ↑/↓", k.Down+" / "+k.Up, common.PriorityLow),
 		common.NewBinding([]string{"g"}, "g/G", k.Top+" / "+k.Bottom, common.PriorityLow),
@@ -389,6 +410,7 @@ func (m *Model) globalBindings() []common.Binding {
 		common.NewBinding([]string{"o"}, "o", k.Browser, common.PriorityLow),
 		search(common.NewBinding([]string{"p"}, "p", m.env.Msg.Search.KeyPicker, common.PriorityLow)),
 		search(common.NewBinding([]string{"F"}, "F", m.env.Msg.Search.KeyGlobal, common.PriorityLow)),
+		todos(common.NewBinding([]string{"T"}, "T", m.env.Msg.Todo.KeyGlobal, common.PriorityLow)),
 		common.NewBinding([]string{"ctrl+l"}, "ctrl+l", k.Language, common.PriorityLow),
 		common.NewBinding([]string{"q"}, "q", k.Quit, common.PriorityLow),
 		common.NewBinding([]string{"?"}, "?", k.Help, common.PriorityHelp),
