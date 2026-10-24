@@ -48,7 +48,7 @@ type Styles struct {
 	Modal, ModalTitle, Button, ButtonActive lipgloss.Style
 
 	LogLineNo, LogSection, LogMatch, LogMatchCurrent lipgloss.Style
-	DiffAdd, DiffDel                                 lipgloss.Style
+	DiffAdd, DiffDel, DiffHunk                       lipgloss.Style
 
 	// Rule is the style of thin separator lines; Chips and Boxes are
 	// bordered containers (blocks.go).
@@ -130,6 +130,7 @@ func NewStyles(t Theme) *Styles {
 	s.LogMatchCurrent = s.Accent.Reverse(true)
 	s.DiffAdd = fg(t.Diff.Add)
 	s.DiffDel = fg(t.Diff.Del)
+	s.DiffHunk = s.Muted
 
 	s.Rule = fg(t.Border)
 	chip := func(c color.Color) lipgloss.Style {

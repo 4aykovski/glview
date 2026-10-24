@@ -142,5 +142,6 @@ var ru = func() Messages {
 	fillM1RU(&m)
 	fillM2RU(&m)
 	fillM3RU(&m)
+	fillT35RU(&m)
 	return m
 }()
