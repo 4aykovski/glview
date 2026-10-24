@@ -1,16 +1,15 @@
-gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race                                  @egor · ⟳ <1m
- 1 MRs 6   2 Pipelines   3 Issues  ╭────────────────────────────────────────────────╮
-───────────────────────────────────│ Keys                                           │───────────────────────────────────
-/  state:opened  scope:all  reviewe│                                                │                             6 of 6
-  IID    Title                     │ THIS SCREEN                                    │          Pipeline  Appr  Thr   Upd
-───────────────────────────────────│ j/k    down                                    │───────────────────────────────────
-› !471   Draft: Fix race in courier│ enter  open                                    │1 → main  ◐          1/2    1    7m
-  !472   Add surge pricing to estim│ d      diff                                    │2 → main  ✗          1/2    2   14m
-  !473   Bump grpc to 1.64         │ /      filter                                  │3 → main  ✓            2    0   21m
-  !474   Refactor dispatch queue   │ a      approve                                 │4 → main  —          0/2    1   28m
-  !475   Fix flaky TestSlotRelease │ M      merge                                   │5 → main  —          1/2    2   35m
-  !476   Document the route-service│ b      rebase                                  │6 → main  —          1/2    0   42m
-                                   │ s      state                                   │
+gitlab-tui  platform/route-service ╭────────────────────────────────────────────────╮                      @egor · ⟳ <1m
+ 1 MRs 6   2 Pipelines   3 Issues  │ Keys                                           │
+───────────────────────────────────│                                                │───────────────────────────────────
+/  state:opened  scope:all  reviewe│ THIS SCREEN                                    │                             6 of 6
+  IID    Title                     │ j/k    down                                    │          Pipeline  Appr  Thr   Upd
+───────────────────────────────────│ enter  open                                    │───────────────────────────────────
+› !471   Draft: Fix race in courier│ d      diff                                    │1 → main  ◐          1/2    1    7m
+  !472   Add surge pricing to estim│ /      filter                                  │2 → main  ✗          1/2    2   14m
+  !473   Bump grpc to 1.64         │ a      approve                                 │3 → main  ✓            2    0   21m
+  !474   Refactor dispatch queue   │ M      merge                                   │4 → main  —          0/2    1   28m
+  !475   Fix flaky TestSlotRelease │ b      rebase                                  │5 → main  —          1/2    2   35m
+  !476   Document the route-service│ s      state                                   │6 → main  —          1/2    0   42m
                                    │ ⌫      reset filters                           │
                                    │ m      me                                      │
                                    │ c      comment                                 │
