@@ -14,6 +14,7 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
                                    │ ⌫      reset filters                           │
                                    │ m      me                                      │
                                    │ c      comment                                 │
+                                   │ n      new MR                                  │
                                    │ L      links                                   │
                                    │ o      list in browser                         │
                                    │ O      MR in browser                           │

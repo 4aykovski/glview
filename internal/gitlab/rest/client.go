@@ -143,6 +143,9 @@ func mapProject(p *gl.Project) gitlab.Project {
 		DefaultBranch:  p.DefaultBranch,
 		LastActivityAt: deref(p.LastActivityAt),
 		Archived:       p.Archived,
+
+		RemoveSourceBranchAfterMerge: p.RemoveSourceBranchAfterMerge,
+		SquashOption:                 string(p.SquashOption),
 	}
 }
 

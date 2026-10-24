@@ -43,6 +43,8 @@ type Client struct {
 	// To-dos (todos.go).
 	todos       []gitlab.Todo
 	todoNoTotal bool
+	// MR description templates by project path (mrcreate.go).
+	mrTemplates map[string][]mrTemplate
 }
 
 var _ gitlab.Client = (*Client)(nil)

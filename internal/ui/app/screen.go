@@ -112,6 +112,8 @@ type Env struct {
 	// drafts holds the unsent comment texts of the session by DraftKey
 	// (memory only, SPEC §3.16).
 	drafts map[string]string
+	// stash holds screen state kept for the session (stash.go).
+	stash map[string]any
 }
 
 // DraftKey is the key of a comment draft: host, project, kind ("issue" or

@@ -28,9 +28,8 @@ func (s projects) Branches(ctx context.Context, p gitlab.ProjectRef, search stri
 	return out, nil
 }
 
-// Milestones lists titles of the project's active milestones for filter
-// suggestions.
-func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
+// Milestones lists the project's active milestones for suggestions.
+func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]gitlab.Milestone, error) {
 	opt := &gl.ListMilestonesOptions{ListOptions: gl.ListOptions{PerPage: refListSize}, State: gl.Ptr("active")}
 	if search != "" {
 		opt.Search = &search
@@ -39,9 +38,9 @@ func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search st
 	if err != nil {
 		return nil, mapError(err)
 	}
-	out := make([]string, len(list))
+	out := make([]gitlab.Milestone, len(list))
 	for i, m := range list {
-		out[i] = m.Title
+		out[i] = gitlab.Milestone{ID: m.ID, Title: m.Title}
 	}
 	return out, nil
 }
@@ -149,6 +148,7 @@ func (s tags) Compare(ctx context.Context, p gitlab.ProjectRef, from, to string)
 	for i := len(cmp.Commits) - 1; i >= 0; i-- {
 		out.Commits = append(out.Commits, mapCommit(cmp.Commits[i]))
 	}
+	out.Files = len(cmp.Diffs)
 	return out, nil
 }
 

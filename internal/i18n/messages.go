@@ -112,6 +112,7 @@ type Messages struct {
 	Todo    TodoMessages
 	Comment CommentMessages
 	Diff    DiffMessages
+	NewMR   NewMRMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

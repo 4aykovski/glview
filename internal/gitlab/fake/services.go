@@ -32,7 +32,7 @@ type data struct {
 	inotes     map[string][]gitlab.Note  // key: path#iid, oldest first
 	idiscs     map[string][]gitlab.Discussion
 	irelated   map[string][]gitlab.RelatedMR
-	milestones map[string][]string
+	milestones map[string][]gitlab.Milestone
 	nextJobID  int64
 	nextPipeID int64
 	nextNoteID int64
@@ -59,7 +59,7 @@ func newData() data {
 		inotes:     map[string][]gitlab.Note{},
 		idiscs:     map[string][]gitlab.Discussion{},
 		irelated:   map[string][]gitlab.RelatedMR{},
-		milestones: map[string][]string{},
+		milestones: map[string][]gitlab.Milestone{},
 		nextJobID:  900000,
 		nextPipeID: 900000,
 		nextNoteID: 700000,
@@ -994,22 +994,27 @@ func (s projects) Labels(ctx context.Context, p gitlab.ProjectRef, search string
 	return out, nil
 }
 
-// SetMilestones registers the active milestone titles of a project.
+// SetMilestones registers the active milestone titles of a project; IDs are
+// 1, 2, … in the given order.
 func (c *Client) SetMilestones(path string, titles ...string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.data.milestones[path] = titles
+	ms := make([]gitlab.Milestone, len(titles))
+	for i, t := range titles {
+		ms[i] = gitlab.Milestone{ID: int64(i + 1), Title: t}
+	}
+	c.data.milestones[path] = ms
 }
 
-func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
+func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]gitlab.Milestone, error) {
 	if err := s.c.enter(ctx, "Projects.Milestones", p.FullPath, search); err != nil {
 		return nil, err
 	}
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
-	var out []string
+	var out []gitlab.Milestone
 	for _, m := range s.c.data.milestones[s.c.pathOf(p)] {
-		if matchSearch(m, search) {
+		if matchSearch(m.Title, search) {
 			out = append(out, m)
 		}
 	}
