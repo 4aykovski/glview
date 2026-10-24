@@ -37,4 +37,4 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
 │ Already done.                                                                                                        │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-j/k down  enter open  / filter  a approve  M merge  b rebase  s state  m me  1-4 tabs  r refresh  ? help         poll 3s
+j/k down  enter open  d diff  / filter  a approve  M merge  s state  m me  y copy  1-4 tabs  r refresh  ? help   poll 3s

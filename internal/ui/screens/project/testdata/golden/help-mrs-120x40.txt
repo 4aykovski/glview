@@ -5,11 +5,12 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
   IID    Title                     │ THIS SCREEN                                    │          Pipeline  Appr  Thr   Upd
 ───────────────────────────────────│ j/k    down                                    │───────────────────────────────────
 › !471   Draft: Fix race in courier│ enter  open                                    │1 → main  ◐          1/2    1    7m
-  !472   Add surge pricing to estim│ /      filter                                  │2 → main  ✗          1/2    2   14m
-  !473   Bump grpc to 1.64         │ a      approve                                 │3 → main  ✓            2    0   21m
-  !474   Refactor dispatch queue   │ M      merge                                   │4 → main  —          0/2    1   28m
-  !475   Fix flaky TestSlotRelease │ b      rebase                                  │5 → main  —          1/2    2   35m
-  !476   Document the route-service│ s      state                                   │6 → main  —          1/2    0   42m
+  !472   Add surge pricing to estim│ d      diff                                    │2 → main  ✗          1/2    2   14m
+  !473   Bump grpc to 1.64         │ /      filter                                  │3 → main  ✓            2    0   21m
+  !474   Refactor dispatch queue   │ a      approve                                 │4 → main  —          0/2    1   28m
+  !475   Fix flaky TestSlotRelease │ M      merge                                   │5 → main  —          1/2    2   35m
+  !476   Document the route-service│ b      rebase                                  │6 → main  —          1/2    0   42m
+                                   │ s      state                                   │
                                    │ ⌫      reset filters                           │
                                    │ m      me                                      │
                                    │ c      comment                                 │
@@ -30,11 +31,10 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
                                    │ o        browser                               │
                                    │ ctrl+l   язык: RU                              │
                                    │ q        quit                                  │
-                                   │ ?        help                                  │
-┌──────────────────────────────────│                                                │──────────────────────────────────┐
-│ !471  Fix race in courier slot al│ Language: English · ctrl+l switches to Russian │                                  │
-│ ● mergeable ready to merge · 1/2 │ esc / ? close                                  │                                  │
-│ Fixes the allocation race.       ╰────────────────────────────────────────────────╯                                  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────│ ?        help                                  │──────────────────────────────────┐
+│ !471  Fix race in courier slot al│                                                │                                  │
+│ ● mergeable ready to merge · 1/2 │ Language: English · ctrl+l switches to Russian │                                  │
+│ Fixes the allocation race.       │ esc / ? close                                  │                                  │
+└──────────────────────────────────╰────────────────────────────────────────────────╯──────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-j/k down  enter open  / filter  a approve  M merge  b rebase  s state  m me  1-4 tabs  r refresh  ? help         poll 3s
+j/k down  enter open  d diff  / filter  a approve  M merge  s state  m me  y copy  1-4 tabs  r refresh  ? help   poll 3s

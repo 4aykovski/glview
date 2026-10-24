@@ -36,6 +36,7 @@ type data struct {
 	nextJobID  int64
 	nextPipeID int64
 	nextNoteID int64
+	mrDiffs    map[string][]gitlab.DiffFile // key: path!iid; created on first SetMRDiffs
 }
 
 func newData() data {

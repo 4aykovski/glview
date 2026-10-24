@@ -317,6 +317,40 @@ func TestMRDetailWithoutCommitCount(t *testing.T) {
 	}
 }
 
+func TestMRDetailDiffRefs(t *testing.T) {
+	c, rec := newRecorder(t, func(int, string, map[string]any) string {
+		return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE","diffRefs":{"baseSha":"b1","headSha":"h1","startSha":"s1"}}}}}`
+	})
+	mr, err := c.MR(context.Background(), testProject, 1, "egor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (gitlab.DiffRefs{BaseSHA: "b1", StartSHA: "s1", HeadSHA: "h1"}); mr.DiffRefs == nil || *mr.DiffRefs != want {
+		t.Errorf("DiffRefs = %+v, want %+v", mr.DiffRefs, want)
+	}
+	if !strings.Contains(rec.queries[0], "diffRefs { baseSha headSha startSha }") {
+		t.Errorf("detail query lacks diffRefs:\n%s", rec.queries[0])
+	}
+}
+
+func TestMRDetailWithoutDiffRefs(t *testing.T) {
+	c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
+		if strings.Contains(q, "diffRefs") {
+			return `{"errors":[{"message":"Field 'diffRefs' doesn't exist on type 'MergeRequest'"}]}`
+		}
+		return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE"}}}}`
+	})
+	for range 2 {
+		mr, err := c.MR(context.Background(), testProject, 1, "egor")
+		if err != nil || mr.DiffRefs != nil || mr.IID != 1 {
+			t.Fatalf("%+v %v", mr, err)
+		}
+	}
+	if rec.count() != 3 {
+		t.Fatalf("requests = %d, want 3 (retry once, then straight)", rec.count())
+	}
+}
+
 func TestMRDetailNotFound(t *testing.T) {
 	c, _ := newRecorder(t, func(int, string, map[string]any) string { return `{"data":{"project":{"mergeRequest":null}}}` })
 	if _, err := c.MR(context.Background(), testProject, 9, "egor"); !isNotFound(err) {
@@ -358,7 +392,7 @@ func TestMRDetailMergeTimes(t *testing.T) {
 }
 
 func TestMRRowFragmentHasNoMergeFields(t *testing.T) {
-	for _, f := range []string{"mergedAt", "closedAt", "mergeUser", "commitCount", "titleHtml", "descriptionHtml"} {
+	for _, f := range []string{"mergedAt", "closedAt", "mergeUser", "commitCount", "titleHtml", "descriptionHtml", "diffRefs"} {
 		if strings.Contains(mrRowFragment, f) {
 			t.Errorf("MRRow must not select %s (complexity limit)", f)
 		}

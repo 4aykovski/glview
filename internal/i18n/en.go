@@ -135,5 +135,6 @@ var en = func() Messages {
 	fillM2EN(&m)
 	fillM3EN(&m)
 	fillTodoEN(&m)
+	fillT35EN(&m)
 	return m
 }()

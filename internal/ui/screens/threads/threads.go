@@ -262,6 +262,21 @@ func (m *Model) ToggleCurrent() int {
 	return cards[i].Start
 }
 
+// Focus makes the thread with the given ID current and unfolds it; it
+// returns the first line of its card (0 when there is no such thread). The
+// model must have been laid out once.
+func (m *Model) Focus(id string) int {
+	for i, d := range m.ds {
+		if d.ID == id {
+			m.cur = id
+			m.fold[id] = false
+			_, cards := m.Layout(m.w)
+			return cards[i].Start
+		}
+	}
+	return 0
+}
+
 // Repick makes current the first card that reaches the top of a window
 // scrolled to scroll; past the last card — the last one.
 func (m *Model) Repick(scroll int) {

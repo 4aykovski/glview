@@ -66,6 +66,10 @@ type MergeRequestService interface {
 	RecheckMergeStatus(ctx context.Context, p ProjectRef, iid int64) (string, error)
 	// Comment adds a plain note to the MR.
 	Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+	// Diffs returns the MR changes file by file (REST, all pages).
+	Diffs(ctx context.Context, p ProjectRef, iid int64) ([]DiffFile, error)
+	// CommentLine starts a diff thread on one line.
+	CommentLine(ctx context.Context, p ProjectRef, iid int64, body string, pos DiffPosition) (Discussion, error)
 }
 
 // IssueService reads and changes issues (REST).

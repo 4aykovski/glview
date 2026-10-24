@@ -342,6 +342,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "enter":
 		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path)))
+	case "d":
+		return app.Push(mrdetail.NewOnTab(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path), mrdetail.TabDiff))
 	case "c":
 		if !t.archived(path) {
 			return comment.Open(env, comment.Target{Project: t.ref(path), Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
@@ -435,6 +437,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"J", "K"}, "J/K", w.KeyGroups, common.PriorityNormal),
 		common.NewBinding([]string{"space"}, "space", w.KeyCollapse, common.PriorityLow),
 		common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityHigh),
+		common.NewBinding([]string{"d"}, "", env.Msg.Diff.KeyDiff, common.PriorityLow),
 		common.NewBinding([]string{"f"}, "", w.KeyProject, common.PriorityHigh),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
 	}
