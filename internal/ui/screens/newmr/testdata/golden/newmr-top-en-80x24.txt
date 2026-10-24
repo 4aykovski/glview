@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › MRs › new MR                          @egor
+────────────────────────────────────────────────────────────────────────────────
+› From branch  feat/surge
+  Into branch  main
+               3 commits · 5 files
+  Title        Feat/surge
+               [ ] Draft
+  Template     Default
+  Description  ## What
+
+               ## Why
+
+  Assignees    search…
+  Reviewers    search…
+  Labels       search…
+  Milestone    search…
+               [x] delete branch after merge
+               [ ] squash
+
+  will be created: feat/surge → main
+
+  tab next field · esc close                                     enter Create
+────────────────────────────────────────────────────────────────────────────────
+tab field  esc close  ? help

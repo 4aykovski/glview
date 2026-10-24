@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › MRs › new MR                          @egor
+────────────────────────────────────────────────────────────────────────────────
+  From branch  feat/slots
+  Into branch  main
+               no changes: feat/slots is not ahead of main
+  Title        Feat/slots
+               [ ] Draft
+  Template     Default
+  Description  ## What
+
+               ## Why
+
+  Assignees    search…
+  Reviewers    search…
+  Labels       search…
+  Milestone    search…
+               [x] delete branch after merge
+               [ ] squash
+
+  will be created: feat/slots → main
+  no changes: feat/slots is not ahead of main
+  enter create · tab next field · esc close                      enter Create
+────────────────────────────────────────────────────────────────────────────────
+tab field  esc close  ? help
