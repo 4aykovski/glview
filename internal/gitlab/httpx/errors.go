@@ -81,6 +81,8 @@ func message(body []byte) string {
 	switch m := v.Message.(type) {
 	case string:
 		return m
+	case []any: // MR create: {"message":["Another open merge request …"]}
+		return flatten(m)
 	case map[string]any:
 		keys := make([]string, 0, len(m))
 		for k := range m {

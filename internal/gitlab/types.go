@@ -27,6 +27,9 @@ type Project struct {
 	LastActivityAt time.Time
 	Archived       bool
 	Starred        bool
+	// Only from Projects().Get (REST), for the New MR form (SPEC 3.18).
+	RemoveSourceBranchAfterMerge bool   // remove_source_branch_after_merge
+	SquashOption                 string // never | always | default_on | default_off; "" = unknown
 }
 
 type User struct {
@@ -288,6 +291,7 @@ type Tag struct {
 type Comparison struct {
 	Head    *CommitSummary  // last commit of "to"; nil when unknown
 	Commits []CommitSummary // commits from..to, newest first
+	Files   int             // number of files in the diffs of the response
 }
 
 // MatchTagPipelines sets Tag.Pipeline to the first (newest) pipeline of

@@ -386,7 +386,7 @@ func TestFakeMRCommentAndMilestones(t *testing.T) {
 	}
 	c.SetMilestones(p.FullPath, "2026-Q4", "2026-Q3", "backlog")
 	ms, _ := c.Projects().Milestones(ctx, p, "2026")
-	if !slices.Equal(ms, []string{"2026-Q4", "2026-Q3"}) {
+	if !slices.Equal(ms, []gitlab.Milestone{{ID: 1, Title: "2026-Q4"}, {ID: 2, Title: "2026-Q3"}}) {
 		t.Fatalf("ms = %v", ms)
 	}
 }
