@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › Issues › #1300                                                        @egor · ⟳ <1м
+glview  platform/route-service › Issues › #1300                                                            @egor · ⟳ <1м
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   Quiet issue
   ● открыт · #1300 · anna.k

@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race                                  @egor · ⟳ <1m
+glview  platform/route-service · gitlab.example.com · ⎇ fix/slot-race                                      @egor · ⟳ <1m
  1 MRs 8   2 Pipelines   3 Issues   4 Tags
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /  state:all  scope:all  reviewer:any  draft:any  labels:any                                                      8 of 8

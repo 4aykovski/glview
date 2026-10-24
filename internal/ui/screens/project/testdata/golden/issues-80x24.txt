@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service · gitlab.example.com            @egor · ⟳ <1m
+glview  platform/route-service · gitlab.example.com                @egor · ⟳ <1m
  1 MRs   2 Pipelines   3 Issues 5   4 Tags
 ────────────────────────────────────────────────────────────────────────────────
 /  state:opened  assignee:any  label:any  milestone:any

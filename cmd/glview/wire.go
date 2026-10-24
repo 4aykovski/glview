@@ -85,7 +85,7 @@ func buildRoot(opts options) (*app.Model, error) {
 	hc, err := httpx.NewClient(httpx.Options{
 		CAFile:             cfg.TLS.CAFile,
 		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify,
-		UserAgent:          "gitlab-tui/" + version,
+		UserAgent:          "glview/" + version,
 		Monitor:            env.Net,
 	})
 	if err != nil {

@@ -1,4 +1,4 @@
-// Command gitlab-tui is a terminal client for GitLab.
+// Command glview is a terminal client for GitLab.
 package main
 
 import (
@@ -30,12 +30,12 @@ type options struct {
 
 func parseFlags(args []string, stderr io.Writer) (options, error) {
 	var o options
-	fs := flag.NewFlagSet("gitlab-tui", flag.ContinueOnError)
+	fs := flag.NewFlagSet("glview", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.StringVar(&o.project, "p", "", "open project directly: group/project or project URL")
 	fs.StringVar(&o.project, "project", "", "same as -p")
 	fs.StringVar(&o.configPath, "config", "", "path to config file")
-	fs.BoolVar(&o.debug, "debug", false, "write debug log to $XDG_CACHE_HOME/gitlab-tui/debug.log")
+	fs.BoolVar(&o.debug, "debug", false, "write debug log to $XDG_CACHE_HOME/glview/debug.log")
 	fs.BoolVar(&o.version, "version", false, "print version and exit")
 	fs.BoolVar(&o.debugStyles, "debug-styles", false, "print a sample of all styles and exit")
 	if err := fs.Parse(args); err != nil {
@@ -61,7 +61,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if opts.version {
-		fmt.Fprintf(stdout, "gitlab-tui %s\n", version)
+		fmt.Fprintf(stdout, "glview %s\n", version)
 		return 0
 	}
 	if opts.debugStyles {

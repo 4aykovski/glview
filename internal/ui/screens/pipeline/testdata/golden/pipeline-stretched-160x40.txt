@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › Pipelines › #91850                                                                                            @egor · ⟳ <1m
+glview  platform/route-service › Pipelines › #91850                                                                                                @egor · ⟳ <1m
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ◐ running  #91850 on main · a91f2c0d Bump grpc to 1.64
 anna.k · push · 1m30s  2 jobs: 1 ✓ 1 ◐

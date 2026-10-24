@@ -1,4 +1,4 @@
-gitlab-tui  not here                                                                                               @egor
+glview  not here                                                                                                   @egor
 
   configured instance   https://gitlab.example.com
 

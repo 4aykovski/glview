@@ -16,7 +16,7 @@ const (
 // Header renders the top line: app name and context on the left, user and
 // refresh state on the right.
 func Header(s *Styles, context, right string, width int) string {
-	left := s.AppName.Render("gitlab-tui") + "  " + context
+	left := s.AppName.Render("glview") + "  " + context
 	full, short := splitOptional(right)
 	if lipgloss.Width(left)+lipgloss.Width(full)+1 > width {
 		full = short

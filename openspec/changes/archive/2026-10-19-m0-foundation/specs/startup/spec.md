@@ -8,7 +8,7 @@
 Система SHALL поддерживать `-p/--project <path|url>`, `--config <file>`, `--debug`, `--version`. `--version` SHALL печатать версию и завершаться без запуска интерфейса.
 
 #### Scenario: Версия
-- **WHEN** запуск `gitlab-tui --version`
+- **WHEN** запуск `glview --version`
 - **THEN** печатается версия, код возврата 0, интерфейс не открывается
 
 ### Requirement: Выбор режима

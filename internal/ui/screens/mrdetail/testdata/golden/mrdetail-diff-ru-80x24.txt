@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › MRs › !479                    @egor · ⟳ <1м
+glview  platform/route-service › MRs › !479                        @egor · ⟳ <1м
 Fix race in courier slot allocator
 anna.k · fix/slot-race → main · открыт 1ч назад · +48 −12 3 файла
 ✗ not_approved  ✓ 1/2 апрувов  ✗ pipeline #91840 · failed  1 тред не разрешено

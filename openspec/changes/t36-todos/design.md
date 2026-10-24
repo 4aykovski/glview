@@ -5,7 +5,7 @@
 Что уже есть и переиспользуется:
 - Таб Issues проекта (`screens/project/issues.go`) — образец списка REST со страницами по 20, `X-Total`, подгрузкой за 5 строк до конца, курсором по ID, превью снизу или справа (от 140 колонок), поллингом 30 с, пустыми состояниями по фильтрам, `s`/`backspace`.
 - `common/table` (колонки с приоритетами, курсор по ID, подгрузка), `common.Markdown`, `common.HTMLToMarkdown`.
-- `app.Env.Search` — фабрика оверлея, которую ставит `cmd/gitlab-tui/wire.go`, чтобы `app` не импортировал экраны; так же делается фабрика экрана To-Do.
+- `app.Env.Search` — фабрика оверлея, которую ставит `cmd/glview/wire.go`, чтобы `app` не импортировал экраны; так же делается фабрика экрана To-Do.
 - `app.Model.handleKey` — глобальные `p`/`F`/`?`/`ctrl+l`; `InputCapturer` отключает их в полях ввода.
 - `Env.HeaderRight` — правая часть шапки; `Env.Net.Offline()`, `Env.AuthLost`.
 - `mrdetail.New`, `issuedetail` (экран issue) — цели `enter`.

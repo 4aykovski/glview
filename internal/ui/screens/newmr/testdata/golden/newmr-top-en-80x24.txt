@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › MRs › new MR                          @egor
+glview  platform/route-service › MRs › new MR                              @egor
 ────────────────────────────────────────────────────────────────────────────────
 › From branch  feat/surge
   Into branch  main

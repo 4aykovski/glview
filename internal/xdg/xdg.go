@@ -1,4 +1,4 @@
-// Package xdg resolves gitlab-tui directories following the XDG base
+// Package xdg resolves glview directories following the XDG base
 // directory spec on every OS (including macOS, where ~/.config is used
 // instead of ~/Library/Application Support).
 package xdg
@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 )
 
-const app = "gitlab-tui"
+const app = "glview"
 
-// ConfigDir returns $XDG_CONFIG_HOME/gitlab-tui or ~/.config/gitlab-tui.
+// ConfigDir returns $XDG_CONFIG_HOME/glview or ~/.config/glview.
 func ConfigDir() string { return dir("XDG_CONFIG_HOME", ".config") }
 
-// CacheDir returns $XDG_CACHE_HOME/gitlab-tui or ~/.cache/gitlab-tui.
+// CacheDir returns $XDG_CACHE_HOME/glview or ~/.cache/glview.
 func CacheDir() string { return dir("XDG_CACHE_HOME", ".cache") }
 
-// StateDir returns $XDG_STATE_HOME/gitlab-tui or ~/.local/state/gitlab-tui.
+// StateDir returns $XDG_STATE_HOME/glview or ~/.local/state/glview.
 func StateDir() string { return dir("XDG_STATE_HOME", filepath.Join(".local", "state")) }
 
 func dir(env, fallback string) string {

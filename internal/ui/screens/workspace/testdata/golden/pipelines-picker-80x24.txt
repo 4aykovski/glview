@@ -1,4 +1,4 @@
-gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+glview  ~/src · workspace · 5 GitLab projects                      @egor · ⟳ <1m
  1╭──────────────────────────────────────────────────────────────────────────╮
 ──│ Projects · Pipelines  2 marked                                           │──
 / │ ›                                                                        │

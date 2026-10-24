@@ -1,11 +1,11 @@
-BIN     := bin/gitlab-tui
+BIN     := bin/glview
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build test lint fmt run tidy hooks confidential
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/gitlab-tui
+	go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/glview
 
 test:
 	go test ./...

@@ -1,4 +1,4 @@
-gitlab-tui  To-Do · gitlab.example.com                                                           @egor · To-Do 5 · ⟳ <1m
+glview  To-Do · gitlab.example.com                                                               @egor · To-Do 5 · ⟳ <1m
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 state:pending  type:any                                                                                           5 of 5
   Target    Title                                           Action                  Ago  Author   Project

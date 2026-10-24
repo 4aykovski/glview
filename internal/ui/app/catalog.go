@@ -18,7 +18,7 @@ import (
 // folder's project, a workspace project, a starred or a recent one.
 type CatalogEntry struct {
 	Path     string
-	Current  bool // the project of the folder gitlab-tui was started in
+	Current  bool // the project of the folder glview was started in
 	Starred  bool
 	OpenMRs  int       // -1 when unknown
 	Activity time.Time // zero when unknown

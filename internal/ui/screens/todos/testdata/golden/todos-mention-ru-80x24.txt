@@ -1,4 +1,4 @@
-gitlab-tui  To-Do · gitlab.example.com                   @egor · To-Do 5 · ⟳ <1м
+glview  To-Do · gitlab.example.com                       @egor · To-Do 5 · ⟳ <1м
 ────────────────────────────────────────────────────────────────────────────────
 state:pending  type:любой                                                 5 из 5
   Цель      Заголовок             Причина         Назад  Автор    Проект

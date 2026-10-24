@@ -1,4 +1,4 @@
-# gitlab-tui
+# glview
 
 Терминальный клиент GitLab на Go + Bubble Tea v2 для личного использования. Два режима: проект (в папке с `.git`) и workspace (папка с проектами, батч-запросы GraphQL по всем сразу). Self-hosted GitLab — первоклассный сценарий.
 
@@ -30,7 +30,7 @@
 ## Команды
 
 ```sh
-make build   # бинарь в ./bin/gitlab-tui
+make build   # бинарь в ./bin/glview
 make test    # go test ./...
 make lint    # golangci-lint run
 make run     # собрать и запустить
@@ -45,7 +45,7 @@ Go 1.26, `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`, `charm.land/lipglos
 ## Архитектура (кратко, подробно — SPEC §6)
 
 ```
-cmd/gitlab-tui/         точка входа, флаги, сборка зависимостей
+cmd/glview/         точка входа, флаги, сборка зависимостей
 internal/config/        YAML-конфиг, XDG, цепочка хоста и токена
 internal/glab/          опциональный glab: токен, exec-действия
 internal/gitremote/     .git без вызова git: config, HEAD, remote URL, сканер
