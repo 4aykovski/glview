@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitlab/fake"
 	"github.com/4aykovski/glview/internal/gitremote"
@@ -105,4 +107,33 @@ func TestGoldenMRsMerged(t *testing.T) {
 		d.Key("j")
 	}
 	d.RequireGolden("mrs-merged")
+}
+
+// TestGoldenHelp: the key list is taller than 80×24, so it scrolls.
+func TestGoldenHelp(t *testing.T) {
+	d, _, _ := open(t, goldenFake(), goldenRepo(t))
+	d.Key("?")
+	d.RequireGoldenSizes("help-mrs")
+}
+
+func TestHelpScrollsAtMinimumSize(t *testing.T) {
+	d, _, _ := open(t, goldenFake(), goldenRepo(t))
+	d.Send(tea.WindowSizeMsg{Width: 80, Height: 24})
+	d.Key("?")
+	d.RequireView("j/k scroll", "1–15/")
+	d.RequireNoView("EVERYWHERE")
+	first := d.View()
+	d.Key("G")
+	d.RequireView("EVERYWHERE")
+	if d.View() == first {
+		t.Fatal("G must scroll to the end")
+	}
+	d.Key("g", "esc")
+	d.RequireNoView("Keys")
+
+	// A terminal tall enough shows everything without scrolling.
+	d.Send(tea.WindowSizeMsg{Width: 120, Height: 60})
+	d.Key("?")
+	d.RequireNoView("j/k scroll")
+	d.RequireView("EVERYWHERE")
 }

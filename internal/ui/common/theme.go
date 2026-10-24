@@ -13,6 +13,10 @@ import (
 type Theme struct {
 	Name   string
 	IsDark bool
+	// Faint draws secondary text (Muted and what derives from it) in the
+	// terminal's default color with the Faint attribute instead of ANSI 8,
+	// which equals the background in some palettes (SPEC §9.2).
+	Faint bool
 
 	Fg        color.Color // main text; NoColor = terminal default
 	Muted     color.Color // secondary text, column headers
@@ -57,4 +61,34 @@ func TerminalTheme(isDark bool) Theme {
 		t.Warning = lipgloss.Red
 	}
 	return t
+}
+
+// Theme names (config key theme).
+const (
+	ThemeTerminal      = "terminal"
+	ThemeTerminalFaint = "terminal-faint"
+)
+
+// TerminalFaintTheme is TerminalTheme with Faint instead of ANSI 8 for
+// secondary text. On a dark background the border is ANSI 0 (base02 in
+// Solarized), which differs from the background where ANSI 8 does not.
+func TerminalFaintTheme(isDark bool) Theme {
+	t := TerminalTheme(isDark)
+	t.Name = ThemeTerminalFaint
+	t.Faint = true
+	t.Muted = lipgloss.NoColor{}
+	t.Status.Canceled = lipgloss.NoColor{}
+	if isDark {
+		t.Border = lipgloss.Black
+	}
+	return t
+}
+
+// ThemeByName returns the built-in theme with the given config name;
+// unknown names give the default terminal theme.
+func ThemeByName(name string, isDark bool) Theme {
+	if name == ThemeTerminalFaint {
+		return TerminalFaintTheme(isDark)
+	}
+	return TerminalTheme(isDark)
 }

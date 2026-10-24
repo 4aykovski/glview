@@ -3,6 +3,7 @@
 package app
 
 import (
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/glab"
 	"github.com/4aykovski/glview/internal/i18n"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/localgit"
 )
@@ -35,6 +37,9 @@ type Settings struct {
 	// PrefillLocalBranch puts the local branch into the Run pipeline ref
 	// field and first among the suggestions (run_pipeline.prefill_local_branch).
 	PrefillLocalBranch bool
+
+	// LinkRules are the compiled links rules of the config (MR links).
+	LinkRules []mrlinks.Rule
 }
 
 // Defaults of Settings (SPEC §7).
@@ -53,12 +58,15 @@ const (
 // can rebuild cached strings and key maps.
 type Env struct {
 	Styles *common.Styles
-	Msg    *i18n.Messages
-	Lang   i18n.Lang
-	Client gitlab.Client // nil until authenticated (setup screen)
-	User   gitlab.User
-	Host   string // instance URL
-	Now    func() time.Time
+	// ThemeName is the config theme; the root rebuilds Styles from it when
+	// the terminal background changes. Empty = terminal.
+	ThemeName string
+	Msg       *i18n.Messages
+	Lang      i18n.Lang
+	Client    gitlab.Client // nil until authenticated (setup screen)
+	User      gitlab.User
+	Host      string // instance URL
+	Now       func() time.Time
 
 	Cache    *cache.Cache // nil disables caching (every load goes to the network)
 	Glab     *glab.Glab   // nil when glab is not installed or disabled
@@ -69,6 +77,9 @@ type Env struct {
 	TokenSource config.Source
 	// AuthLost is set when a request was rejected with 401 mid-session.
 	AuthLost bool
+	// Net tracks reachability of the host (offline mark, poll backoff,
+	// recovery toast). May be nil: always online.
+	Net *gitlab.Monitor
 	// Focused reports whether the terminal window has focus.
 	Focused bool
 	// Browser opens a URL (browser.Open; replaced in tests).
@@ -90,6 +101,31 @@ type Env struct {
 	Search func(global bool) Overlay
 	// Git is the state of local fetch/pull; unavailable without git.
 	Git *localgit.Tracker
+
+	// drafts holds the unsent comment texts of the session by DraftKey
+	// (memory only, SPEC §3.16).
+	drafts map[string]string
+}
+
+// DraftKey is the key of a comment draft: host, project, kind ("issue" or
+// "mr") and IID.
+func (e *Env) DraftKey(project, kind string, iid int64) string {
+	return fmt.Sprintf("%s|%s|%s|%d", e.Host, project, kind, iid)
+}
+
+// Draft returns the comment draft stored under key, "" when none.
+func (e *Env) Draft(key string) string { return e.drafts[key] }
+
+// SetDraft stores the comment draft; an empty text forgets it.
+func (e *Env) SetDraft(key, text string) {
+	if text == "" {
+		delete(e.drafts, key)
+		return
+	}
+	if e.drafts == nil {
+		e.drafts = map[string]string{}
+	}
+	e.drafts[key] = text
 }
 
 // NewEnv returns an Env with messages, default (dark) styles and clock set,
@@ -188,6 +224,9 @@ type (
 	// AuthLostMsg means a request was rejected with 401. The root stops
 	// polling (screens check env.AuthLost) and shows the hint.
 	AuthLostMsg struct{ Err error }
+	// NetChangedMsg reports that the host became unreachable (Online false)
+	// or reachable again (true).
+	NetChangedMsg struct{ Online bool }
 	// AuthRestoredMsg follows a successful token re-check; screens reload.
 	AuthRestoredMsg struct{}
 

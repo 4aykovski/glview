@@ -36,3 +36,27 @@ func TestApplyConfigUnknownValueToast(t *testing.T) {
 		t.Fatalf("defaults expected: %+v", env.Settings)
 	}
 }
+
+func TestApplyConfigLinkRules(t *testing.T) {
+	env := app.NewEnv(i18n.EN)
+	cfg := config.Default()
+	cfg.Links = []config.LinkRule{{Pattern: `[A-Z]+-\d+`, URL: "https://tracker.example.com/browse/$0"}}
+	warns := []config.Warning{{Kind: config.WarnLink, Key: "links[0].pattern", Text: "links[0].pattern: empty"}}
+	toasts := applyConfig(env, cfg, warns, "config.yaml")
+	if len(env.Settings.LinkRules) != 1 || !env.Settings.LinkRules[0].Re.MatchString("ABC-123") {
+		t.Fatalf("rules = %+v", env.Settings.LinkRules)
+	}
+	if len(toasts) != 1 || !strings.Contains(toasts[0].Text, "links[0].pattern") {
+		t.Fatalf("toasts = %+v", toasts)
+	}
+}
+
+func TestApplyConfigTheme(t *testing.T) {
+	env := app.NewEnv(i18n.EN)
+	cfg := config.Default()
+	cfg.Theme = "terminal-faint"
+	applyConfig(env, cfg, nil, "config.yaml")
+	if !env.Styles.Theme.Faint || env.ThemeName != "terminal-faint" {
+		t.Fatalf("theme = %+v, name = %q", env.Styles.Theme, env.ThemeName)
+	}
+}

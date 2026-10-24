@@ -192,3 +192,44 @@ func TestRetryAfterParsing(t *testing.T) {
 		t.Fatal("garbage must not parse")
 	}
 }
+
+func TestMonitorSeesOutageAndRecovery(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) }))
+	mon := gitlab.NewMonitor()
+	hc, err := NewClient(Options{Monitor: mon, Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(url string) {
+		resp, err := hc.Get(url)
+		if err == nil {
+			resp.Body.Close()
+		}
+	}
+	get(srv.URL) // an HTTP error is an answer: online
+	if mon.Offline() {
+		t.Fatal("a 502 is not an outage")
+	}
+	addr := srv.URL
+	srv.Close() // connection refused
+	get(addr)
+	get(addr)
+	if !mon.Offline() || mon.Fails() != 2 {
+		t.Fatalf("fails = %d", mon.Fails())
+	}
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	defer srv2.Close()
+	get(srv2.URL)
+	if mon.Offline() {
+		t.Fatal("an answer ends the outage")
+	}
+	// A canceled request says nothing.
+	get(addr)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv2.URL, nil)
+	_, _ = hc.Do(req)
+	if mon.Fails() != 1 {
+		t.Fatalf("a canceled request must not count: fails = %d", mon.Fails())
+	}
+}

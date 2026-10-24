@@ -43,6 +43,12 @@ func baseMR() gitlab.MergeRequest {
 
 func setup(t *testing.T, mr gitlab.MergeRequest) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
 	t.Helper()
+	return setupIn(t, mr, false)
+}
+
+// setupIn opens the MR in a project that is archived or not.
+func setupIn(t *testing.T, mr gitlab.MergeRequest, archived bool) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
+	t.Helper()
 	client := fake.New()
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	client.AddMR(path, mr)
@@ -62,7 +68,7 @@ func setup(t *testing.T, mr gitlab.MergeRequest) (*uitest.Driver, *app.Model, *S
 	env := app.NewEnv(i18n.EN)
 	env.Client, env.User, env.Host = client, client.User, "https://gitlab.example.com"
 	env.Now = func() time.Time { return now }
-	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr)
+	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr, archived)
 	root := app.New(env, scr, app.Options{})
 	return uitest.New(t, root), root, scr, client
 }
@@ -417,6 +423,16 @@ func TestRebaseTracking(t *testing.T) {
 	}
 }
 
+// SPEC §11.1: 409 on rebase is "could not queue the rebase", not the
+// generic conflict text.
+func TestRebaseConflictSaysItWasNotQueued(t *testing.T) {
+	d, _, _, client := setup(t, baseMR())
+	client.FailNext("MergeRequests.Rebase", &gitlab.Error{Kind: gitlab.ErrConflict, Status: 409})
+	d.Key("b", "y")
+	d.RequireView("Could not queue the rebase")
+	d.RequireNoView("rebase…", "Conflict: the object changed")
+}
+
 func TestRebaseFailureShowsMergeError(t *testing.T) {
 	d, _, scr, client := setup(t, baseMR())
 	client.OnCall("MergeRequests.Get", func(n int) {
@@ -540,8 +556,8 @@ func TestJMovesCurrentThread(t *testing.T) {
 	lightTheme(scr)
 	first := corners(scr.View())[0]
 	d.Key("J")
-	if scr.curThread != "r2" {
-		t.Fatalf("current = %q", scr.curThread)
+	if curThread(scr) != "r2" {
+		t.Fatalf("current = %q", curThread(scr))
 	}
 	c := corners(scr.View())
 	if c[1] != first || c[0] == first {
@@ -549,8 +565,8 @@ func TestJMovesCurrentThread(t *testing.T) {
 	}
 	d.RequireView("LGTM overall")
 	d.Key("K", "K")
-	if scr.curThread != "r1" {
-		t.Fatalf("K must stop at the first thread: %q", scr.curThread)
+	if curThread(scr) != "r1" {
+		t.Fatalf("K must stop at the first thread: %q", curThread(scr))
 	}
 }
 
@@ -558,12 +574,12 @@ func TestJKRepicksCurrentThread(t *testing.T) {
 	d, _, scr, _ := richSetup(t)
 	d.Send(tea.WindowSizeMsg{Width: 120, Height: 14})
 	d.Key(strings.Split(strings.Repeat("j,", 10), ",")[:10]...)
-	if scr.curThread != "r2" {
-		t.Fatalf("after scrolling past the first card current = %q", scr.curThread)
+	if curThread(scr) != "r2" {
+		t.Fatalf("after scrolling past the first card current = %q", curThread(scr))
 	}
 	d.Key("k", "k", "k")
-	if scr.curThread != "r1" {
-		t.Fatalf("scrolling back: current = %q", scr.curThread)
+	if curThread(scr) != "r1" {
+		t.Fatalf("scrolling back: current = %q", curThread(scr))
 	}
 }
 
@@ -694,7 +710,7 @@ func TestRecheckErrorIsSilentAndWindowExpires(t *testing.T) {
 	env.Now = func() time.Time { return cur }
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	client.AddMR(path, uncheckedMR())
-	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, uncheckedMR())
+	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, uncheckedMR(), false)
 	d := uitest.New(t, app.New(env, scr, app.Options{}))
 
 	d.RequireView("unchecked")
@@ -730,4 +746,54 @@ func TestMergedAndOtherStatusesAreNotRechecked(t *testing.T) {
 			t.Errorf("%s/%s: poll %v", mr.State, mr.MergeStatus, got)
 		}
 	}
+}
+
+// curThread is the ID of the current thread card.
+func curThread(s *Screen) string {
+	c, _ := s.threads.Current()
+	return c.ID
+}
+
+func TestCommentFromMRDetail(t *testing.T) {
+	d, _, _, client := setup(t, baseMR())
+	d.RequireView("Discussions 2")
+	n := client.CallCount("MergeRequests.Discussions")
+	d.Key("c")
+	d.RequireView("Comment · !479")
+	for _, r := range "Looks fine" {
+		d.Key(string(r))
+	}
+	d.Key("tab", "enter")
+	calls := client.CallsOf("MergeRequests.Comment")
+	if len(calls) != 1 || calls[0][1] != int64(479) || calls[0][2] != "Looks fine" {
+		t.Fatalf("Comment calls = %v", calls)
+	}
+	d.RequireView("Comment added", "Discussions 3")
+	if client.CallCount("MergeRequests.Discussions") != n+1 {
+		t.Fatal("the discussions must be asked again")
+	}
+}
+
+func TestCommentIsHiddenAndDisabledInArchivedProject(t *testing.T) {
+	d, _, _, client := setupIn(t, baseMR(), true)
+	d.RequireView("Discussions 2")
+	d.RequireNoView("comment")
+	d.Key("c")
+	d.RequireNoView("Comment · !479")
+	d.Key("?")
+	d.RequireNoView("comment")
+	d.Key("esc")
+	if client.CallCount("MergeRequests.Comment") != 0 {
+		t.Fatal("nothing is sent")
+	}
+	// A project that is not archived shows it.
+	d, _, _, _ = setupIn(t, baseMR(), false)
+	d.RequireView("comment")
+}
+
+func TestCommentFromOtherTab(t *testing.T) {
+	d, _, _, _ := setup(t, baseMR())
+	d.Key("tab", "tab") // Pipelines
+	d.Key("c")
+	d.RequireView("Comment · !479")
 }

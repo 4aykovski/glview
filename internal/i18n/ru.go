@@ -36,6 +36,7 @@ var ru = func() Messages {
 	m.Help.Screen = "Этот экран"
 	m.Help.Global = "Везде"
 	m.Help.Close = "esc / ? закрыть"
+	m.Help.Scroll = "j/k прокрутка"
 	m.Help.LanguageLine = "Язык: русский · ctrl+l — английский"
 	m.Help.TokenSource = "Токен из"
 	m.Help.GlabFound = func(host string) string { return "glab: найден, используется для " + host }
@@ -63,6 +64,7 @@ var ru = func() Messages {
 	m.Toast.BrowserFailed = "Не удалось открыть браузер"
 	m.Toast.Copied = func(what string) string { return "скопировано: " + what }
 	m.Toast.AuthRestored = "Токен принят"
+	m.Toast.Online = "Соединение восстановлено"
 
 	m.Errors.Unauthorized = "Токен не принят"
 	m.Errors.Forbidden = "Недостаточно прав"
@@ -139,5 +141,6 @@ var ru = func() Messages {
 	m.Plural.Lines = func(n int) string { return Count(RU, n, PluralForms{"строка", "строки", "строк"}) }
 	fillM1RU(&m)
 	fillM2RU(&m)
+	fillM3RU(&m)
 	return m
 }()

@@ -39,6 +39,10 @@ func (w workspace) Pipelines(ctx context.Context, ps []gitlab.ProjectRef, f gitl
 	return w.c.gql.WorkspacePipelines(ctx, paths(ps), f, perProject)
 }
 
+func (w workspace) Tags(ctx context.Context, ps []gitlab.ProjectRef, search string, perProject int) <-chan gitlab.BatchResult[gitlab.Tag] {
+	return w.c.rest.Workspace().Tags(ctx, ps, search, perProject)
+}
+
 // overviewRun is one ProjectsOverview call: it merges the phases and tags
 // of every project and reports the merged row after each change.
 type overviewRun struct {

@@ -1,0 +1,24 @@
+gitlab-tui  pla╭────────────────────────────────────────────────╮… @egor · ⟳ <1m
+ 1 MRs 6   2 Pi│ Keys                                           │
+───────────────│                                                │───────────────
+/  state:opened│ THIS SCREEN                                    │         6 of 6
+  IID    Title │ j/k    down                                    │ine  Appr   Upd
+───────────────│ enter  open                                    │───────────────
+› !471   Draft:│ /      filter                                  │      1/2    7m
+  !472   Add su│ a      approve                                 │      1/2   14m
+  !473   Bump g│ M      merge                                   │        2   21m
+  !474   Refact│ b      rebase                                  │      0/2   28m
+  !475   Fix fl│ s      state                                   │      1/2   35m
+  !476   Docume│ ⌫      reset filters                           │      1/2   42m
+               │ m      me                                      │
+               │ c      comment                                 │
+               │ L      links                                   │
+               │ o      list in browser                         │
+               │ O      MR in browser                           │
+               │ y      copy                                    │
+               │                                                │
+               │ Language: English · ctrl+l switches to Russian │
+               │ esc / ? close · j/k scroll 1–15/29             │
+               ╰────────────────────────────────────────────────╯
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  a approve  M merge  s state  ? help      poll 3s

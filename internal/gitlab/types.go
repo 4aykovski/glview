@@ -80,9 +80,13 @@ type MergeRequest struct {
 	Discussions  DiscussionStats
 	Diff         *DiffStats
 	CommitCount  int // detail views only (commitCount); 0 = unknown
-	WebURL       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// TitleLinks and DescriptionLinks are the <a href> links GitLab put into
+	// titleHtml/descriptionHtml; detail views only (SPEC 3.5, "MR links").
+	TitleLinks       []Link
+	DescriptionLinks []Link
+	WebURL           string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 	// MergedAt, ClosedAt and MergedBy are filled in detail views only (zero/nil
 	// otherwise, and when the MR was not merged/closed).
 	MergedAt         time.Time
@@ -94,6 +98,12 @@ type MergeRequest struct {
 	// defaults of the merge dialog.
 	Squash                  bool
 	ForceRemoveSourceBranch bool
+}
+
+// Link is a hyperlink found in an MR title or description.
+type Link struct {
+	Text string // visible text: "#12", "ABC-123", "@anna.k" or the URL itself
+	URL  string // absolute http(s) URL
 }
 
 // MRScope narrows MR lists to the user's own MRs.
@@ -274,6 +284,29 @@ type Tag struct {
 	Pipeline  *PipelineSummary
 }
 
+// Comparison is the result of comparing two refs: the commits from..to.
+type Comparison struct {
+	Head    *CommitSummary  // last commit of "to"; nil when unknown
+	Commits []CommitSummary // commits from..to, newest first
+}
+
+// MatchTagPipelines sets Tag.Pipeline to the first (newest) pipeline of
+// pipes whose Ref is the tag name; pipes come newest first.
+func MatchTagPipelines(tags []Tag, pipes []PipelineSummary) {
+	first := make(map[string]int, len(pipes))
+	for i, pl := range pipes {
+		if _, ok := first[pl.Ref]; !ok {
+			first[pl.Ref] = i
+		}
+	}
+	for i := range tags {
+		if j, ok := first[tags[i].Name]; ok {
+			pl := pipes[j]
+			tags[i].Pipeline = &pl
+		}
+	}
+}
+
 type ReleaseSummary struct {
 	Name        string
 	Description string
@@ -299,9 +332,40 @@ type Issue struct {
 	Labels         []string
 	Milestone      string
 	UserNotesCount int
-	RelatedMRs     []int64
-	WebURL         string
-	UpdatedAt      time.Time
+	// MergeRequestsCount is merge_requests_count of the list response: zero
+	// means there is nothing to fetch with RelatedMRs.
+	MergeRequestsCount int
+	// RelatedMRs is filled by a separate request (IssueService.RelatedMRs).
+	RelatedMRs []RelatedMR
+	WebURL     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+// RelatedMR is a merge request related to an issue.
+type RelatedMR struct {
+	IID    int64
+	Title  string
+	State  MRState
+	WebURL string
+}
+
+// IssueFilter selects issues of a project.
+type IssueFilter struct {
+	State     string   // opened (default, also "") | closed | all
+	Assignee  string   // "" any | "@me" | "none" | username
+	Milestone string   // "" any | "none" | title
+	Labels    []string // all of them
+	Search    string
+}
+
+// Key is a canonical signature of the filter for cache keys and equality.
+func (f IssueFilter) Key() string {
+	state := f.State
+	if state == "" {
+		state = "opened"
+	}
+	return strings.Join([]string{state, f.Assignee, f.Milestone, strings.Join(f.Labels, ","), f.Search}, "|")
 }
 
 // ProjectOverview is a row of the workspace Projects tab, filled in two

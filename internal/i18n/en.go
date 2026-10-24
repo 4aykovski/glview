@@ -36,6 +36,7 @@ var en = func() Messages {
 	m.Help.Screen = "This screen"
 	m.Help.Global = "Everywhere"
 	m.Help.Close = "esc / ? close"
+	m.Help.Scroll = "j/k scroll"
 	m.Help.LanguageLine = "Language: English · ctrl+l switches to Russian"
 	m.Help.TokenSource = "Token from"
 	m.Help.GlabFound = func(host string) string { return "glab: found, used for " + host }
@@ -59,6 +60,7 @@ var en = func() Messages {
 	m.Toast.BrowserFailed = "Could not open the browser"
 	m.Toast.Copied = func(what string) string { return "copied: " + what }
 	m.Toast.AuthRestored = "Token accepted"
+	m.Toast.Online = "Connection restored"
 
 	m.Errors.Unauthorized = "Token rejected"
 	m.Errors.Forbidden = "Not enough permissions"
@@ -131,5 +133,6 @@ var en = func() Messages {
 	m.Plural.Lines = func(n int) string { return Count(EN, n, PluralForms{"line", "", "lines"}) }
 	fillM1EN(&m)
 	fillM2EN(&m)
+	fillM3EN(&m)
 	return m
 }()

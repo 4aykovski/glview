@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +135,72 @@ func TestLoadUnknownRefsFirstWarnsAndFallsBack(t *testing.T) {
 		t.Fatalf("run_pipeline: %+v", cfg.RunPipeline)
 	}
 	if len(warns) != 1 || warns[0].Kind != WarnValue || warns[0].Key != "run_pipeline.refs_first" || warns[0].Value != "foo" || warns[0].Default != "branches" {
+		t.Fatalf("want one value warning, got %+v", warns)
+	}
+}
+
+func TestLoadLinksRules(t *testing.T) {
+	const doc = `links:
+  - pattern: '[A-Z]+-\d+'
+    url: 'https://tracker.example.com/browse/$0'
+  - pattern: 'INC(\d+)'
+    url: 'http://tracker.example.com/incident/$1'
+`
+	cfg, warns, err := Load(writeFile(t, doc, 0o600))
+	if err != nil || len(warns) != 0 || len(cfg.Links) != 2 || cfg.Links[0].Pattern != `[A-Z]+-\d+` {
+		t.Fatalf("cfg=%+v warns=%v err=%v", cfg.Links, warns, err)
+	}
+}
+
+func TestLoadLinksBadRules(t *testing.T) {
+	const doc = `links:
+  - pattern: '[A-Z+'
+    url: 'https://tracker.example.com/browse/$0'
+  - pattern: 'OK-\d+'
+    url: 'https://tracker.example.com/browse/$0'
+  - pattern: ''
+    url: 'https://tracker.example.com/browse/$0'
+  - pattern: 'X-\d+'
+    url: ''
+  - pattern: 'Y-\d+'
+    url: 'ftp://tracker.example.com/$0'
+`
+	cfg, warns, err := Load(writeFile(t, doc, 0o600))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Links) != 1 || cfg.Links[0].Pattern != `OK-\d+` {
+		t.Fatalf("kept rules = %+v", cfg.Links)
+	}
+	var keys []string
+	for _, w := range warns {
+		if w.Kind != WarnLink {
+			t.Fatalf("warning = %+v", w)
+		}
+		keys = append(keys, w.Key)
+	}
+	want := []string{"links[0].pattern", "links[2].pattern", "links[3].url", "links[4].url"}
+	if !reflect.DeepEqual(keys, want) {
+		t.Fatalf("keys = %v, want %v", keys, want)
+	}
+}
+
+func TestLoadThemeValues(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "theme: terminal-faint\n", 0o600))
+	if err != nil || len(warns) != 0 || cfg.Theme != "terminal-faint" {
+		t.Fatalf("theme = %q, warns = %+v, err = %v", cfg.Theme, warns, err)
+	}
+}
+
+func TestLoadUnknownThemeWarnsAndFallsBack(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "theme: foo\n", 0o600))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme != "terminal" {
+		t.Fatalf("theme = %q", cfg.Theme)
+	}
+	if len(warns) != 1 || warns[0].Kind != WarnValue || warns[0].Key != "theme" || warns[0].Value != "foo" || warns[0].Default != "terminal" {
 		t.Fatalf("want one value warning, got %+v", warns)
 	}
 }

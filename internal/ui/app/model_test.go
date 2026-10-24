@@ -227,6 +227,20 @@ func TestTooSmall(t *testing.T) {
 	d.RequireNoView("screen=A")
 }
 
+func TestTooSmallInBothLanguagesAndDimensions(t *testing.T) {
+	d, _, _, _ := setup(t)
+	for _, size := range [][2]int{{79, 40}, {120, 23}, {40, 10}} {
+		d.Send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		d.RequireView("80×24")
+		d.RequireNoView("screen=A")
+	}
+	d.Key("ctrl+l")
+	d.RequireView("80×24") // Russian: the message is still there
+	d.RequireNoView("screen=A")
+	d.Send(tea.WindowSizeMsg{Width: 80, Height: 24})
+	d.RequireView("screen=A")
+}
+
 func TestLightBackgroundSwitchesTheme(t *testing.T) {
 	d, root, _, _ := setup(t)
 	d.Send(tea.BackgroundColorMsg{Color: color.White})

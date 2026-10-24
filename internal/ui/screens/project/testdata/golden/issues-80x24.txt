@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service · gitlab.example.com            @egor · ⟳ <1m
+ 1 MRs   2 Pipelines   3 Issues 5   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/  state:opened  assignee:any  label:any  milestone:any
+  IID     Title                                                Labels        Upd
+────────────────────────────────────────────────────────────────────────────────
+› #1318   Surge coefficient ignores zone overrides             bug pricing   20m
+  #1312   Duplicate slot assignment under load → !479          bug slots      1h
+  #1297   Expose route cache hit ratio metric                  observ.        3d
+  #1281   Migrate geo client to gRPC v2 API                    tech-debt      1w
+  #1260   Courier ETA drifts after midnight UTC+7              bug            2w
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  c comment  x close/reopen  m me  ? help    1 / 5

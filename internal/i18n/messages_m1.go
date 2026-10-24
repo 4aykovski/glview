@@ -5,7 +5,6 @@ package i18n
 
 // ProjectMessages are the strings of the project screen and its list tabs.
 type ProjectMessages struct {
-	Later func(tab string) string // placeholder tab body
 
 	// Table
 	LoadingMore   string // "◐ loading more…"
@@ -70,7 +69,7 @@ type MRMessages struct {
 	MergePushed                                                 string
 	CannotMerge                                                 func(status string) string
 	RebaseTitle                                                 func(iid int64) string
-	RebaseBody, RebaseDone, RebaseStillRunning                  string
+	RebaseBody, RebaseDone, RebaseStillRunning, RebaseNotQueued string
 	RebaseFailed                                                func(reason string) string
 	RebaseChip                                                  string
 	MergeTitle                                                  func(iid int64) string

@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/4aykovski/glview/internal/config"
 	"github.com/4aykovski/glview/internal/debuglog"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/xdg"
@@ -65,7 +66,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if opts.debugStyles {
 		dark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
-		lipgloss.Fprintln(stdout, common.StyleDemo(common.NewStyles(common.TerminalTheme(dark))))
+		cfgPath := opts.configPath
+		if cfgPath == "" {
+			cfgPath = config.DefaultPath()
+		}
+		cfg, _, _ := config.Load(cfgPath) // the demo falls back to the default theme
+		lipgloss.Fprintln(stdout, common.StyleDemo(common.NewStyles(common.ThemeByName(cfg.Theme, dark))))
 		return 0
 	}
 	if opts.debug {

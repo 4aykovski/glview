@@ -22,13 +22,20 @@ type data struct {
 	traces     map[int64][]byte
 	branches   map[string][]string
 	tags       map[string][]gitlab.Tag
+	compares   map[string]gitlab.Comparison         // key: compareKey
 	ciVars     map[string][]gitlab.CIConfigVariable // key: path@ref
 	members    map[string][]gitlab.User
 	labels     map[string][]string
 	recheck    map[string]string // key: path!iid -> final status after a recheck
 	rechecking map[string]bool
+	issues     map[string][]gitlab.Issue // by project path
+	inotes     map[string][]gitlab.Note  // key: path#iid, oldest first
+	idiscs     map[string][]gitlab.Discussion
+	irelated   map[string][]gitlab.RelatedMR
+	milestones map[string][]string
 	nextJobID  int64
 	nextPipeID int64
+	nextNoteID int64
 }
 
 func newData() data {
@@ -41,13 +48,20 @@ func newData() data {
 		traces:     map[int64][]byte{},
 		branches:   map[string][]string{},
 		tags:       map[string][]gitlab.Tag{},
+		compares:   map[string]gitlab.Comparison{},
 		ciVars:     map[string][]gitlab.CIConfigVariable{},
 		members:    map[string][]gitlab.User{},
 		labels:     map[string][]string{},
 		recheck:    map[string]string{},
 		rechecking: map[string]bool{},
+		issues:     map[string][]gitlab.Issue{},
+		inotes:     map[string][]gitlab.Note{},
+		idiscs:     map[string][]gitlab.Discussion{},
+		irelated:   map[string][]gitlab.RelatedMR{},
+		milestones: map[string][]string{},
 		nextJobID:  900000,
 		nextPipeID: 900000,
+		nextNoteID: 700000,
 	}
 }
 
@@ -188,6 +202,13 @@ func (c *Client) withMe(mr gitlab.MergeRequest) gitlab.MergeRequest {
 	return mr
 }
 
+// row strips what a list row (MRRow) does not carry: the real API gives the
+// HTML links in MR details only.
+func row(mr gitlab.MergeRequest) gitlab.MergeRequest {
+	mr.TitleLinks, mr.DescriptionLinks = nil, nil
+	return mr
+}
+
 type mrService struct{ c *Client }
 
 func (s mrService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab.MRFilter, cursor string, limit int) (gitlab.Page[gitlab.MergeRequest], error) {
@@ -204,7 +225,7 @@ func (s mrService) List(ctx context.Context, p gitlab.ProjectRef, f gitlab.MRFil
 	var all []gitlab.MergeRequest
 	for _, mr := range s.c.data.mrs[path] {
 		if matchMR(mr, f, me) {
-			all = append(all, s.c.withMe(mr))
+			all = append(all, row(s.c.withMe(mr)))
 		}
 	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].UpdatedAt.After(all[j].UpdatedAt) })
@@ -302,6 +323,23 @@ func (s mrService) Discussions(ctx context.Context, p gitlab.ProjectRef, iid int
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
 	return slices.Clone(s.c.data.discs[mrKey(s.c.pathOf(p), iid)]), nil
+}
+
+// Comment adds a note to the MR as a one-note discussion by the fake user.
+func (s mrService) Comment(ctx context.Context, p gitlab.ProjectRef, iid int64, body string) (gitlab.Note, error) {
+	if err := s.c.enter(ctx, "MergeRequests.Comment", p.FullPath, iid, body); err != nil {
+		return gitlab.Note{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	if _, err := s.c.findMR(path, iid); err != nil {
+		return gitlab.Note{}, err
+	}
+	n := s.c.newNote(body)
+	k := mrKey(path, iid)
+	s.c.data.discs[k] = append(s.c.data.discs[k], gitlab.Discussion{ID: fmt.Sprintf("n%d", n.ID), Notes: []gitlab.Note{n}})
+	return n, nil
 }
 
 func (s mrService) Pipelines(ctx context.Context, p gitlab.ProjectRef, iid int64) ([]gitlab.PipelineSummary, error) {
@@ -715,19 +753,141 @@ func (s jobService) Play(ctx context.Context, p gitlab.ProjectRef, id int64, var
 
 type tagService struct{ c *Client }
 
+// List serves the tags in the order they were registered (newest version
+// first) without pipelines, like REST.
 func (s tagService) List(ctx context.Context, p gitlab.ProjectRef, search, cursor string, limit int) (gitlab.Page[gitlab.Tag], error) {
 	if err := s.c.enter(ctx, "Tags.List", p.FullPath, search, cursor, limit); err != nil {
 		return gitlab.Page[gitlab.Tag]{}, err
 	}
 	s.c.mu.Lock()
 	defer s.c.mu.Unlock()
+	return paginate(s.c.matchTags(s.c.pathOf(p), search), cursor, limit), nil
+}
+
+// matchTags returns the tags of path matching search, without pipelines.
+// The caller holds c.mu.
+func (c *Client) matchTags(path, search string) []gitlab.Tag {
 	var all []gitlab.Tag
-	for _, t := range s.c.data.tags[s.c.pathOf(p)] {
+	for _, t := range c.data.tags[path] {
 		if matchSearch(t.Name, search) {
+			t.Pipeline = nil
 			all = append(all, t)
 		}
 	}
-	return paginate(all, cursor, limit), nil
+	return all
+}
+
+// Pipelines serves the pipelines whose ref is a tag, newest first.
+func (s tagService) Pipelines(ctx context.Context, p gitlab.ProjectRef, limit int) ([]gitlab.PipelineSummary, error) {
+	if err := s.c.enter(ctx, "Tags.Pipelines", p.FullPath, limit); err != nil {
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	return s.c.tagPipelines(s.c.pathOf(p), limit), nil
+}
+
+// tagPipelines is the newest-first list of pipelines run for tags. The
+// caller holds c.mu.
+func (c *Client) tagPipelines(path string, limit int) []gitlab.PipelineSummary {
+	names := map[string]bool{}
+	for _, t := range c.data.tags[path] {
+		names[t.Name] = true
+	}
+	var out []gitlab.PipelineSummary
+	for _, pl := range c.data.pipes[path] {
+		if names[pl.Ref] {
+			out = append(out, pl.PipelineSummary)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].ID > out[j].ID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+// Create adds the tag first in the list. A duplicate name answers 400 like
+// GitLab; the commit is the head of a registered comparison to ref, or a
+// made-up one.
+func (s tagService) Create(ctx context.Context, p gitlab.ProjectRef, name, ref, message string) (gitlab.Tag, error) {
+	if err := s.c.enter(ctx, "Tags.Create", p.FullPath, name, ref, message); err != nil {
+		return gitlab.Tag{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	for _, t := range s.c.data.tags[path] {
+		if t.Name == name {
+			return gitlab.Tag{}, &gitlab.Error{Kind: gitlab.ErrNotPossible, Status: 400, Message: "Tag " + name + " already exists"}
+		}
+	}
+	commit := gitlab.CommitSummary{SHA: "0b7d3e9c1a5f4e2d8b6a0c3f7e9d1b4a6c8e0f2a", ShortSHA: "0b7d3e9", Title: "Merge branch 'fix/slot-race' into '" + ref + "'", CreatedAt: time.Now()}
+	for key, cmp := range s.c.data.compares {
+		if strings.HasSuffix(key, "\x00"+ref) && cmp.Head != nil {
+			commit = *cmp.Head
+		}
+	}
+	tag := gitlab.Tag{Project: p, Name: name, Message: message, Commit: commit}
+	s.c.data.tags[path] = append([]gitlab.Tag{tag}, s.c.data.tags[path]...)
+	return tag, nil
+}
+
+// Delete removes the tag; a protected one answers 403 like GitLab.
+func (s tagService) Delete(ctx context.Context, p gitlab.ProjectRef, name string) error {
+	if err := s.c.enter(ctx, "Tags.Delete", p.FullPath, name); err != nil {
+		return err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	for i, t := range s.c.data.tags[path] {
+		if t.Name != name {
+			continue
+		}
+		if t.Protected {
+			return &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403, Message: "You are not allowed to delete protected tags"}
+		}
+		s.c.data.tags[path] = slices.Delete(slices.Clone(s.c.data.tags[path]), i, i+1)
+		return nil
+	}
+	return notFound("tag " + name)
+}
+
+// Compare serves the comparison registered with SetCompare; an unregistered
+// one is empty for a known ref and 404 for any other.
+func (s tagService) Compare(ctx context.Context, p gitlab.ProjectRef, from, to string) (gitlab.Comparison, error) {
+	if err := s.c.enter(ctx, "Tags.Compare", p.FullPath, from, to); err != nil {
+		return gitlab.Comparison{}, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	path := s.c.pathOf(p)
+	cmp, ok := s.c.data.compares[compareKey(path, from, to)]
+	if !ok && !s.c.knownRef(path, to) {
+		return gitlab.Comparison{}, notFound("ref " + to)
+	}
+	cmp.Commits = slices.Clone(cmp.Commits)
+	return cmp, nil
+}
+
+// knownRef reports whether ref is a branch, a tag or the default branch of
+// the project. The caller holds c.mu.
+func (c *Client) knownRef(path, ref string) bool {
+	if slices.Contains(c.data.branches[path], ref) || c.ProjectsByPath[path].DefaultBranch == ref {
+		return true
+	}
+	return slices.ContainsFunc(c.data.tags[path], func(t gitlab.Tag) bool { return t.Name == ref })
+}
+
+func compareKey(path, from, to string) string { return path + "\x00" + from + "\x00" + to }
+
+// SetCompare registers the comparison from..to of a project (commits
+// newest first).
+func (c *Client) SetCompare(path, from, to string, cmp gitlab.Comparison) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data.compares[compareKey(path, from, to)] = cmp
 }
 
 func (s projects) Branches(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
@@ -831,4 +991,32 @@ func (s projects) Labels(ctx context.Context, p gitlab.ProjectRef, search string
 		}
 	}
 	return out, nil
+}
+
+// SetMilestones registers the active milestone titles of a project.
+func (c *Client) SetMilestones(path string, titles ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data.milestones[path] = titles
+}
+
+func (s projects) Milestones(ctx context.Context, p gitlab.ProjectRef, search string) ([]string, error) {
+	if err := s.c.enter(ctx, "Projects.Milestones", p.FullPath, search); err != nil {
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	var out []string
+	for _, m := range s.c.data.milestones[s.c.pathOf(p)] {
+		if matchSearch(m, search) {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+// newNote makes a note by the fake user; the caller holds c.mu.
+func (c *Client) newNote(body string) gitlab.Note {
+	c.data.nextNoteID++
+	return gitlab.Note{ID: c.data.nextNoteID, Author: c.User, Body: body, CreatedAt: c.now()}
 }

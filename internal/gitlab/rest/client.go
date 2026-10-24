@@ -105,6 +105,15 @@ func pid(ref gitlab.ProjectRef) any {
 	return ref.FullPath
 }
 
+// totalOf is the X-Total of a list response: 0 is a real zero, -1 means
+// GitLab did not send the header (it does not for big result sets).
+func totalOf(resp *gl.Response) int {
+	if resp == nil || resp.Response == nil || resp.Header.Get("X-Total") == "" {
+		return -1
+	}
+	return int(resp.TotalItems)
+}
+
 func mapError(err error) error {
 	if err == nil {
 		return nil

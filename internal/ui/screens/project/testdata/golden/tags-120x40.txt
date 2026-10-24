@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service · gitlab.example.com                                                    @egor · ⟳ <1m
+ 1 MRs   2 Pipelines   3 Issues   4 Tags 6
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/ search                                                                                                  sort: semver ↓
+  Tag          Commit   Message                                                                         Pipeline     Ago
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+› v1.14.2      9fa2c51  release: v1.14.2 ◆ release                                                      ✓ #91761      1d
+  v1.14.1      3e81b07  hotfix: nil map in route cache                                                  ✓ #91530      6d
+  v1.14.0      c2d9a44  release: v1.14.0                                                                ✓ #91402      2w
+  v1.14.0-rc2  b87f1e0  rc for zone-based pricing                                                       ✗ #91377      2w
+  v1.13.4      60aa2fd  release: v1.13.4                                                                ✓ #90988     1mo
+  v1.13.3      17c4e5b  release: v1.13.3                                                                —            1mo
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ v1.14.2 @ 9fa2c51 · release: v1.14.2 · protected                                                                     │
+│ main is 2 commits ahead · n suggests v1.14.3                                                                         │
+│ Release notes: fix race in slot allocator (!479), pprof on admin port (!465)                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter tag pipeline  / search  n new tag  D delete  ⌫ reset filters  1-4 tabs  r refresh  q quit  ? help  1 / 6

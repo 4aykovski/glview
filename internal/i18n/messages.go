@@ -27,9 +27,9 @@ type Messages struct {
 	}
 
 	Help struct {
-		Title, Screen, Global, Close, LanguageLine, TokenSource string
-		GlabFound                                               func(host string) string
-		GlabNotFound                                            string
+		Title, Screen, Global, Close, Scroll, LanguageLine, TokenSource string
+		GlabFound                                                       func(host string) string
+		GlabNotFound                                                    string
 	}
 
 	Confirm struct {
@@ -52,6 +52,7 @@ type Messages struct {
 		BrowserFailed     string
 		Copied            func(what string) string
 		AuthRestored      string
+		Online            string
 	}
 
 	Errors struct {
@@ -105,6 +106,10 @@ type Messages struct {
 	WS      WorkspaceMessages
 	Search  SearchMessages
 	Git     GitMessages
+	Links   LinksMessages
+	Tag     TagMessages
+	Issue   IssueMessages
+	Comment CommentMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

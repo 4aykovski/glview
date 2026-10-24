@@ -22,6 +22,11 @@ func markdownStyle(t Theme) ansi.StyleConfig {
 	}
 	accent, muted, link := ansiColor(t.Accent), ansiColor(t.Muted), ansiColor(t.Status.Running)
 	yes := true
+	// muted text: Faint in the Faint theme, the Muted color otherwise.
+	var faint *bool
+	if t.Faint {
+		faint = &yes
+	}
 	zero := uint(0)
 	one := uint(1)
 	bar := "│ "
@@ -30,7 +35,7 @@ func markdownStyle(t Theme) ansi.StyleConfig {
 	cfg := ansi.StyleConfig{
 		Document:   ansi.StyleBlock{Margin: &zero},
 		Paragraph:  ansi.StyleBlock{},
-		BlockQuote: ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted}, Indent: &one, IndentToken: &bar},
+		BlockQuote: ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted, Faint: faint}, Indent: &one, IndentToken: &bar},
 		List:       ansi.StyleList{LevelIndent: 2},
 		Heading:    heading,
 		H1:         heading,
@@ -44,7 +49,7 @@ func markdownStyle(t Theme) ansi.StyleConfig {
 		Strong:        ansi.StylePrimitive{Bold: &yes},
 		Strikethrough: ansi.StylePrimitive{CrossedOut: &yes},
 		HorizontalRule: ansi.StylePrimitive{
-			Color: muted, Format: "\n────────\n",
+			Color: muted, Faint: faint, Format: "\n────────\n",
 		},
 		Item:        ansi.StylePrimitive{BlockPrefix: "• "},
 		Enumeration: ansi.StylePrimitive{BlockPrefix: ". "},
@@ -53,8 +58,8 @@ func markdownStyle(t Theme) ansi.StyleConfig {
 		Link:     ansi.StylePrimitive{Color: link, Underline: &yes},
 		LinkText: ansi.StylePrimitive{Color: link},
 
-		Code:      ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted}},
-		CodeBlock: ansi.StyleCodeBlock{StyleBlock: ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted}, Margin: &one}},
+		Code:      ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted, Faint: faint}},
+		CodeBlock: ansi.StyleCodeBlock{StyleBlock: ansi.StyleBlock{StylePrimitive: ansi.StylePrimitive{Color: muted, Faint: faint}, Margin: &one}},
 	}
 	return cfg
 }

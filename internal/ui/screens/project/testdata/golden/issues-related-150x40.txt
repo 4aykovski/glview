@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service · gitlab.example.com                                                                                  @egor · ⟳ <1m
+ 1 MRs   2 Pipelines   3 Issues 5   4 Tags
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/  state:opened  assignee:any  label:any  milestone:any                           │  Duplicate slot assignment under load
+  IID     Title                                                 Labels        Upd │  ● open · #1312 · d.orlov
+───────────────────────────────────────────────────────────────────────────────── │  → !479 Fix slot race · opened
+  #1318   Surge coefficient ignores zone overrides              bug pricing   20m │
+› #1312   Duplicate slot assignment under load → !479           bug slots      1h │  Two couriers get one slot.
+  #1297   Expose route cache hit ratio metric                   observ.        3d │  ────────────────────────────────────────────────────────────────
+  #1281   Migrate geo client to gRPC v2 API                     tech-debt      1w │  COMMENTS 0
+  #1260   Courier ETA drifts after midnight UTC+7               bug            2w │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │  c — write a comment…
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  / filter  c comment  x close/reopen  s state  m me  ⌫ reset filters  o list in browser  1-4 tabs  r refresh  ? help        2 / 5

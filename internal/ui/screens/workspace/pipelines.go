@@ -373,7 +373,7 @@ func (t *pipelinesTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		f := t.filter
-		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabPipelines, nil, &f)
+		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabPipelines, nil, &f, "")
 	case "o":
 		if path != "" {
 			return app.OpenURL(env, t.listURL(path))

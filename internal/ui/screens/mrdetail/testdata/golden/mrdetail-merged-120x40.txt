@@ -6,35 +6,35 @@ anna.k · fix/slot-race → main · merged by d.orlov 5h ago · +48 −12 3 file
 ╰──────────╯ ╰────────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
  Overview   Discussions 2   Pipelines 2   Commits
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Why                                                                                 │ APPROVALS
-                                                                                     │ ✓ bob
- • slot map raced                                                                    │ 1 more needed
- • see slotMap                                                                       │
-                                                                                     │ LABELS
-  func main() {}                                                                     │ bug, backend
-                                                                                     │
-                                                                                     │ PIPELINE #91840
-                                                                                     │ ✓ build                      1m02s
-                                                                                     │ ✗ test                       4m40s
-                                                                                     │
-                                                                                     │ LAST THREAD
-                                                                                     │ bob
-                                                                                     │ LGTM overall
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
+ Why                                                                                │ APPROVALS
+                                                                                    │ ✓ bob
+ • slot map raced                                                                   │ 1 more needed
+ • see slotMap                                                                      │
+                                                                                    │ LABELS
+  func main() {}                                                                    │ bug, backend
+                                                                                    │
+                                                                                    │ PIPELINE #91840
+                                                                                    │ ✓ build                      1m02s
+                                                                                    │ ✗ test                       4m40s
+                                                                                    │
+                                                                                    │ LAST THREAD
+                                                                                    │ bob
+                                                                                    │ LGTM overall
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-tab next tab  j/k down  enter open  a approve  M merge  b rebase  r refresh  o browser  y copy  ? help          poll 30s
+tab next tab  j/k down  enter open  a approve  M merge  b rebase  c comment  r refresh  o browser  ? help       poll 30s

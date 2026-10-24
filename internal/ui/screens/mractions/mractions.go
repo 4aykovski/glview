@@ -329,6 +329,9 @@ func (c *Controller) errorToast(msg ActionDoneMsg) tea.Cmd {
 			return app.Toast(common.ToastError, m.CannotMerge(msg.Status), "")
 		}
 	}
+	if msg.Kind == KindRebase && errors.Is(msg.Err, gitlab.ErrConflict) {
+		return app.Toast(common.ToastError, m.RebaseNotQueued, "")
+	}
 	return c.env.Fail(msg.Err)
 }
 

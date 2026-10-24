@@ -293,3 +293,20 @@ func TestHeightAndEscClearsList(t *testing.T) {
 		t.Fatal("esc closes everything")
 	}
 }
+
+func TestParseFreeValues(t *testing.T) {
+	keys := []Key{
+		{Name: "assignee", Values: []string{"any", "@me", "none"}, Free: true},
+		{Name: "state", Values: []string{"opened", "closed", "all"}},
+	}
+	vals, _, err := Parse(keys, "assignee:anna.k")
+	if err != nil || vals["assignee"] != "anna.k" {
+		t.Fatalf("a free key takes any value: %v %v", vals, err)
+	}
+	if _, _, err := Parse(keys, "state:anna.k"); err == nil {
+		t.Fatal("a closed list still rejects other values")
+	}
+	if _, _, err := Parse(keys, "assignee:"); err == nil {
+		t.Fatal("an empty value is still an error")
+	}
+}

@@ -26,6 +26,7 @@ type shared struct {
 	repo          *gitremote.Repo // nil without a local folder (-p)
 	defaultBranch string
 	webURL        string // project page, set when the project is loaded
+	archived      bool   // the project is archived: tags cannot be created or deleted
 	crumb         string // workspace source when opened from a workspace
 }
 
@@ -89,7 +90,7 @@ const (
 type Options struct {
 	Path string
 	Repo *gitremote.Repo // local folder of the project, nil if none
-	Tab  int             // TabMRs (default) or TabPipelines
+	Tab  int             // TabMRs (default), TabPipelines, TabIssues or TabTags
 	// MRFilter and PipelineFilter carry the filters of the workspace tab
 	// (state or status, "me", text); nil keeps the defaults.
 	MRFilter       *gitlab.MRFilter
@@ -97,6 +98,8 @@ type Options struct {
 	// Crumb is the workspace source shown before the path
 	// ("~/src › platform/route-service").
 	Crumb string
+	// TagSearch is the search text of the workspace Tags tab.
+	TagSearch string
 }
 
 // New creates the screen.
@@ -116,7 +119,9 @@ func New(env *app.Env, o Options) *Project {
 	if f := o.PipelineFilter; f != nil {
 		pipes.filter = *f
 	}
-	p.tabs = []tab{mrs, pipes, newPlaceholder(sh, 2), newPlaceholder(sh, 3)}
+	tags := newTagsTab(sh)
+	tags.search = o.TagSearch
+	p.tabs = []tab{mrs, pipes, newIssuesTab(sh), tags}
 	if o.Tab > 0 && o.Tab < len(p.tabs) {
 		p.cur = o.Tab
 	}
@@ -230,7 +235,8 @@ func (p *Project) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		p.sh.ref = msg.project.ProjectRef
 		p.sh.defaultBranch = msg.project.DefaultBranch
 		p.sh.webURL = msg.project.WebURL
-		return p, nil
+		p.sh.archived = msg.project.Archived
+		return p, p.broadcast(projectReadyMsg{})
 
 	case app.AuthRestoredMsg:
 		return p, tea.Batch(p.loadProject(), p.broadcast(msg))

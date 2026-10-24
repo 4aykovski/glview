@@ -6,6 +6,7 @@ import (
 
 // Footer priorities: higher survives narrower terminals.
 const (
+	PriorityLinks  = 5 // L (MR links): last to claim room, so the o/y hints stay
 	PriorityLow    = 10
 	PriorityNormal = 50
 	PriorityHigh   = 80

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/4aykovski/glview/internal/gitlab"
+	"github.com/4aykovski/glview/internal/mrlinks"
 )
 
 // pipelineRowFragment is the shared pipeline row (MR head pipelines and the
@@ -94,6 +95,8 @@ type gqlMR struct {
 	ClosedAt         string   `json:"closedAt"`
 	MergeUser        *gqlUser `json:"mergeUser"`
 	CommitCount      *int     `json:"commitCount"`
+	TitleHTML        string   `json:"titleHtml"`
+	DescriptionHTML  string   `json:"descriptionHtml"`
 }
 
 // domain maps a node to a MergeRequest; me is the current user's name.
@@ -121,6 +124,8 @@ func (m gqlMR) domain(project gitlab.ProjectRef, me, origin string) gitlab.Merge
 		ClosedAt:                parseTime(m.ClosedAt),
 		Squash:                  m.Squash,
 		ForceRemoveSourceBranch: m.ForceRemoveSourceBranch,
+		TitleLinks:              mrlinks.FromHTML(m.TitleHTML, origin),
+		DescriptionLinks:        mrlinks.FromHTML(m.DescriptionHTML, origin),
 	}
 	if m.Author != nil {
 		mr.Author = m.Author.domain()
@@ -426,6 +431,12 @@ fragment MRDetail on MergeRequest {
   mergedAt closedAt mergeUser { username name }
   #@opt commitCount
   commitCount
+  #@end
+  #@opt titleHtml
+  titleHtml
+  #@end
+  #@opt descriptionHtml
+  descriptionHtml
   #@end
   headPipeline {
     stages { nodes { name detailedStatus { group } jobs { nodes { status duration } } } }

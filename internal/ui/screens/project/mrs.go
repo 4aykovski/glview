@@ -12,10 +12,13 @@ import (
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/filterline"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/screens/comment"
+	"github.com/4aykovski/glview/internal/ui/screens/linkslist"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/mrdetail"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
@@ -56,13 +59,14 @@ type mrsTab struct {
 
 	loaded, loading, moreLoading, moreErr bool
 	err                                   error
+	linksGen                              common.Gen // the L request in flight
 	updated                               time.Time
 	active                                bool
 	w, h                                  int
 }
 
 func newMRsTab(sh *shared) *mrsTab {
-	t := &mrsTab{sh: sh, gen: common.NewGen(), poll: common.NewGen(), total: -1,
+	t := &mrsTab{sh: sh, gen: common.NewGen(), poll: common.NewGen(), linksGen: common.NewGen(), total: -1,
 		filter: gitlab.MRFilter{State: gitlab.MRStateOpened, Scope: gitlab.MRScopeAll}}
 	t.tbl = table.New(sh.env.Styles)
 	t.act = mractions.New(sh.env, func() gitlab.ProjectRef { return sh.ref }, func() *gitremote.Repo { return sh.repo })
@@ -132,7 +136,7 @@ func (t *mrsTab) columns() []table.Column {
 	m := t.env().Msg.MR
 	return []table.Column{
 		{Title: m.ColIID, Min: 5, Priority: 100},
-		{Title: m.ColTitle, Min: 20, Flex: true, Priority: 90},
+		{Title: m.ColTitle, Min: 20, Flex: true, Priority: 90, Linked: true},
 		{Title: m.ColAuthor, Min: 8, Max: 16, Priority: 40},
 		{Title: m.ColBranch, Min: 18, Max: 36, Priority: 30},
 		{Title: m.ColPipeline, Min: 8, Priority: 80},
@@ -168,7 +172,7 @@ func (t *mrsTab) rebuild() {
 			render.Approvals(s, mr.Approvals),
 			render.Threads(s, mr.Discussions),
 			render.Ago(env.Lang, env.Now(), mr.UpdatedAt),
-		}}
+		}, Links: mrlinks.Collect(mrlinks.Source{Title: mr.Title}, env.Settings.LinkRules)}
 	}
 	t.tbl.SetRows(rows)
 	t.setTail()
@@ -350,6 +354,16 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		return t, nil
 	case mrsLoadedMsg:
 		return t, t.onLoaded(msg)
+	case comment.SentMsg:
+		if msg.Target.Kind == comment.KindMR && msg.Target.Project.FullPath == t.sh.ref.FullPath && t.active && t.loaded {
+			return t, t.loadFirst(false, true) // the thread counters changed
+		}
+	case linkslist.LoadedMsg:
+		// The answer counts only for the request in flight and while the
+		// cursor still stands on its MR.
+		if mr := t.selected(); t.linksGen.Valid(msg.Tok) && mr != nil && mr.IID == msg.IID {
+			return t, linkslist.Done(env, msg, *mr)
+		}
 
 	case common.PollTickMsg:
 		if !t.poll.Valid(msg.Token) || !t.active || env.AuthLost {
@@ -494,9 +508,17 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			cmd, _ := t.act.Key(k.String(), *mr)
 			return cmd
 		}
+	case "c":
+		if mr := t.selected(); mr != nil && !t.sh.archived {
+			return comment.Open(env, comment.Target{Project: t.sh.ref, Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
+		}
+	case "L":
+		if mr := t.selected(); mr != nil {
+			return linkslist.Load(env, t.linksGen.Next(), t.sh.ref, mr.IID)
+		}
 	case "enter":
 		if mr := t.selected(); mr != nil {
-			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr))
+			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived))
 		}
 	case "o":
 		return app.OpenURL(env, t.listURL())
@@ -651,7 +673,7 @@ func (t *mrsTab) preview() string {
 	if mr == nil {
 		return frame("", "", "")
 	}
-	return frame(render.MRPreview(s, m, mr)...)
+	return frame(render.MRPreview(s, m, mr, env.Settings.LinkRules)...)
 }
 
 func (t *mrsTab) KeyMap() common.KeyMap {
@@ -666,6 +688,8 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"s"}, "", k.State, common.PriorityNormal),
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
+		hideArchived(t.sh, common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
+		common.NewBinding([]string{"L"}, "", t.env().Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
@@ -723,6 +747,11 @@ func filterInputView(fl *filterline.Model, s *common.Styles, hint string, errTex
 	if err := fl.Err(); err != nil {
 		return strings.Join(lines, "\n") + "\n" + s.Error.Render(errText(err))
 	}
-	lines[0] += "  " + s.Muted.Render(hint)
-	return strings.Join(lines, "\n")
+	return fl.ViewWithHint(hint, s.Muted)
+}
+
+// hideArchived hides a binding that does not work in an archived project.
+func hideArchived(sh *shared, b common.Binding) common.Binding {
+	b.Hidden = sh.archived
+	return b
 }

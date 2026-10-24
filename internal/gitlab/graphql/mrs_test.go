@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -242,6 +243,44 @@ func TestMRDetail(t *testing.T) {
 	}
 }
 
+func TestMRDetailLinks(t *testing.T) {
+	c, rec := newRecorder(t, func(int, string, map[string]any) string { return fixture(t, "mr_detail.json") })
+	mr, err := c.MR(context.Background(), testProject, 479, "egor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec.queries[0], "titleHtml") || !strings.Contains(rec.queries[0], "descriptionHtml") {
+		t.Errorf("detail query lacks the html fields")
+	}
+	origin := c.origin()
+	wantTitle := []gitlab.Link{{Text: "ABC-123", URL: "https://tracker.example.com/browse/ABC-123"}}
+	wantDesc := []gitlab.Link{
+		{Text: "#12", URL: origin + "/platform/route-service/-/issues/12"},
+		{Text: "@anna.k", URL: origin + "/anna.k"},
+	}
+	if !reflect.DeepEqual(mr.TitleLinks, wantTitle) || !reflect.DeepEqual(mr.DescriptionLinks, wantDesc) {
+		t.Errorf("links = %+v / %+v", mr.TitleLinks, mr.DescriptionLinks)
+	}
+}
+
+func TestMRDetailWithoutHTMLFields(t *testing.T) {
+	c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
+		for _, f := range []string{"titleHtml", "descriptionHtml"} {
+			if strings.Contains(q, f) {
+				return `{"errors":[{"message":"Field '` + f + `' doesn't exist on type 'MergeRequest'"}]}`
+			}
+		}
+		return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE"}}}}`
+	})
+	mr, err := c.MR(context.Background(), testProject, 1, "egor")
+	if err != nil || mr.IID != 1 || len(mr.TitleLinks) != 0 || len(mr.DescriptionLinks) != 0 {
+		t.Fatalf("%+v %v", mr, err)
+	}
+	if rec.count() != 3 {
+		t.Fatalf("requests = %d, want 3 (one retry per missing field)", rec.count())
+	}
+}
+
 func TestMRDetailWithoutDiffStats(t *testing.T) {
 	c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
 		if strings.Contains(q, "diffStatsSummary") {
@@ -319,7 +358,7 @@ func TestMRDetailMergeTimes(t *testing.T) {
 }
 
 func TestMRRowFragmentHasNoMergeFields(t *testing.T) {
-	for _, f := range []string{"mergedAt", "closedAt", "mergeUser", "commitCount"} {
+	for _, f := range []string{"mergedAt", "closedAt", "mergeUser", "commitCount", "titleHtml", "descriptionHtml"} {
 		if strings.Contains(mrRowFragment, f) {
 			t.Errorf("MRRow must not select %s (complexity limit)", f)
 		}

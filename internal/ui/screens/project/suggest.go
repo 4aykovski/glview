@@ -75,3 +75,21 @@ func (sh *shared) refsSource() sourceFunc {
 		})
 	}
 }
+
+// milestonesSource suggests the active milestones of the project (not those
+// of its groups).
+func (sh *shared) milestonesSource() sourceFunc {
+	return func(ctx context.Context, prefix string) ([]filterline.Suggestion, error) {
+		return sh.cached(ctx, "milestones", prefix, func(ctx context.Context) ([]filterline.Suggestion, error) {
+			titles, err := sh.env.Client.Projects().Milestones(ctx, sh.ref, prefix)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]filterline.Suggestion, len(titles))
+			for i, t := range titles {
+				out[i] = filterline.Suggestion{Value: t}
+			}
+			return out, nil
+		})
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/4aykovski/glview/internal/debuglog"
+	"github.com/4aykovski/glview/internal/gitlab"
 )
 
 // Options configure NewClient. Zero values select sensible defaults.
@@ -25,6 +26,9 @@ type Options struct {
 	Timeout            time.Duration // per request, default 15s
 	MaxRetryWait       time.Duration // longest Retry-After we honour, default 30s
 	UserAgent          string
+	// Monitor, when set, is told the outcome of every request, so the UI can
+	// show an outage and slow polling down. May be nil.
+	Monitor *gitlab.Monitor
 }
 
 // NewClient returns an *http.Client with the gitlab-tui transport chain.
@@ -66,6 +70,7 @@ func NewClient(o Options) (*http.Client, error) {
 			Sem:          make(chan struct{}, o.MaxConcurrent),
 			MaxRetryWait: o.MaxRetryWait,
 			UserAgent:    o.UserAgent,
+			Monitor:      o.Monitor,
 		},
 	}, nil
 }
@@ -76,6 +81,7 @@ type Transport struct {
 	Sem          chan struct{}
 	MaxRetryWait time.Duration
 	UserAgent    string
+	Monitor      *gitlab.Monitor
 	// Sleep is replaceable in tests.
 	Sleep func(ctx context.Context, d time.Duration) error
 }
@@ -126,8 +132,10 @@ func (t *Transport) do(req *http.Request) (*http.Response, error) {
 	log := debuglog.L()
 	if err != nil {
 		log.Debug("http", "method", req.Method, "path", req.URL.Path, "err", err.Error(), "dur", time.Since(start))
+		t.Monitor.Report(FromTransport(err)) // a cancellation and a TLS error are not an outage
 		return nil, err
 	}
+	t.Monitor.Report(nil)
 	log.Debug("http", "method", req.Method, "path", req.URL.Path, "status", resp.StatusCode, "dur", time.Since(start))
 	return resp, nil
 }

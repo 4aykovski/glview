@@ -11,11 +11,14 @@ import (
 
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/filterline"
 	"github.com/4aykovski/glview/internal/ui/common/grouped"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/screens/comment"
+	"github.com/4aykovski/glview/internal/ui/screens/linkslist"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/mrdetail"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
@@ -31,6 +34,8 @@ type mrsTab struct {
 	filter gitlab.MRFilter // State, Search, Mine
 	act    *mractions.Controller
 	actRef gitlab.ProjectRef // project of the selected line (actions)
+
+	linksGen common.Gen // the L request in flight
 }
 
 func defaultMRFilter() gitlab.MRFilter {
@@ -38,7 +43,7 @@ func defaultMRFilter() gitlab.MRFilter {
 }
 
 func newMRsTab(sh *shared) *mrsTab {
-	t := &mrsTab{filter: defaultMRFilter()}
+	t := &mrsTab{filter: defaultMRFilter(), linksGen: common.NewGen()}
 	t.groupBase = newGroupBase[gitlab.MergeRequest](sh, "mrs", mrFilterKeys(sh.env))
 	t.narrow = t.narrowed
 	t.fetch = func(ctx context.Context, ps []gitlab.ProjectRef) <-chan gitlab.BatchResult[gitlab.MergeRequest] {
@@ -109,7 +114,7 @@ func (t *mrsTab) Rebuild() {
 	t.tbl.SetMoreText(m.WS.More)
 	t.tbl.SetColumns([]table.Column{
 		{Title: m.MR.ColIID, Min: 5, Priority: 100},
-		{Title: m.MR.ColTitle, Min: 20, Flex: true, Priority: 90},
+		{Title: m.MR.ColTitle, Min: 20, Flex: true, Priority: 90, Linked: true},
 		{Title: m.MR.ColAuthor, Min: 8, Max: 16, Priority: 40},
 		{Title: m.WS.ColYou, Min: 3, Max: 9, Priority: 30},
 		{Title: m.MR.ColPipeline, Min: 8, Max: 12, Priority: 80},
@@ -138,7 +143,7 @@ func (t *mrsTab) row(mr gitlab.MergeRequest) table.Row {
 	return table.Row{ID: fmt.Sprint(mr.IID), Cells: []string{
 		s.Accent.Render(fmt.Sprintf("!%d", mr.IID)), title, mr.Author.Username, role, pipe,
 		render.Approvals(s, mr.Approvals), render.Ago(env.Lang, env.Now(), mr.UpdatedAt),
-	}}
+	}, Links: mrlinks.Collect(mrlinks.Source{Title: mr.Title}, env.Settings.LinkRules)}
 }
 
 // role is the current user's role in the MR (the "You" column): author,
@@ -244,6 +249,12 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		cmd := t.onExpand(msg)
 		t.Rebuild()
 		return t, cmd
+	case linkslist.LoadedMsg:
+		// The answer counts only for the request in flight and while the
+		// cursor still stands on its MR.
+		if mr := t.selected(); t.linksGen.Valid(msg.Tok) && mr != nil && mr.IID == msg.IID && t.cursorGroup() == msg.Ref.FullPath {
+			return t, linkslist.Done(env, msg, *mr)
+		}
 	case pickedMsg:
 		ours, cmd := t.onPicked(msg)
 		if ours {
@@ -315,7 +326,7 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		f := t.filter
-		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabMRs, &f, nil)
+		return t.sh.openProject(path, t.sh.primaryRepo(path), project.TabMRs, &f, nil, "")
 	case "o":
 		if path != "" {
 			return app.OpenURL(env, t.listURL(path))
@@ -330,7 +341,13 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	}
 	switch k.String() {
 	case "enter":
-		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr))
+		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path)))
+	case "c":
+		if !t.archived(path) {
+			return comment.Open(env, comment.Target{Project: t.ref(path), Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
+		}
+	case "L":
+		return linkslist.Load(env, t.linksGen.Next(), t.ref(path), mr.IID)
 	case "a", "M", "b", "C":
 		t.syncAct()
 		cmd, _ := t.act.Key(k.String(), *mr)
@@ -403,7 +420,7 @@ func (t *mrsTab) View() string {
 		if mr == nil {
 			parts = append(parts, t.frame("", "", ""))
 		} else {
-			parts = append(parts, t.frame(render.MRPreview(s, env.Msg, mr)...))
+			parts = append(parts, t.frame(render.MRPreview(s, env.Msg, mr, env.Settings.LinkRules)...))
 		}
 	}
 	return strings.Join(parts, "\n")
@@ -422,6 +439,11 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
 	}
 	short = append(short, t.act.Bindings()...)
+	if t.selected() != nil { // not on a group header or "N more"
+		c := common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)
+		c.Hidden = t.archived(t.cursorGroup()) // an archived project takes no writes
+		short = append(short, c, common.NewBinding([]string{"L"}, "", env.Msg.Links.Key, common.PriorityLinks))
+	}
 	short = append(short,
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
 		common.NewBinding([]string{"s"}, "", k.State, common.PriorityNormal),

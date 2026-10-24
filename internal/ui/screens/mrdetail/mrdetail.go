@@ -15,12 +15,15 @@ import (
 	"github.com/4aykovski/glview/internal/debuglog"
 	"github.com/4aykovski/glview/internal/gitlab"
 	"github.com/4aykovski/glview/internal/gitremote"
+	"github.com/4aykovski/glview/internal/mrlinks"
 	"github.com/4aykovski/glview/internal/ui/app"
 	"github.com/4aykovski/glview/internal/ui/common"
 	"github.com/4aykovski/glview/internal/ui/common/table"
+	"github.com/4aykovski/glview/internal/ui/screens/comment"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/pipeline"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
+	"github.com/4aykovski/glview/internal/ui/screens/threads"
 )
 
 const (
@@ -86,9 +89,11 @@ func (c *commitsTab) current(sha string) bool {
 // Screen is the MR detail screen.
 type Screen struct {
 	env *app.Env
-	ref gitlab.ProjectRef
-	iid int64
-	mr  gitlab.MergeRequest
+	// archived: the project is archived, no comments.
+	archived bool
+	ref      gitlab.ProjectRef
+	iid      int64
+	mr       gitlab.MergeRequest
 
 	discs       []gitlab.Discussion
 	discLoaded  bool
@@ -114,24 +119,33 @@ type Screen struct {
 	active  bool
 	w, h    int
 
-	md map[string]string // rendered markdown by width|lang|text
+	md map[string]string // rendered markdown by width|lang|links|text
 
-	// Discussions tab: the current thread and the folds the user toggled
-	// (overriding the default rule); both are keyed by discussion ID so
-	// they survive reloads.
-	curThread string
-	fold      map[string]bool
+	// links is the MR link list (title and description, SPEC 3.5), built
+	// lazily and dropped when the details change; linksKey identifies it
+	// in the markdown cache. linksOpen is set once the L overlay was opened:
+	// fresh details are then sent to it.
+	links     []gitlab.Link
+	linksOK   bool
+	linksKey  string
+	linksOpen bool
+
+	// Discussions tab: thread cards with the current thread and the folds
+	// the user toggled; both survive reloads.
+	threads *threads.Model
 }
 
 // New opens MR iid of project ref; initial (from a list row) is shown
-// until the details arrive.
-func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest) *Screen {
+// until the details arrive. archived hides and disables the comment action
+// (SPEC §11.2).
+func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest, archived bool) *Screen {
 	s := &Screen{
-		env: env, ref: ref, iid: initial.IID, mr: initial,
+		env: env, ref: ref, iid: initial.IID, mr: initial, archived: archived,
 		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), commitGen: common.NewGen(),
 		rechecked: map[string]bool{},
-		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{}, fold: map[string]bool{},
+		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{},
 	}
+	s.threads = threads.New(env, s.threadLink)
 	s.act = mractions.New(env, func() gitlab.ProjectRef { return s.ref }, func() *gitremote.Repo { return repo })
 	s.rebuildTable()
 	s.rebuildCommits()
@@ -171,8 +185,14 @@ func (s *Screen) KeyMap() common.KeyMap {
 		browser = k.BrowserCommit
 	}
 	short = append(short, s.act.Bindings()...)
+	hide := func(b common.Binding) common.Binding {
+		b.Hidden = s.archived
+		return b
+	}
 	short = append(short,
+		hide(common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
+		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
 		common.NewBinding([]string{"esc"}, "", k.Back, common.PriorityLow),
@@ -354,12 +374,13 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, tea.Batch(env.Fail(msg.err), s.reloadCommits(false), s.schedulePoll())
 		}
 		s.mr = msg.mr
+		s.linksOK = false
 		s.updated = env.Now()
 		// Once per poll cycle: refresh the relative times of the tables.
 		s.rebuildTable()
 		s.rebuildCommits()
 		recheck := s.maybeRecheck()
-		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll())
+		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll(), s.refreshLinks())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -380,6 +401,12 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, env.Fail(msg.err)
 		}
 		s.discs, s.discLoaded = msg.discs, true
+		s.threads.SetDiscussions(msg.discs)
+	case comment.SentMsg:
+		if msg.Target.Kind != comment.KindMR || msg.Target.Project.FullPath != s.ref.FullPath || msg.Target.IID != s.iid {
+			return s, nil
+		}
+		return s, tea.Batch(s.loadDiscussions(true), s.loadMR(true))
 	case pipesLoadedMsg:
 		if !s.pipeGen.Valid(msg.tok) {
 			return s, nil
@@ -436,6 +463,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 	case app.LangChangedMsg, app.ThemeChangedMsg:
 		s.md = map[string]string{}
+		s.threads.ClearCache()
 		s.tbl.SetStyles(env.Styles)
 		s.rebuildTable()
 		s.rebuildCommits()
@@ -457,6 +485,13 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return s.setTab(s.tab + tabCount - 1)
 	case "r":
 		return s.loadAll(true)
+	case "L":
+		return s.openLinks()
+	case "c":
+		if !s.archived {
+			return comment.Open(s.env, comment.Target{Project: s.ref, Kind: comment.KindMR, IID: s.iid, Title: s.mr.Title})
+		}
+		return nil
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":
@@ -499,7 +534,7 @@ func (s *Screen) selectedPipeline() *gitlab.PipelineSummary {
 func (s *Screen) setTab(i int) tea.Cmd {
 	s.tab = i % tabCount
 	s.scroll = 0
-	s.curThread = ""
+	s.threads.Reset()
 	if s.tab != tabCommits {
 		return nil
 	}
@@ -651,7 +686,7 @@ func (s *Screen) View() string {
 		metaLine += st.Muted.Render(" · ") + st.DiffAdd.Render(fmt.Sprintf("+%d", d.Additions)) + " " + st.DiffDel.Render(fmt.Sprintf("−%d", d.Deletions)) + " " + st.Muted.Render(m.Plural.Files(d.Files))
 	}
 
-	lines := []string{head, render.Clip(st.Bold.Render(title), s.w), render.Clip(metaLine, s.w)}
+	lines := []string{head, mrlinks.Apply(render.Clip(st.Bold.Render(title), s.w), s.linkList()), render.Clip(metaLine, s.w)}
 	if s.boxedChips() {
 		lines = append(lines, s.chipRow())
 	} else {
@@ -793,7 +828,7 @@ func (s *Screen) tabBar() string {
 	st, m := s.env.Styles, s.env.Msg.MR
 	discs := ""
 	if s.discLoaded {
-		discs = fmt.Sprintf(" %d", len(userDiscussions(s.discs)))
+		discs = fmt.Sprintf(" %d", s.threads.Count())
 	}
 	pipes := ""
 	if s.pipesLoaded {
@@ -832,10 +867,11 @@ func (s *Screen) window(lines []string) string {
 }
 
 func (s *Screen) markdown(text string, width int) []string {
-	key := fmt.Sprintf("%d|%s|%s", width, s.env.Lang, text)
+	links := s.linkList()
+	key := fmt.Sprintf("%d|%s|%s|%s", width, s.env.Lang, s.linksKey, text)
 	out, ok := s.md[key]
 	if !ok {
-		out = common.Markdown(s.env.Styles, text, width)
+		out = mrlinks.Apply(common.Markdown(s.env.Styles, text, width), links)
 		s.md[key] = out
 	}
 	return strings.Split(out, "\n")
@@ -847,7 +883,7 @@ func (s *Screen) overview() []string {
 	wide := s.w >= wideW
 	textW := s.w - 2
 	if wide {
-		textW = s.w - sideW - 3
+		textW = s.w - sideW - 4 // " " l " " rule " " r
 	}
 	var left []string
 	if strings.TrimSpace(s.mr.Description) == "" {
@@ -915,28 +951,50 @@ func (s *Screen) side() []string {
 	return out
 }
 
-// userDiscussions drops discussions that only hold system notes.
-func userDiscussions(ds []gitlab.Discussion) []gitlab.Discussion {
-	var out []gitlab.Discussion
-	for _, d := range ds {
-		var notes []gitlab.Note
-		for _, n := range d.Notes {
-			if !n.System {
-				notes = append(notes, n)
-			}
-		}
-		if len(notes) > 0 {
-			d.Notes = notes
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
 func lastThread(ds []gitlab.Discussion) *gitlab.Discussion {
-	us := userDiscussions(ds)
+	us := threads.User(ds)
 	if len(us) == 0 {
 		return nil
 	}
 	return &us[len(us)-1]
+}
+
+// ---- links ----
+
+// linkList is the link list of the MR: GitLab's links from the details,
+// the config rules and bare URLs (SPEC 3.5, "MR links").
+func (s *Screen) linkList() []gitlab.Link {
+	if !s.linksOK {
+		mr := s.mr
+		s.links = mrlinks.Collect(mrlinks.Source{
+			Title: mr.Title, Description: mr.Description,
+			TitleLinks: mr.TitleLinks, DescriptionLinks: mr.DescriptionLinks,
+		}, s.env.Settings.LinkRules)
+		var b strings.Builder
+		for _, l := range s.links {
+			b.WriteString(l.Text + "\x00" + l.URL + "\x00")
+		}
+		s.linksKey, s.linksOK = b.String(), true
+	}
+	return s.links
+}
+
+func (s *Screen) linksOverlayKey() string { return s.key("links") }
+
+// openLinks shows the L overlay, or a toast when the MR has no links.
+func (s *Screen) openLinks() tea.Cmd {
+	links := s.linkList()
+	if len(links) == 0 {
+		return app.Toast(common.ToastInfo, s.env.Msg.Links.NoLinks, "")
+	}
+	s.linksOpen = true
+	return app.OpenOverlay(app.NewLinksOverlay(s.env, s.linksOverlayKey(), fmt.Sprintf("!%d", s.iid), links))
+}
+
+// refreshLinks sends the current list to the overlay, if one was opened.
+func (s *Screen) refreshLinks() tea.Cmd {
+	if !s.linksOpen {
+		return nil
+	}
+	return app.LinksRefresh(s.linksOverlayKey(), s.linkList())
 }

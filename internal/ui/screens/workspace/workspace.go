@@ -59,6 +59,24 @@ func (sh *shared) overview(path string) (gitlab.ProjectOverview, bool) {
 	return ov, ok
 }
 
+// setLastTag records the tag just created as the latest of project path (the
+// header of its collapsed Tags group).
+func (sh *shared) setLastTag(path, name string) {
+	if ov, ok := sh.over[path]; ok {
+		ov.LastTag, ov.TagKnown = name, true
+		sh.over[path] = ov
+	}
+}
+
+// forgetLastTag drops the latest tag of project path when it was deleted:
+// the next overview with tags tells the new one.
+func (sh *shared) forgetLastTag(path, name string) {
+	if ov, ok := sh.over[path]; ok && ov.LastTag == name {
+		ov.LastTag, ov.TagKnown = "", false
+		sh.over[path] = ov
+	}
+}
+
 // noAccess reports a project the overview could not read (deleted, no
 // access).
 func (sh *shared) noAccess(path string) bool {
@@ -136,9 +154,9 @@ func (sh *shared) primaryRepo(path string) *gitremote.Repo {
 
 // openProject opens the project screen of path on tab with the given
 // workspace tab filters.
-func (sh *shared) openProject(path string, repo *gitremote.Repo, tab int, mf *gitlab.MRFilter, pf *gitlab.PipelineFilter) tea.Cmd {
+func (sh *shared) openProject(path string, repo *gitremote.Repo, tab int, mf *gitlab.MRFilter, pf *gitlab.PipelineFilter, tagSearch string) tea.Cmd {
 	return app.Push(project.New(sh.env, project.Options{
-		Path: path, Repo: repo, Tab: tab, MRFilter: mf, PipelineFilter: pf, Crumb: sh.source,
+		Path: path, Repo: repo, Tab: tab, MRFilter: mf, PipelineFilter: pf, TagSearch: tagSearch, Crumb: sh.source,
 	}))
 }
 
@@ -236,7 +254,7 @@ func newScreen(env *app.Env, source string) *Screen {
 		}
 		return s.loadOverview(false, true)
 	}
-	s.tabs = []tab{newProjectsTab(sh), newMRsTab(sh), newPipelinesTab(sh), newPlaceholder(sh, TabTags)}
+	s.tabs = []tab{newProjectsTab(sh), newMRsTab(sh), newPipelinesTab(sh), newTagsTab(sh)}
 	return s
 }
 
@@ -508,7 +526,7 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 		return tea.Batch(s.schedulePoll(), s.projects().loadLocalMR())
 	}
 	var fail tea.Cmd
-	groups := false // the group tabs show something that changed
+	groups, tagHeads := false, false // the group tabs show something that changed
 	for _, g := range msg.res.Groups {
 		path := g.Project.FullPath
 		noAccess := sh.noAccess(path)
@@ -526,9 +544,11 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 			old, had := sh.over[path]
 			nw := mergeOverview(old, g.Items[0])
 			groups = groups || !had || headerChanged(old, nw)
+			tagHeads = tagHeads || !had || tagHeaderChanged(old, nw)
 			sh.over[path] = nw
 		}
 		groups = groups || noAccess != sh.noAccess(path)
+		tagHeads = tagHeads || noAccess != sh.noAccess(path)
 	}
 	pt := s.projects()
 	sel := pt.selection()
@@ -537,6 +557,9 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 		s.tabs[TabMRs].Rebuild()
 		s.tabs[TabPipelines].Rebuild()
 	}
+	if groups || tagHeads {
+		s.tabs[TabTags].Rebuild()
+	}
 	var local tea.Cmd
 	if pt.selection() != sel {
 		local = pt.loadLocalMR()
@@ -544,9 +567,14 @@ func (s *Screen) onOverview(msg batchMsg[gitlab.ProjectOverview]) tea.Cmd {
 	return tea.Batch(fail, msg.next, local)
 }
 
-// headerChanged reports whether the group tabs show something else for
-// the project: the counts of the MRs headers or the default branch
-// pipeline of the Pipelines headers (a new tag changes neither).
+// headerChanged reports whether the MRs and Pipelines tabs show something
+// else for the project: the counts of the MRs headers or the default branch
+// pipeline of the Pipelines headers (a new tag changes neither; the Tags
+// tab has tagHeaderChanged).
+func tagHeaderChanged(old, nw gitlab.ProjectOverview) bool {
+	return old.LastTag != nw.LastTag || old.TagKnown != nw.TagKnown || old.DefaultBranch != nw.DefaultBranch
+}
+
 func headerChanged(old, nw gitlab.ProjectOverview) bool {
 	if old.OpenMRs != nw.OpenMRs || old.ReviewMRs != nw.ReviewMRs || old.DefaultBranch != nw.DefaultBranch {
 		return true
@@ -566,7 +594,7 @@ func mergeOverview(old, nw gitlab.ProjectOverview) gitlab.ProjectOverview {
 		nw.DefaultPipeline = old.DefaultPipeline
 	}
 	if !nw.TagKnown {
-		nw.LastTag = old.LastTag
+		nw.LastTag, nw.TagKnown = old.LastTag, old.TagKnown
 	}
 	return nw
 }

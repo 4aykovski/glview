@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -30,6 +32,14 @@ type Config struct {
 	Polling     Polling     `yaml:"polling"`
 	Glab        Tool        `yaml:"glab"`
 	Git         Git         `yaml:"git"`
+	Links       []LinkRule  `yaml:"links"`
+}
+
+// LinkRule makes the matches of Pattern in an MR title or description links
+// (SPEC §7). URL is a regexp.Expand template.
+type LinkRule struct {
+	Pattern string `yaml:"pattern"`
+	URL     string `yaml:"url"`
 }
 
 type TLS struct {
@@ -152,6 +162,9 @@ const (
 	WarnPermissions
 	// WarnValue means a key has an unknown enum value; the default is used.
 	WarnValue
+	// WarnLink means a links rule is invalid and was dropped; Key names the
+	// offending key (links[0].pattern) and Text the reason.
+	WarnLink
 )
 
 // Load reads the config at path. A missing file is not an error. Parse
@@ -193,7 +206,12 @@ func (c *Config) normalize() []Warning {
 	if c.Language != "en" && c.Language != "ru" {
 		c.Language = d.Language
 	}
-	if c.Theme == "" {
+	switch c.Theme {
+	case "terminal", "terminal-faint":
+	case "":
+		c.Theme = d.Theme
+	default:
+		warns = append(warns, badValue("theme", c.Theme, d.Theme))
 		c.Theme = d.Theme
 	}
 	if c.Workspace.PerProject <= 0 {
@@ -219,6 +237,36 @@ func (c *Config) normalize() []Warning {
 		warns = append(warns, badValue("run_pipeline.refs_first", c.RunPipeline.RefsFirst, d.RunPipeline.RefsFirst))
 		c.RunPipeline.RefsFirst = d.RunPipeline.RefsFirst
 	}
+	warns = append(warns, c.checkLinks()...)
+	return warns
+}
+
+// checkLinks drops the invalid links rules, one warning per rule.
+func (c *Config) checkLinks() []Warning {
+	var warns []Warning
+	kept := c.Links[:0:0]
+	for i, r := range c.Links {
+		key, reason := "", ""
+		switch {
+		case strings.TrimSpace(r.Pattern) == "":
+			key, reason = "pattern", "empty"
+		case strings.TrimSpace(r.URL) == "":
+			key, reason = "url", "empty"
+		case !strings.HasPrefix(r.URL, "http://") && !strings.HasPrefix(r.URL, "https://"):
+			key, reason = "url", "must start with http:// or https://"
+		default:
+			if _, err := regexp.Compile(r.Pattern); err != nil {
+				key, reason = "pattern", err.Error()
+			}
+		}
+		if key == "" {
+			kept = append(kept, r)
+			continue
+		}
+		full := fmt.Sprintf("links[%d].%s", i, key)
+		warns = append(warns, Warning{Kind: WarnLink, Key: full, Text: full + ": " + reason})
+	}
+	c.Links = kept
 	return warns
 }
 

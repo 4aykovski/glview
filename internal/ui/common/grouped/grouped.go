@@ -325,7 +325,7 @@ func (m *Model) View() string {
 	for i, c := range m.cols {
 		titles[i] = c.Title
 	}
-	out := []string{s.ColumnHeader.Render(noMarker + table.FormatLine(m.cols, widths, titles, true)), common.Rule(s, m.w)}
+	out := []string{s.ColumnHeader.Render(noMarker + table.FormatLine(m.cols, widths, titles, true, nil)), common.Rule(s, m.w)}
 	end := min(m.offset+m.bodyHeight(), len(m.lines))
 	for i := m.offset; i < end; i++ {
 		out = append(out, m.renderLine(i, widths))
@@ -349,11 +349,11 @@ func (m *Model) renderLine(i int, widths []int) string {
 		r := g.Rows[l.row]
 		switch {
 		case sel:
-			return s.RowSelected.Render(ansi.Truncate(marker+table.FormatLine(m.cols, widths, r.Cells, true), m.w, "…"))
+			return s.RowSelected.Render(ansi.Truncate(marker+table.FormatLine(m.cols, widths, r.Cells, true, r.Links), m.w, "…"))
 		case r.Muted:
-			return s.RowMuted.Render(noMarker + table.FormatLine(m.cols, widths, r.Cells, true))
+			return s.RowMuted.Render(noMarker + table.FormatLine(m.cols, widths, r.Cells, true, r.Links))
 		}
-		return noMarker + table.FormatLine(m.cols, widths, r.Cells, false)
+		return noMarker + table.FormatLine(m.cols, widths, r.Cells, false, r.Links)
 	case KindMore:
 		text = m.moreText(g.More)
 		if !sel {

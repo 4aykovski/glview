@@ -50,7 +50,7 @@ func New(env *Env, first Screen, opts Options) *Model {
 	}
 	m := &Model{env: env, opts: opts, isDark: true}
 	if env.Styles == nil {
-		env.Styles = common.NewStyles(common.TerminalTheme(true))
+		env.Styles = common.NewStyles(common.ThemeByName(env.ThemeName, true))
 	} else {
 		m.isDark = env.Styles.Theme.IsDark
 	}
@@ -96,11 +96,14 @@ func (m *Model) Env() *Env { return m.env }
 // Top returns the screen on top of the stack.
 func (m *Model) Top() Screen { return m.stack[len(m.stack)-1] }
 
+// Overlay returns the open overlay, nil when none.
+func (m *Model) Overlay() Overlay { return m.overlay }
+
 // Depth returns the stack size.
 func (m *Model) Depth() int { return len(m.stack) }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.refreshStarred()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.listenNet(), m.refreshStarred()}
 	for _, t := range m.opts.InitialToasts {
 		cmds = append(cmds, msgCmd(t))
 	}
@@ -122,7 +125,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.BackgroundColorMsg:
 		if dark := msg.IsDark(); dark != m.isDark {
 			m.isDark = dark
-			m.env.Styles = common.NewStyles(common.TerminalTheme(dark))
+			m.env.Styles = common.NewStyles(common.ThemeByName(m.env.ThemeName, dark))
 			return m, m.broadcast(ThemeChangedMsg{Styles: m.env.Styles})
 		}
 		return m, nil
@@ -170,6 +173,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CacheRevalidatedMsg:
 		return m, tea.Batch(m.broadcast(msg), m.listenCache())
+
+	case NetChangedMsg:
+		return m, m.onNetChanged(msg)
 
 	case AuthLostMsg:
 		return m, m.onAuthLost(msg)

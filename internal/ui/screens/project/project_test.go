@@ -72,9 +72,9 @@ func TestProjectScreenTabsAndHeader(t *testing.T) {
 		t.Fatal("MRs is the default tab")
 	}
 	d.Key("3")
-	d.RequireView("Issues will appear here later")
+	d.RequireView("No open issues", "state:opened")
 	d.Key("tab")
-	d.RequireView("Tags will appear here later")
+	d.RequireView("No tags", "sort: semver ↓")
 	d.Key("shift+tab", "shift+tab")
 	if scr.Current() != 1 {
 		t.Fatalf("current = %d", scr.Current())
@@ -568,4 +568,40 @@ func TestCheckoutNonZeroExit(t *testing.T) {
 	d := uitest.New(t, app.New(env, New(env, Options{Path: path, Repo: repo}), app.Options{}))
 	d.Key("C")
 	d.RequireView("glab exited with an error (code 3)")
+}
+
+func TestMRsCommentFromTheList(t *testing.T) {
+	client := newFake(3)
+	d, _, _ := open(t, client, nil)
+	d.Key("c")
+	d.RequireView("Comment · !1 MR number 1")
+	for _, r := range "Nice" {
+		d.Key(string(r))
+	}
+	d.Key("alt+enter")
+	calls := client.CallsOf("MergeRequests.Comment")
+	if len(calls) != 1 || calls[0][1] != int64(1) || calls[0][2] != "Nice" {
+		t.Fatalf("Comment calls = %v", calls)
+	}
+	d.RequireView("Comment added")
+}
+
+// The MR detail of an archived project has no comment action.
+func TestMRDetailOfArchivedProjectHasNoComment(t *testing.T) {
+	for _, archived := range []bool{false, true} {
+		client := newFake(3)
+		client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}, Archived: archived, WebURL: "https://gitlab.example.com/" + path})
+		d, _, _ := open(t, client, nil)
+		d.Key("enter")
+		d.RequireView("Discussions")
+		if archived {
+			d.RequireNoView("comment")
+			d.Key("c")
+			d.RequireNoView("Comment · !")
+		} else {
+			d.RequireView("comment")
+			d.Key("c")
+			d.RequireView("Comment · !")
+		}
+	}
 }
