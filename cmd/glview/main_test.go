@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,29 @@ func TestVersionFlag(t *testing.T) {
 	}
 	if !strings.HasPrefix(out.String(), "glview ") {
 		t.Fatalf("unexpected output %q", out.String())
+	}
+}
+
+func TestResolveVersion(t *testing.T) {
+	mod := func(v string) func() (*debug.BuildInfo, bool) {
+		return func() (*debug.BuildInfo, bool) {
+			return &debug.BuildInfo{Main: debug.Module{Version: v}}, true
+		}
+	}
+	none := func() (*debug.BuildInfo, bool) { return nil, false }
+	for _, tc := range []struct {
+		name, ldflags, want string
+		info                func() (*debug.BuildInfo, bool)
+	}{
+		{"ldflags wins", "v0.2.0-3-gabc", "v0.2.0-3-gabc", mod("v0.1.1")},
+		{"module version", "dev", "v0.1.1", mod("v0.1.1")},
+		{"devel", "dev", "dev", mod("(devel)")},
+		{"empty", "dev", "dev", mod("")},
+		{"no build info", "dev", "dev", none},
+	} {
+		if got := resolveVersion(tc.ldflags, tc.info); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 
