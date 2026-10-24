@@ -29,6 +29,7 @@ func fillT37EN(m *Messages) {
 	n.PhDesc = "markdown"
 	n.Comparing = "◐ comparing…"
 	n.CompareErr = "branch not found or comparison unavailable"
+	n.DupCheckErr = "could not check for an open MR from this branch"
 	n.Checking = "checking branches…"
 	n.Creating = "creating…"
 	n.Stat = func(commits, files int) string {

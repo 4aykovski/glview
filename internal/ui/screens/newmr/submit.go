@@ -97,10 +97,14 @@ func (f *Form) create() tea.Cmd {
 		Labels: snap.labels, RemoveSourceBranch: snap.remove, Squash: snap.squash,
 	}
 	for _, a := range snap.assignees {
-		n.AssigneeIDs = append(n.AssigneeIDs, a.id)
+		if a.id != 0 {
+			n.AssigneeIDs = append(n.AssigneeIDs, a.id)
+		}
 	}
 	for _, r := range snap.reviewers {
-		n.ReviewerIDs = append(n.ReviewerIDs, r.id)
+		if r.id != 0 {
+			n.ReviewerIDs = append(n.ReviewerIDs, r.id)
+		}
 	}
 	if snap.milestone != nil {
 		n.MilestoneID = snap.milestone.id

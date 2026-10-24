@@ -17,6 +17,7 @@ type NewMRMessages struct {
 	TemplatesLoading, TemplatesFailed           string
 	PhBranch, PhSearch, PhDesc                  string
 	Comparing, CompareErr, Checking, Creating   string
+	DupCheckErr                                 string                          // the open-MR lookup failed
 	Stat                                        func(commits, files int) string // "3 commits · 5 files"
 	NoChanges                                   func(src, dst string) string
 	NotPushed                                   func(src string) string

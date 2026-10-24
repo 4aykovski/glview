@@ -11,16 +11,17 @@ import (
 )
 
 // checkState is what is known about the pair of branches: whether the
-// source is on the server, the comparison and the open MR from it.
+// source is on the server, the comparison and the open MR for the pair.
 type checkState struct {
 	key     string // "src\x00dst" the state is for
 	started bool   // the request was sent
 	done    bool   // the answer arrived
 
-	onServer bool
-	cmp      gitlab.Comparison
-	cmpErr   error
-	mr       *gitlab.MergeRequest // the open MR from the source branch
+	absent bool // the server answered and the source branch is not there
+	cmp    gitlab.Comparison
+	cmpErr error
+	mr     *gitlab.MergeRequest // the open MR from source into target
+	mrErr  error                // the lookup of mr failed
 }
 
 func (f *Form) pairKey() string { return f.src.text() + "\x00" + f.dst.text() }
@@ -48,8 +49,8 @@ func (f *Form) followTitle() {
 }
 
 // startCheck asks for the state of the pair of branches: the branch on the
-// server, the comparison target…source and the open MR from the source, in
-// parallel.
+// server and, once it is there, the comparison target…source and the open
+// MR from the source into the target, in parallel.
 func (f *Form) startCheck() tea.Cmd {
 	src, dst := f.src.text(), f.dst.text()
 	if src == "" || dst == "" || src == dst {
@@ -64,30 +65,34 @@ func (f *Form) startCheck() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
 		st := checkState{key: key, started: true, done: true}
-		var srvErr error
+		names, srvErr := client.Projects().Branches(ctx, p, "^"+src+"$")
+		if srvErr == nil && !slices.Contains(names, src) {
+			// Nothing to compare and no MR to look for: push first.
+			st.absent = true
+			return checkMsg{tok: tok, st: st}
+		}
 		var wg sync.WaitGroup
-		wg.Add(3)
-		go func() {
-			defer wg.Done()
-			var names []string
-			names, srvErr = client.Projects().Branches(ctx, p, "^"+src+"$")
-			st.onServer = slices.Contains(names, src)
-		}()
+		wg.Add(2)
 		go func() {
 			defer wg.Done()
 			st.cmp, st.cmpErr = client.Tags().Compare(ctx, p, dst, src)
 		}()
 		go func() {
 			defer wg.Done()
-			page, err := client.MergeRequests().List(ctx, p, gitlab.MRFilter{State: gitlab.MRStateOpened, SourceBranch: src}, "", 1)
-			if err == nil && len(page.Items) > 0 {
-				st.mr = &page.Items[0]
+			page, err := client.MergeRequests().List(ctx, p, gitlab.MRFilter{State: gitlab.MRStateOpened, SourceBranch: src, TargetBranch: dst}, "", 5)
+			if err != nil {
+				st.mrErr = err
+				return
+			}
+			for i := range page.Items {
+				// GitLab forbids one open MR per pair of branches only.
+				if page.Items[i].TargetBranch == dst {
+					st.mr = &page.Items[i]
+					return
+				}
 			}
 		}()
 		wg.Wait()
-		if srvErr != nil && st.cmpErr == nil {
-			st.onServer = true // the comparison found the branch
-		}
 		return checkMsg{tok: tok, st: st}
 	}
 }
@@ -115,9 +120,9 @@ func (f *Form) local(branch string) bool {
 func (f *Form) problem(st checkState, src, dst string) string {
 	m := f.env.Msg.NewMR
 	switch {
-	case !st.onServer && f.local(src):
+	case st.absent && f.local(src):
 		return m.NotPushed(src)
-	case !st.onServer, st.cmpErr != nil:
+	case st.absent, st.cmpErr != nil:
 		return m.CompareErr
 	case len(st.cmp.Commits) == 0:
 		return m.NoChanges(src, dst)

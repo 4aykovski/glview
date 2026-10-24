@@ -224,6 +224,8 @@ func (r *rows) status() []string {
 			}
 			if st.mr != nil {
 				dup = append(dup, s.Warning.Render(m.DupOpen(src, st.mr.IID)))
+			} else if st.mrErr != nil {
+				dup = append(dup, s.Warning.Render(m.DupCheckErr))
 			}
 		}
 	}

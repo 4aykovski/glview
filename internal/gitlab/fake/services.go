@@ -278,6 +278,9 @@ func matchMR(mr gitlab.MergeRequest, f gitlab.MRFilter, me string) bool {
 	if f.SourceBranch != "" && mr.SourceBranch != f.SourceBranch {
 		return false
 	}
+	if f.TargetBranch != "" && mr.TargetBranch != f.TargetBranch {
+		return false
+	}
 	return true
 }
 

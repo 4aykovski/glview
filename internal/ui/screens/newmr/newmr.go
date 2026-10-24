@@ -442,7 +442,7 @@ func (f *Form) onHints(msg hintsMsg) tea.Cmd {
 // fields and keeps the first maxHints.
 func (f *Form) filterHints(h *hintInput, items []item) []item {
 	var out []item
-	if h.id == fAssignees || h.id == fReviewers {
+	if (h.id == fAssignees || h.id == fReviewers) && f.env.User.ID != 0 { // "@me" needs the user loaded
 		q := strings.ToLower(h.text())
 		me := item{id: f.env.User.ID, name: f.env.User.Username, me: true}
 		if !h.has(me) && (q == "" || strings.Contains("@me", q) || strings.Contains(strings.ToLower(me.name), q)) {

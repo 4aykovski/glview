@@ -387,6 +387,11 @@ func buildProjectMRs(project gitlab.ProjectRef, f gitlab.MRFilter, me string, al
 		vars["sourceBranches"] = []string{f.SourceBranch}
 		common = append(common, "sourceBranches: $sourceBranches")
 	}
+	if f.TargetBranch != "" {
+		decls = append(decls, "$targetBranches: [String!]")
+		vars["targetBranches"] = []string{f.TargetBranch}
+		common = append(common, "targetBranches: $targetBranches")
+	}
 
 	var b strings.Builder
 	var proj []string

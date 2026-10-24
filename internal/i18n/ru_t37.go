@@ -29,6 +29,7 @@ func fillT37RU(m *Messages) {
 	n.PhDesc = "markdown"
 	n.Comparing = "◐ сравниваем…"
 	n.CompareErr = "ветка не найдена или сравнение недоступно"
+	n.DupCheckErr = "не удалось проверить, есть ли открытый MR из этой ветки"
 	n.Checking = "проверяем ветки…"
 	n.Creating = "создаём…"
 	n.Stat = func(commits, files int) string {

@@ -133,6 +133,9 @@ type MRFilter struct {
 	// SourceBranch selects MRs from one branch (the local branch preview
 	// of the workspace).
 	SourceBranch string
+	// TargetBranch narrows SourceBranch to one pair (duplicate check of the
+	// new-MR form: GitLab forbids two open MRs with the same pair).
+	TargetBranch string
 }
 
 // Key is a canonical signature of the filter for cache keys and equality.
@@ -145,7 +148,7 @@ func (f MRFilter) Key() string {
 	if scope == "" {
 		scope = MRScopeAll
 	}
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t|%s", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine, f.SourceBranch)
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t|%s|%s", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine, f.SourceBranch, f.TargetBranch)
 }
 
 // MergeOptions are the parameters of a merge request merge.
