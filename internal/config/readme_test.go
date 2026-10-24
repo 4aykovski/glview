@@ -11,21 +11,27 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// readmeConfig returns the YAML example of the README section "Конфиг".
-func readmeConfig(t *testing.T) []byte {
+// readmes are the README translations and the heading of their config section.
+var readmes = []struct{ file, config string }{
+	{"README.md", "\n## Config"},
+	{"README.ru.md", "\n## Конфиг"},
+}
+
+// readmeConfig returns the YAML example of the config section of a README.
+func readmeConfig(t *testing.T, file, heading string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	data, err := os.ReadFile(filepath.Join("..", "..", file))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(data)
-	_, after, ok := strings.Cut(s, "\n## Конфиг")
+	_, after, ok := strings.Cut(s, heading)
 	if !ok {
-		t.Fatal("README has no Конфиг section")
+		t.Fatalf("%s has no %q section", file, heading)
 	}
 	_, block, ok := strings.Cut(after, "```yaml\n")
 	if !ok {
-		t.Fatal("no YAML example in the Конфиг section")
+		t.Fatalf("no YAML example in the %q section of %s", heading, file)
 	}
 	block, _, ok = strings.Cut(block, "```")
 	if !ok {
@@ -34,10 +40,15 @@ func readmeConfig(t *testing.T) []byte {
 	return []byte(block)
 }
 
-// The README example must parse: every key exists in Config (a typo or a
+// The README examples must parse: every key exists in Config (a typo or a
 // renamed key fails), values are valid and equal to the defaults.
 func TestREADMEConfigExample(t *testing.T) {
-	src := readmeConfig(t)
+	for _, r := range readmes {
+		t.Run(r.file, func(t *testing.T) { readmeConfigExample(t, readmeConfig(t, r.file, r.config)) })
+	}
+}
+
+func readmeConfigExample(t *testing.T, src []byte) {
 
 	dec := yaml.NewDecoder(bytes.NewReader(src))
 	dec.KnownFields(true)
@@ -61,17 +72,21 @@ func TestREADMEConfigExample(t *testing.T) {
 	}
 }
 
-// Every top-level key of Config appears in the README example.
+// Every top-level key of Config appears in each README example.
 func TestREADMEConfigListsEveryKey(t *testing.T) {
-	var shown map[string]any
-	if err := yaml.Unmarshal(readmeConfig(t), &shown); err != nil {
-		t.Fatal(err)
-	}
-	typ := reflect.TypeFor[Config]()
-	for i := range typ.NumField() {
-		key, _, _ := strings.Cut(typ.Field(i).Tag.Get("yaml"), ",")
-		if _, ok := shown[key]; !ok {
-			t.Errorf("README example lacks the key %q", key)
-		}
+	for _, r := range readmes {
+		t.Run(r.file, func(t *testing.T) {
+			var shown map[string]any
+			if err := yaml.Unmarshal(readmeConfig(t, r.file, r.config), &shown); err != nil {
+				t.Fatal(err)
+			}
+			typ := reflect.TypeFor[Config]()
+			for i := range typ.NumField() {
+				key, _, _ := strings.Cut(typ.Field(i).Tag.Get("yaml"), ",")
+				if _, ok := shown[key]; !ok {
+					t.Errorf("README example lacks the key %q", key)
+				}
+			}
+		})
 	}
 }

@@ -1,186 +1,195 @@
 # glview
 
-Терминальный клиент GitLab на Go и [Bubble Tea](https://github.com/charmbracelet/bubbletea). Показывает MR, пайплайны, логи джоб, теги и issues текущего проекта или целой папки с проектами и делает частые действия без браузера: approve, merge, rebase, комментарии, retry/cancel/play джоб, запуск пайплайна с переменными, создание и удаление тегов, close/reopen issues.
+**English** | [Русский](README.ru.md)
 
-Self-hosted GitLab — первоклассный сценарий: свой URL, relative URL root, нестандартный SSH-порт, свой CA.
+A terminal GitLab client written in Go with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It shows MRs with diffs, pipelines, job logs, tags, issues and To-Dos for the current project or a whole folder of projects, and runs the common actions without a browser: create MRs, approve, merge, rebase, comment (including on diff lines), retry/cancel/play jobs, run pipelines with variables, create and delete tags, close/reopen issues.
 
-## Возможности
+Self-hosted GitLab is fully supported: custom URL, relative URL root, non-standard SSH port, custom CA.
 
-- **Режим проекта.** Запуск в папке с `.git` сразу открывает проект по `remote origin`: MR, пайплайны, теги, issues.
-- **Режим workspace.** Запуск в папке с проектами — табы «Проекты», MRs, Pipelines и Tags по всем проектам сразу, сгруппированные по проектам; нагрузка на GitLab — один GraphQL-запрос на пачку проектов. `f` открывает проект выбранной строки, `P` фильтрует по проектам, `u`/`U` делают fetch и pull (ff-only) локальных клонов.
-- **Поиск.** `p` — переключатель проектов без сети (git remote, workspace, starred, недавние), `F` — глобальный поиск проектов и групп; группа открывается как workspace из её проектов.
-- **MR:** approve/unapprove, merge (сейчас или auto-merge, squash, удаление ветки), rebase, комментарии (`c`), checkout через `glab`, треды в виде карточек, ссылки на трекер в заголовке и описании (`L`).
-- **Пайплайны:** стейджи, джобы, downstream-пайплайны, retry/cancel, play manual-джобы с переменными, запуск нового пайплайна с подсказками переменных из `.gitlab-ci.yml`.
-- **Лог джобы в реальном времени:** ANSI-цвета, сворачиваемые секции, поиск, follow.
-- **Теги.** Список с пайплайном тега и сравнением с default-веткой, форма New tag (`n`: следующая semver-версия, ref, сообщение, коммиты в теге), удаление (`D`).
-- **Issues.** Список с фильтрами и превью, связанные MR, экран issue с тредами, комментарии, close/reopen (`x`).
-- **Русский и английский интерфейс** с переключением на лету (`ctrl+l`).
-- **Цвета терминала:** только 16 ANSI-цветов, светлая и тёмная тема, `NO_COLOR`.
-- **Сеть.** Токен, отвергнутый посреди сессии, останавливает поллинг и подсказывает, где его поправить; без сети экраны показывают данные из кэша и пометку `(офлайн)`, поллинг замедляется до восстановления.
+## Features
 
-## Статус
+- **Project mode.** Run it in a folder with `.git` and the project from `remote origin` opens right away: MRs, pipelines, tags, issues.
+- **Workspace mode.** Run it in a folder of projects to get Projects, MRs, Pipelines and Tags tabs across all projects, grouped by project. GitLab load is one GraphQL request per batch of projects. `f` opens the project of the selected row, `P` filters by project, `u`/`U` fetch and pull (ff-only) the local clones.
+- **Search.** `p` switches projects without network access (git remotes, workspace, starred, recent). `F` searches projects and groups on the server; a group opens as a workspace of its projects.
+- **MRs:** approve/unapprove, merge (now or auto-merge, squash, delete branch), rebase, comments (`c`), checkout via `glab`, threads as cards, tracker links in the title and description (`L`).
+- **Diffs.** The Diff tab of an MR shows all files in one scroll with line numbers, collapsible files and threads under their lines. `c` on a line comments on that line; `d` in the MR list opens the MR straight on the Diff tab.
+- **New MR** (`n` in the MRs tab): branches with suggestions, title with a Draft toggle, description from project templates, assignees, reviewers, labels, milestone, remove source branch and squash. Before creating, it checks whether an open MR for the same branch pair exists, whether there are commits, and whether the branch is pushed.
+- **Pipelines:** stages, jobs, downstream pipelines, retry/cancel, play manual jobs with variables, run a new pipeline with variable hints from `.gitlab-ci.yml`.
+- **Live job log:** ANSI colors, collapsible sections, search, follow.
+- **Tags.** A list with each tag's pipeline and comparison to the default branch, a New tag form (`n`: next semver version, ref, message, commits in the tag), deletion (`D`).
+- **Issues.** A list with filters and preview, related MRs, an issue screen with threads, comments, close/reopen (`x`).
+- **To-Do** (`T` from any screen): your to-do items with state and type filters, jump to the target, mark one (`x`) or all (`X`) as done; a To-Do counter in the header.
+- **English and Russian UI**, switchable on the fly (`ctrl+l`).
+- **Terminal colors:** only the 16 ANSI colors, light and dark themes, `NO_COLOR`.
+- **Network.** A token rejected mid-session stops polling and tells you where to fix it. Offline, screens show cached data marked `(offline)` and polling slows down until the connection is back.
 
-Реализованы все вехи MVP: каркас (M0), режим проекта (M1), workspace, GraphQL-батчинг и поиск (M2), теги, issues, формы и полировка (M3). Остаётся ручная проверка на живых инстансах и разных терминалах — чек-лист в [#25](https://github.com/4aykovski/glview/issues/25).
+## Status
 
-План и прогресс — в [Дорожной карте](https://github.com/4aykovski/glview/issues/36) и [вехах](https://github.com/4aykovski/glview/milestones).
+The current version is [v0.1.0](https://github.com/4aykovski/glview/releases). It includes all MVP milestones (foundation M0, project mode M1, workspace, GraphQL batching and search M2, tags, issues, forms and polish M3) and the first post-MVP tasks: diffs and line comments, MR creation, To-Do.
 
-## Установка
+Known limitations and plans are in the [roadmap](https://github.com/4aykovski/glview/issues/36), [milestones](https://github.com/4aykovski/glview/milestones) and open [issues](https://github.com/4aykovski/glview/issues).
 
-Нужен Go 1.26+.
+## Installation
+
+Requires Go 1.26+.
 
 ```sh
 go install github.com/4aykovski/glview/cmd/glview@latest
 ```
 
-Или из исходников:
+Or from source:
 
 ```sh
 git clone https://github.com/4aykovski/glview.git
 cd glview
-make build        # бинарь в ./bin/glview
+make build        # binary in ./bin/glview
 ```
 
-Опционально:
+Optional:
 
-- [`glab`](https://gitlab.com/gitlab-org/cli) — токен без отдельной настройки и checkout МРа (`C`);
-- `git` — fetch и pull (ff-only) локальных клонов в workspace (`u`/`U`); запускается без терминала, поэтому нужен неинтерактивный доступ к remote: ssh-agent, keychain или credential helper.
+- [`glab`](https://gitlab.com/gitlab-org/cli) provides a token without extra setup and MR checkout (`C`);
+- `git` is used for fetch and pull (ff-only) of local clones in a workspace (`u`/`U`). It runs without a terminal, so remote access must be non-interactive: ssh-agent, keychain or a credential helper.
 
-## Запуск
+## Usage
 
 ```sh
-cd ~/src/route-service && glview      # режим проекта: проект из remote origin
-cd ~/src && glview                    # режим workspace: подпапки с .git на один уровень
-glview -p platform/route-service      # проект напрямую
+cd ~/src/route-service && glview      # project mode: project from remote origin
+cd ~/src && glview                    # workspace mode: subfolders with .git, one level deep
+glview -p platform/route-service      # open a project directly
 glview -p https://gitlab.example.com/platform/route-service
 ```
 
-В workspace `F` ищет проекты и группы на сервере; выбранная группа открывается как workspace из её проектов (до `workspace.max_group_projects`), `esc` возвращает назад. В проекте `p` переключает проект, не выходя из TUI.
+In a workspace, `F` searches projects and groups on the server; the selected group opens as a workspace of its projects (up to `workspace.max_group_projects`), `esc` goes back. In a project, `p` switches projects without leaving the TUI.
 
-Минимальный размер терминала — 80×24; меньше — сообщение «расширь терминал». Справка по клавишам текущего экрана — `?`: если список выше терминала, он прокручивается (`j/k`).
+The minimum terminal size is 80×24; anything smaller shows "Make the terminal at least 80×24". `?` shows the hotkeys of the current screen; if the list is taller than the terminal, it scrolls (`j/k`).
 
-| Флаг | Значение |
+| Flag | Meaning |
 |---|---|
-| `-p, --project <path\|url>` | открыть проект напрямую: `group/sub/project` или полный URL проекта |
-| `--config <file>` | другой конфиг |
-| `--debug` | лог в `$XDG_CACHE_HOME/glview/debug.log`, токены маскируются |
-| `--debug-styles` | показать все стили и статусы темы и выйти |
-| `--version` | версия и выход |
+| `-p, --project <path\|url>` | open a project directly: `group/sub/project` or the full project URL |
+| `--config <file>` | use another config file |
+| `--debug` | log to `$XDG_CACHE_HOME/glview/debug.log`, tokens are masked |
+| `--debug-styles` | print all theme styles and statuses and exit |
+| `--version` | print version and exit |
 
-### Первый запуск и токен
+### First run and token
 
-Хост и токен ищутся по цепочке:
+Host and token are looked up in order:
 
-- **хост:** URL в `-p` → `host` в конфиге → `GITLAB_HOST` → хост из `remote origin`;
-- **токен:** `token` в конфиге → `GITLAB_TOKEN` → `glab` для этого хоста.
+- **host:** URL in `-p` → `host` in the config → `GITLAB_HOST` → host from `remote origin`;
+- **token:** `token` in the config → `GITLAB_TOKEN` → `glab` for this host.
 
-Если чего-то не хватает, откроется экран настройки: URL инстанса и Personal Access Token (или «взять токен из glab»). Нужен scope `api`; с `read_api` работает только просмотр. После проверки (`GET /user`) настройки записываются в конфиг с правами `0600`. Токен из `glab` в конфиг не сохраняется; токен нигде не печатается и не попадает в debug-лог.
+If something is missing, a setup screen opens: instance URL and Personal Access Token (or "take the token from glab"). The `api` scope is needed; with `read_api` only viewing works. After a check (`GET /user`) the settings are written to the config with `0600` permissions. A token from `glab` is not saved to the config; the token is never printed and never reaches the debug log.
 
-## Конфиг
+## Config
 
-`$XDG_CONFIG_HOME/glview/config.yaml`, по умолчанию `~/.config/glview/config.yaml` (и на macOS). Все ключи необязательные:
+`$XDG_CONFIG_HOME/glview/config.yaml`, by default `~/.config/glview/config.yaml` (macOS too). All keys are optional:
 
 ```yaml
-host: https://gitlab.example.com     # URL инстанса; можно с path-prefix: https://example.com/gitlab
-token: ""                            # PAT; пусто → env GITLAB_TOKEN → glab
-host_aliases: [gitlab-work]          # SSH-алиасы из ~/.ssh/config, которые означают этот хост
+host: https://gitlab.example.com     # instance URL; a path prefix is fine: https://example.com/gitlab
+token: ""                            # PAT; empty → env GITLAB_TOKEN → glab
+host_aliases: [gitlab-work]          # SSH aliases from ~/.ssh/config that mean this host
 language: en                         # en | ru
-theme: terminal                      # terminal | terminal-faint (см. «Темы»)
+theme: terminal                      # terminal | terminal-faint (see "Themes")
 
 tls:
-  ca_file: ""                        # свой CA для self-hosted
+  ca_file: ""                        # custom CA for self-hosted
   insecure_skip_verify: false
 
 workspace:
-  per_project: 3                     # записей на проект в общих табах
-  max_group_projects: 100            # лимит проектов для workspace из группы
+  per_project: 3                     # entries per project in the shared tabs
+  max_group_projects: 100            # project limit for a workspace from a group
 
 project:
   page_size: 20
 
-run_pipeline:                        # форма Run pipeline
-  refs_first: branches               # branches | tags — какая группа первой в подсказках ref
-  prefill_local_branch: true         # подставить текущую локальную ветку и поставить её первой
+run_pipeline:                        # Run pipeline form
+  refs_first: branches               # branches | tags — which group comes first in ref hints
+  prefill_local_branch: true         # prefill the current local branch and put it first
 
 graphql:
-  batch_size: 10                     # стартовый размер пачки, дальше адаптивно
+  batch_size: 10                     # initial batch size, adaptive afterwards
 
 polling:
-  active: 3s                         # пока есть running-пайплайны
+  active: 3s                         # while there are running pipelines
   idle: 30s
   workspace: 60s
 
 glab:
   enabled: auto                      # auto | false
-  path: ""                           # пусто → поиск в PATH
+  path: ""                           # empty → look up in PATH
 
 git:
   enabled: auto                      # auto | false
-  path: ""                           # пусто → поиск в PATH
-  parallel: 6                        # одновременных fetch/pull
-  timeout: 60s                       # на один репозиторий
-  fetch_on_start: false              # фоновый fetch всех проектов workspace при старте
+  path: ""                           # empty → look up in PATH
+  parallel: 6                        # concurrent fetch/pull
+  timeout: 60s                       # per repository
+  fetch_on_start: false              # background fetch of all workspace projects on start
 
-links:                               # свои ссылки в заголовке и описании MR (клавиша L)
-  - pattern: '[A-Z][A-Z0-9]+-\d+'     # регулярное выражение Go (RE2)
-    url: 'https://tracker.example.com/browse/$0'  # $0 — всё совпадение, $1…, ${name} — группы
+links:                               # custom links in MR title and description (L key)
+  - pattern: '[A-Z][A-Z0-9]+-\d+'     # Go regular expression (RE2)
+    url: 'https://tracker.example.com/browse/$0'  # $0 — whole match, $1…, ${name} — groups
 ```
 
-Неизвестное значение (`theme: foo`) заменяется значением по умолчанию с предупреждением при старте; невалидный YAML не прерывает запуск. Правила `links` нужны трекерам без интеграции с GitLab (с интеграцией ссылки приходят от самого GitLab); битое правило пропускается с предупреждением. Полный список ключей — [SPEC §7](docs/SPEC.md#7-конфиг).
+An unknown value (`theme: foo`) is replaced with the default and a warning at startup; invalid YAML does not abort the start. `links` rules are for trackers without a GitLab integration (with an integration, GitLab itself provides the links); a broken rule is skipped with a warning. The full list of keys is in [SPEC §7](docs/SPEC.md#7-конфиг) (in Russian).
 
-## Темы
+## Themes
 
-Интерфейс использует только 16 ANSI-цветов, то есть палитру самого терминала; светлый или тёмный фон определяется при старте.
+The UI uses only the 16 ANSI colors, that is, the terminal's own palette; a light or dark background is detected at startup.
 
-- `theme: terminal` (по умолчанию) — второстепенный текст и рамки в ANSI 8 («bright black»). В Solarized Dark этот цвет совпадает с фоном и текст пропадает.
-- `theme: terminal-faint` — второстепенный текст цветом терминала по умолчанию с атрибутом Faint, рамки на тёмном фоне в ANSI 0. Подходит для палитр, где ANSI 8 сливается с фоном; не все терминалы одинаково рисуют Faint.
-- `NO_COLOR=1` — цвета отключаются, остаются жирный и инверсия: выделение и активный таб видны, статусы различимы по глифам.
+- `theme: terminal` (default) — secondary text and borders in ANSI 8 ("bright black"). In Solarized Dark this color matches the background and the text disappears.
+- `theme: terminal-faint` — secondary text in the terminal's default color with the Faint attribute, borders in ANSI 0 on a dark background. Fits palettes where ANSI 8 blends into the background; not all terminals render Faint the same way.
+- `NO_COLOR=1` — colors are off, bold and reverse remain: the selection and the active tab stay visible, statuses are told apart by glyphs.
 
-`glview --debug-styles` печатает образец всех стилей выбранной темы — удобно сравнить темы на своей палитре.
+`glview --debug-styles` prints a sample of all styles of the selected theme, handy for comparing themes on your palette.
 
-## Хоткеи
+## Hotkeys
 
-Хоткеи регистрозависимы; `?` показывает хоткеи текущего экрана.
+Hotkeys are case-sensitive; `?` shows the hotkeys of the current screen.
 
-| Где | Клавиши |
+| Where | Keys |
 |---|---|
-| Везде | `j/k` `↓/↑` ход, `g/G` начало/конец, `enter` открыть, `esc` назад, `/` фильтр/поиск, `r` обновить, `o` в браузере, `y` копировать ссылку, `m` фильтр «я», `1–4` и `tab` табы, `p` выбор проекта, `F` глобальный поиск, `T` To-Do, `ctrl+l` язык, `?` хелп, `q` выход |
-| Workspace | `J/K` между группами, `space` и `enter` свернуть/развернуть группу, `P` выбор проектов, `f` открыть проект строки, `u` fetch всех, `U` pull ff-only всех |
-| Оверлеи `p` и `F` | `↓/↑` `ctrl+n/ctrl+p` ход, `ctrl+d/ctrl+u` и `pgdown/pgup` на полстраницы, `enter` открыть, `esc` закрыть |
-| MRs и Pipelines | `s` главный фильтр по кругу, `backspace` сбросить фильтры |
-| MR (список и детали) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout через glab, `L` ссылки MR, `c` комментарий |
-| Таб MRs | `O` MR в браузере, `o` список MR проекта с фильтрами |
-| MR, вкладка Discussions | `J/K` между тредами, `space` свернуть тред |
-| Pipelines | `enter` пайплайн, `l` лог упавшей джобы, `n` новый пайплайн, `R` retry, `c` cancel, `O` пайплайн в браузере |
-| Pipeline | `h/l` стейдж, `j/k` джоба, `enter` лог или downstream, `a` попытки, `P` play, `R` retry, `c` cancel |
-| Job log | `f` follow, `space` свернуть секцию, `z` свернуть все, `/` поиск, `n/N` совпадения, `[` `]` попытки |
-| Tags | `n` новый тег, `D` удалить, `enter` пайплайн тега, `y` копировать имя |
-| Issues | `enter` экран issue, `c` комментарий, `x` close/reopen, `s` state по кругу, `O` issue в браузере |
-| Issue | `J/K` тред, `space` свернуть тред, `c` комментарий, `x` close/reopen |
-| To-Do | `enter` открыть цель, `x` отметить выполненной, `X` отметить все, `s` state по кругу, `t` тип по кругу, `O` цель в браузере |
-| Проект с локальной папкой | `u` fetch, `U` pull ff-only |
-| Форма комментария | `tab` к кнопке, `alt+enter` или `enter` на кнопке — отправить, `esc` закрыть (черновик хранится до конца сессии) |
+| Everywhere | `j/k` `↓/↑` move, `g/G` top/bottom, `enter` open, `esc` back, `/` filter/search, `r` refresh, `o` open in browser, `y` copy link, `m` "mine" filter, `1–4` and `tab` tabs, `p` project picker, `F` global search, `T` To-Do, `ctrl+l` language, `?` help, `q` quit |
+| Workspace | `J/K` between groups, `space` and `enter` collapse/expand a group, `P` pick projects, `f` open the row's project, `u` fetch all, `U` pull ff-only all |
+| `p` and `F` overlays | `↓/↑` `ctrl+n/ctrl+p` move, `ctrl+d/ctrl+u` and `pgdown/pgup` half a page, `enter` open, `esc` close |
+| MRs and Pipelines | `s` cycle the main filter, `backspace` reset filters |
+| MR (list and detail) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout via glab, `L` MR links, `c` comment |
+| MRs tab | `n` new MR, `d` MR on the Diff tab, `O` MR in browser, `o` project MR list with filters |
+| MR, Diff tab | `J/K` between files, `←/→` horizontal scroll, `space` collapse file, `z` collapse all, `c` comment on line, `enter` on a thread — thread on Discussions, `o` file in browser |
+| MR, Discussions tab | `J/K` between threads, `space` collapse thread |
+| Pipelines | `enter` pipeline, `l` log of the failed job, `n` new pipeline, `R` retry, `c` cancel, `O` pipeline in browser |
+| Pipeline | `h/l` stage, `j/k` job, `enter` log or downstream, `a` attempts, `P` play, `R` retry, `c` cancel |
+| Job log | `f` follow, `space` collapse section, `z` collapse all, `/` search, `n/N` matches, `[` `]` attempts |
+| Tags | `n` new tag, `D` delete, `enter` tag pipeline, `y` copy name |
+| Issues | `enter` issue screen, `c` comment, `x` close/reopen, `s` cycle state, `O` issue in browser |
+| Issue | `J/K` thread, `space` collapse thread, `c` comment, `x` close/reopen |
+| To-Do | `enter` open target, `x` mark done, `X` mark all done, `s` cycle state, `t` cycle type, `O` target in browser |
+| Project with a local folder | `u` fetch, `U` pull ff-only |
+| New MR form | `tab`/`shift+tab` field, `↑/↓` suggestion, `enter` take suggestion or next field, `space` checkbox, `enter` on the button — create, `esc` close (draft is kept) |
+| Comment form | `tab` to the button, `alt+enter` or `enter` on the button — send, `esc` close (draft is kept until the end of the session) |
 
-В полях ввода однобуквенные хоткеи отключены, `esc` выходит из поля.
+In input fields single-letter hotkeys are off; `esc` leaves the field.
 
-Полная таблица — [SPEC §3.1](docs/SPEC.md#31-сводная-таблица-хоткеев).
+The full table is in [SPEC §3.1](docs/SPEC.md#31-сводная-таблица-хоткеев) (in Russian).
 
-## Разработка
+## Development
 
 ```sh
-make build         # бинарь в ./bin/glview
+make build         # binary in ./bin/glview
 make test          # go test ./...
 make lint          # golangci-lint run
 make run ARGS="-p platform/route-service"
-make hooks         # включить git-хуки проверки конфиденциальности (один раз после клона)
-make confidential  # проверить все файлы репозитория теми же правилами
+make hooks         # enable git hooks that check for confidential data (once after cloning)
+make confidential  # check all repository files with the same rules
 ```
 
-- [docs/SPEC.md](docs/SPEC.md) — спецификация: поведение, хоткеи, API, архитектура.
-- [GitHub Issues](https://github.com/4aykovski/glview/issues) — задачи и вехи, дорожная карта — [#36](https://github.com/4aykovski/glview/issues/36).
-- [docs/design/](docs/design/README.md) — макеты экранов.
-- [CLAUDE.md](CLAUDE.md) — правила проекта, в том числе для ИИ-агентов.
-- Планирование изменений — [OpenSpec](openspec/): одна change на веху.
+Project documentation is in Russian:
 
-Репозиторий публичный: в коде, тестах, фикстурах и issues — только выдуманные данные (`gitlab.example.com`, `platform/route-service`). Перед коммитом — `make test lint confidential`; хуки из `scripts/githooks` обходить нельзя.
+- [docs/SPEC.md](docs/SPEC.md) — specification: behavior, hotkeys, API, architecture.
+- [GitHub Issues](https://github.com/4aykovski/glview/issues) — tasks and milestones, roadmap — [#36](https://github.com/4aykovski/glview/issues/36).
+- [docs/design/](docs/design/README.md) — screen mockups.
+- [CLAUDE.md](CLAUDE.md) — project rules, including for AI agents.
+- Change planning — [OpenSpec](openspec/): one change per milestone.
 
-Стек: Go 1.26, Bubble Tea v2, Bubbles v2, Lip Gloss v2, Huh v2, Glamour v2, [client-go](https://gitlab.com/gitlab-org/api/client-go) для REST и свой GraphQL-клиент.
+The repository is public: code, tests, fixtures and issues contain only made-up data (`gitlab.example.com`, `platform/route-service`). Before committing — `make test lint confidential`; the hooks in `scripts/githooks` must not be bypassed.
+
+Stack: Go 1.26, Bubble Tea v2, Bubbles v2, Lip Gloss v2, Huh v2, Glamour v2, [client-go](https://gitlab.com/gitlab-org/api/client-go) for REST and a custom GraphQL client.
