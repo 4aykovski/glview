@@ -1,0 +1,24 @@
+gitlab-tui  To-Do · gitlab.example.com                   @egor · To-Do 5 · ⟳ <1м
+────────────────────────────────────────────────────────────────────────────────
+state:pending  type:любой                                                 5 из 5
+  Цель      Заголовок             Причина         Назад  Автор    Проект
+────────────────────────────────────────────────────────────────────────────────
+› !479      Slot allocator rewr…  ревью              2ч  anna.k   platform/rout…
+  #1318     Surge coefficient i…  упоминание         3ч  d.orlov  platform/rout…
+  01234567  Fix slot overflow     пайплайн упал      1д  anna.k   platform/rout…
+  —         Q4 planning           okr_checkin_r…     1д  d.orlov  —
+  !482      Cache warmup on dep…  добавлено          2д  anna.k   platform/rout…
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k вниз  enter открыть  x выполнено  s состояние  t тип  ? хелп           1 / 5

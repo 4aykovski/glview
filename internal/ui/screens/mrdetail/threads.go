@@ -28,12 +28,16 @@ func (s *Screen) discussionsView() []string {
 }
 
 // link is the browser/clipboard target: the current thread on the
-// Discussions tab, the selected commit on the Commits tab, else the MR.
+// Discussions tab, the selected commit on the Commits tab, the file under
+// the cursor on the Diff tab, else the MR.
 func (s *Screen) link() string {
 	if s.tab == tabDiscussions && s.discLoaded {
 		if c, ok := s.threads.Current(); ok {
 			return c.Link
 		}
+	}
+	if s.tab == tabDiff {
+		return s.diffLink()
 	}
 	if s.tab == tabCommits {
 		if c := s.selectedCommit(); c != nil && c.WebURL != "" {

@@ -17,7 +17,33 @@ const (
 // refresh state on the right.
 func Header(s *Styles, context, right string, width int) string {
 	left := s.AppName.Render("gitlab-tui") + "  " + context
-	return spread(left, s.HeaderMuted.Render(right), width)
+	full, short := splitOptional(right)
+	if lipgloss.Width(left)+lipgloss.Width(full)+1 > width {
+		full = short
+	}
+	return spread(left, s.HeaderMuted.Render(full), width)
+}
+
+const optionalMark = "\x1e"
+
+// Optional marks a piece of the header's right part that drops out first
+// when left and right do not fit the width (the To-Do counter).
+func Optional(s string) string { return optionalMark + s + optionalMark }
+
+// splitOptional returns the right part with the optional pieces kept and
+// left out.
+func splitOptional(right string) (full, short string) {
+	if !strings.Contains(right, optionalMark) {
+		return right, right
+	}
+	parts := strings.Split(right, optionalMark)
+	for i, p := range parts {
+		full += p
+		if i%2 == 0 {
+			short += p
+		}
+	}
+	return full, short
 }
 
 // Tab is one tab in the tab bar.

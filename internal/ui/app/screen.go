@@ -99,12 +99,21 @@ type Env struct {
 	// Search builds the project picker (p, global false) and the global
 	// search (F, global true) overlays; nil disables both keys.
 	Search func(global bool) Overlay
+	// Todos builds the To-Do screen (T); nil disables the key and the
+	// header counter (SPEC §3.17).
+	Todos func() Screen
+	// TodoCount is the number of pending to-dos for the header, valid when
+	// TodoKnown; negative means over 10 000 (no X-Total).
+	TodoCount int
+	TodoKnown bool
 	// Git is the state of local fetch/pull; unavailable without git.
 	Git *localgit.Tracker
 
 	// drafts holds the unsent comment texts of the session by DraftKey
 	// (memory only, SPEC §3.16).
 	drafts map[string]string
+	// stash holds screen state kept for the session (stash.go).
+	stash map[string]any
 }
 
 // DraftKey is the key of a comment draft: host, project, kind ("issue" or

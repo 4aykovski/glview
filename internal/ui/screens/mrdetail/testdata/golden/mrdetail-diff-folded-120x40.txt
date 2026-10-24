@@ -1,0 +1,40 @@
+gitlab-tui  platform/route-service › MRs › !479                                                            @egor · ⟳ <1m
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
+╭──────────────────────────────────╮ ╭────────────────╮ ╭────────────────────────────╮ ╭─────────────────────╮
+│ ✗ not_approved · needs approvals │ │ ✓ 1/2 approved │ │ ✗ pipeline #91840 · failed │ │ 1 thread unresolved │
+╰──────────────────────────────────╯ ╰────────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
+ Overview   Diff 5   Discussions 3   Pipelines 2   Commits
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+›▸ internal/slots/alloc.go                                                                                         +2 −1
+
+ ▸ docs/old.md → docs/metrics.md                                                                                   +1 −1
+
+ ▸ cmd/tool/main.go  new                                                                                           +2 −0
+
+ ▸ api/gen.pb.go  generated                                                                                        +1 −1
+
+ ▸ big.sql  too large
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+tab next tab  j/k line  J/K file  space fold  ←/→ shift  a approve  M merge  b rebase  r refresh  ? help        poll 30s

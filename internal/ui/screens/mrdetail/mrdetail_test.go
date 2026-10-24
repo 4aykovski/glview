@@ -49,6 +49,13 @@ func setup(t *testing.T, mr gitlab.MergeRequest) (*uitest.Driver, *app.Model, *S
 // setupIn opens the MR in a project that is archived or not.
 func setupIn(t *testing.T, mr gitlab.MergeRequest, archived bool) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
 	t.Helper()
+	return setupTab(t, mr, archived, tabOverview, nil)
+}
+
+// setupTab opens the MR on the given tab; prep fills the fake before the
+// screen starts.
+func setupTab(t *testing.T, mr gitlab.MergeRequest, archived bool, tab int, prep func(*fake.Client)) (*uitest.Driver, *app.Model, *Screen, *fake.Client) {
+	t.Helper()
 	client := fake.New()
 	client.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 42, FullPath: path}})
 	client.AddMR(path, mr)
@@ -65,10 +72,13 @@ func setupIn(t *testing.T, mr gitlab.MergeRequest, archived bool) (*uitest.Drive
 			User: &gitlab.User{Username: "anna.k"}, CommitTitle: "surge: add pricing", Duration: 220 * time.Second},
 		{ID: 91700, Status: gitlab.StatusSuccess, Ref: "refs/merge-requests/479/head", Source: "merge_request_event", SHA: "0b7d3e9aaa", CreatedAt: now.Add(-3 * time.Hour)},
 	})
+	if prep != nil {
+		prep(client)
+	}
 	env := app.NewEnv(i18n.EN)
 	env.Client, env.User, env.Host = client, client.User, "https://gitlab.example.com"
 	env.Now = func() time.Time { return now }
-	scr := New(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr, archived)
+	scr := NewOnTab(env, gitlab.ProjectRef{ID: 42, FullPath: path}, nil, mr, archived, tab)
 	root := app.New(env, scr, app.Options{})
 	return uitest.New(t, root), root, scr, client
 }
@@ -119,7 +129,7 @@ func TestNarrowWrapsSideColumnBelow(t *testing.T) {
 
 func TestDiscussions(t *testing.T) {
 	d, _, _, _ := setup(t, baseMR())
-	d.Key("tab")
+	d.Key("tab", "tab")
 	d.RequireView("anna.k", "● unresolved", "internal/slot.go:42", "Why not a mutex?", "Because latency", "✓ resolved", "LGTM overall")
 	d.RequireNoView("added 1 commit")
 }
@@ -149,7 +159,7 @@ func richDiscussions(t *testing.T) []gitlab.Discussion {
 
 func TestThreadsAreCards(t *testing.T) {
 	d, _, _, _ := setup(t, baseMR())
-	d.Key("tab")
+	d.Key("tab", "tab")
 	v := d.View()
 	if n := strings.Count(v, "┌") + strings.Count(v, "┏"); n != 2 {
 		t.Fatalf("two threads must give two frames, got %d:\n%s", n, v)
@@ -193,7 +203,7 @@ func richSetup(t *testing.T) (*uitest.Driver, *app.Model, *Screen, *fake.Client)
 	t.Helper()
 	d, root, scr, client := setup(t, baseMR())
 	client.SetDiscussions(path, 479, richDiscussions(t))
-	d.Key("r", "tab")
+	d.Key("r", "tab", "tab")
 	return d, root, scr, client
 }
 
@@ -219,7 +229,7 @@ func TestHTMLTableInNoteIsRenderedAsTable(t *testing.T) {
 
 func TestPipelinesTab(t *testing.T) {
 	d, _, _, _ := setup(t, baseMR())
-	d.Key("tab", "tab")
+	d.Key("tab", "tab", "tab")
 	d.RequireView("#91840", "#91700", "!479", "failed", "success", "merge_request_event", "a91f2c0 surge: add", "anna.k", "3m40s")
 	d.Key("enter")
 	d.RequireView(path + " › Pipelines › #91840")
@@ -646,9 +656,9 @@ func TestThreadKeysInFooterOnlyOnDiscussions(t *testing.T) {
 	d, _, _, _ := richSetup(t)
 	d.Send(tea.WindowSizeMsg{Width: 160, Height: 40})
 	d.RequireView("J/K threads", "space fold")
-	d.Key("shift+tab")
+	d.Key("shift+tab", "shift+tab")
 	d.RequireNoView("J/K threads", "space fold")
-	d.Key("tab", "ctrl+l")
+	d.Key("tab", "tab", "ctrl+l")
 	d.RequireView("J/K треды", "space свернуть")
 }
 
@@ -662,7 +672,7 @@ func TestOpenAndCopyThreadLink(t *testing.T) {
 	if len(opened) != 2 || opened[0] != mrURL+"#note_7781" || opened[1] != mrURL+"#note_7790" {
 		t.Fatalf("opened = %q", opened)
 	}
-	d.Key("shift+tab", "o")
+	d.Key("shift+tab", "shift+tab", "o")
 	if opened[2] != mrURL {
 		t.Fatalf("outside Discussions o opens the MR: %q", opened[2])
 	}
@@ -793,7 +803,7 @@ func TestCommentIsHiddenAndDisabledInArchivedProject(t *testing.T) {
 
 func TestCommentFromOtherTab(t *testing.T) {
 	d, _, _, _ := setup(t, baseMR())
-	d.Key("tab", "tab") // Pipelines
+	d.Key("tab", "tab", "tab") // Pipelines
 	d.Key("c")
 	d.RequireView("Comment · !479")
 }

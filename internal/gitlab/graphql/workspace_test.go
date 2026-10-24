@@ -210,6 +210,22 @@ func TestSearch(t *testing.T) {
 	}
 }
 
+func TestProjectMRsByTargetBranch(t *testing.T) {
+	c, rec := newRecorder(t, func(int, string, map[string]any) string {
+		return `{"data":{"project":{"m":{"count":0,"pageInfo":{"hasNextPage":false},"nodes":[]}}}}`
+	})
+	_, err := c.ProjectMRs(context.Background(), gitlab.ProjectRef{FullPath: "a/b"}, gitlab.MRFilter{State: gitlab.MRStateOpened, SourceBranch: "fix/slot-race", TargetBranch: "main"}, "egor", "", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec.queries[0], "targetBranches: $targetBranches") {
+		t.Fatalf("query:\n%s", rec.queries[0])
+	}
+	if got := rec.vars[0]["targetBranches"]; fmt.Sprint(got) != "[main]" {
+		t.Fatalf("vars = %v", got)
+	}
+}
+
 func TestProjectMRsBySourceBranch(t *testing.T) {
 	c, rec := newRecorder(t, func(int, string, map[string]any) string {
 		return `{"data":{"project":{"m":{"count":1,"pageInfo":{"hasNextPage":false},"nodes":[` + mrNode(479, "2026-10-19T10:00:00Z") + `]}}}}`

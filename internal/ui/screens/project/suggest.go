@@ -81,13 +81,13 @@ func (sh *shared) refsSource() sourceFunc {
 func (sh *shared) milestonesSource() sourceFunc {
 	return func(ctx context.Context, prefix string) ([]filterline.Suggestion, error) {
 		return sh.cached(ctx, "milestones", prefix, func(ctx context.Context) ([]filterline.Suggestion, error) {
-			titles, err := sh.env.Client.Projects().Milestones(ctx, sh.ref, prefix)
+			ms, err := sh.env.Client.Projects().Milestones(ctx, sh.ref, prefix)
 			if err != nil {
 				return nil, err
 			}
-			out := make([]filterline.Suggestion, len(titles))
-			for i, t := range titles {
-				out[i] = filterline.Suggestion{Value: t}
+			out := make([]filterline.Suggestion, len(ms))
+			for i, m := range ms {
+				out[i] = filterline.Suggestion{Value: m.Title}
 			}
 			return out, nil
 		})

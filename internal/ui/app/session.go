@@ -142,6 +142,7 @@ func (m *Model) onAuthChecked(msg authCheckedMsg) tea.Cmd {
 	m.env.AuthLost = false
 	m.env.User = msg.user
 	return tea.Batch(
+		m.fetchTodoCount(),
 		Toast(common.ToastSuccess, m.env.Msg.Toast.AuthRestored, ""),
 		m.broadcast(AuthRestoredMsg{}),
 	)
@@ -206,13 +207,17 @@ func Copy(env *Env, text, what string) tea.Cmd {
 	return tea.Batch(tea.SetClipboard(text), Toast(common.ToastInfo, env.Msg.Toast.Copied(what), ""))
 }
 
-// HeaderRight renders the right side of a screen header: "@user · ⟳ 12s",
+// HeaderRight renders the right side of a screen header: "@user · To-Do 5 ·
+// ⟳ 12s" (the To-Do counter drops out first when the line is too narrow),
 // followed by the "✗ auth" mark while the token is rejected. updated is the
 // time of the last successful load (zero hides the age).
 func (e *Env) HeaderRight(updated time.Time) string {
 	s := "@" + e.User.Username
 	if p := e.Git.Header(e.Msg); p != "" {
 		s = e.Styles.Accent.Render(p) + " · " + s
+	}
+	if e.TodoKnown && e.TodoCount != 0 {
+		s += common.Optional(" · " + e.Styles.Accent.Render(e.Msg.Todo.Count(e.TodoCount)))
 	}
 	age := ""
 	if !updated.IsZero() {

@@ -14,6 +14,7 @@ type Client interface {
 	Tags() TagService
 	Workspace() WorkspaceService
 	Search() SearchService
+	Todos() TodoService
 	Instance() InstanceService
 }
 
@@ -36,9 +37,13 @@ type ProjectService interface {
 	Members(ctx context.Context, p ProjectRef, search string) ([]User, error)
 	// Labels returns project label names matching search.
 	Labels(ctx context.Context, p ProjectRef, search string) ([]string, error)
-	// Milestones returns titles of the project's active milestones matching
-	// search (the project's own only, no group ancestors).
-	Milestones(ctx context.Context, p ProjectRef, search string) ([]string, error)
+	// Milestones returns the project's active milestones matching search
+	// (the project's own only, no group ancestors).
+	Milestones(ctx context.Context, p ProjectRef, search string) ([]Milestone, error)
+	// MRTemplates lists the names of the project's MR description templates.
+	MRTemplates(ctx context.Context, p ProjectRef) ([]string, error)
+	// MRTemplate returns the content of the named template.
+	MRTemplate(ctx context.Context, p ProjectRef, name string) (string, error)
 	// CIConfigVariables returns the variable hints declared in
 	// .gitlab-ci.yml for gitRef. GitLab computes them asynchronously: a
 	// result that is not ready yet is reported as ErrNotReady.
@@ -65,6 +70,12 @@ type MergeRequestService interface {
 	RecheckMergeStatus(ctx context.Context, p ProjectRef, iid int64) (string, error)
 	// Comment adds a plain note to the MR.
 	Comment(ctx context.Context, p ProjectRef, iid int64, body string) (Note, error)
+	// Diffs returns the MR changes file by file (REST, all pages).
+	Diffs(ctx context.Context, p ProjectRef, iid int64) ([]DiffFile, error)
+	// CommentLine starts a diff thread on one line.
+	CommentLine(ctx context.Context, p ProjectRef, iid int64, body string, pos DiffPosition) (Discussion, error)
+	// Create opens a new MR in p (same-project branches only).
+	Create(ctx context.Context, p ProjectRef, mr NewMR) (MergeRequest, error)
 }
 
 // IssueService reads and changes issues (REST).

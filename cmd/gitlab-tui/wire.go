@@ -29,6 +29,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/search"
 	"github.com/4aykovski/glview/internal/ui/screens/setup"
 	"github.com/4aykovski/glview/internal/ui/screens/start"
+	"github.com/4aykovski/glview/internal/ui/screens/todos"
 	wsscreen "github.com/4aykovski/glview/internal/ui/screens/workspace"
 	"github.com/4aykovski/glview/internal/workspace"
 	"github.com/4aykovski/glview/internal/xdg"
@@ -50,6 +51,7 @@ func buildRoot(opts options) (*app.Model, error) {
 	env.Disk = &cache.Disk{Dir: xdg.CacheDir()}
 	env.Catalog = app.NewCatalog(env.Disk, filepath.Join(xdg.StateDir(), "state.json"), func() string { return env.Host })
 	env.Search = func(global bool) app.Overlay { return search.New(env, global) }
+	env.Todos = func() app.Screen { return todos.New(env) }
 	var runner gitexec.Runner
 	if g := gitexec.Detect(cfg.Git.Path, cfg.Git.Disabled(), cfg.Git.Timeout.D(), cfg.Git.Parallel); g != nil {
 		runner = g

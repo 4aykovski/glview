@@ -21,6 +21,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/linkslist"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/mrdetail"
+	"github.com/4aykovski/glview/internal/ui/screens/newmr"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
 
@@ -358,6 +359,10 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if msg.Target.Kind == comment.KindMR && msg.Target.Project.FullPath == t.sh.ref.FullPath && t.active && t.loaded {
 			return t, t.loadFirst(false, true) // the thread counters changed
 		}
+	case newmr.CreatedMsg:
+		if msg.Project.FullPath == t.sh.ref.FullPath {
+			t.updated = time.Time{} // the list reloads when the tab is shown again
+		}
 	case linkslist.LoadedMsg:
 		// The answer counts only for the request in flight and while the
 		// cursor still stands on its MR.
@@ -512,6 +517,10 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if mr := t.selected(); mr != nil && !t.sh.archived {
 			return comment.Open(env, comment.Target{Project: t.sh.ref, Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
 		}
+	case "n":
+		if !t.sh.archived {
+			return app.Push(newmr.New(env, newmr.Options{Project: t.sh.ref, Repo: t.sh.repo, DefaultBranch: t.sh.defaultBranch}))
+		}
 	case "L":
 		if mr := t.selected(); mr != nil {
 			return linkslist.Load(env, t.linksGen.Next(), t.sh.ref, mr.IID)
@@ -519,6 +528,10 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		if mr := t.selected(); mr != nil {
 			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived))
+		}
+	case "d":
+		if mr := t.selected(); mr != nil {
+			return app.Push(mrdetail.NewOnTab(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived, mrdetail.TabDiff))
 		}
 	case "o":
 		return app.OpenURL(env, t.listURL())
@@ -681,6 +694,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 	short := []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh),
 		common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityHigh),
+		common.NewBinding([]string{"d"}, "", t.env().Msg.Diff.KeyDiff, common.PriorityLow),
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
 	}
 	short = append(short, t.act.Bindings()...)
@@ -689,6 +703,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"backspace"}, "⌫", k.Reset, common.PriorityLow),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
 		hideArchived(t.sh, common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
+		hideArchived(t.sh, common.NewBinding([]string{"n"}, "", t.env().Msg.NewMR.KeyNew, common.PriorityLow)),
 		common.NewBinding([]string{"L"}, "", t.env().Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),

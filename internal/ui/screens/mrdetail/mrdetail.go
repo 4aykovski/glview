@@ -1,5 +1,5 @@
 // Package mrdetail is the merge request screen: title block, status chips
-// and the Overview / Discussions / Pipelines / Commits tabs.
+// and the Overview / Diff / Discussions / Pipelines / Commits tabs.
 package mrdetail
 
 import (
@@ -32,10 +32,14 @@ const (
 	wideW          = 100 // the side column moves below the text under this width
 	sideW          = 34
 	tabOverview    = 0
-	tabDiscussions = 1
-	tabPipelines   = 2
-	tabCommits     = 3
-	tabCount       = 4
+	tabDiff        = 1
+	tabDiscussions = 2
+	tabPipelines   = 3
+	tabCommits     = 4
+	tabCount       = 5
+
+	// TabDiff is the tab "d" in a list opens the MR on.
+	TabDiff = tabDiff
 )
 
 type (
@@ -101,6 +105,8 @@ type Screen struct {
 	pipesLoaded bool
 
 	commits commitsTab
+	diff    diffTab
+	diffGen common.Gen
 
 	mrGen, discGen, pipeGen, poll common.Gen
 	recheckGen, commitGen         common.Gen
@@ -139,12 +145,22 @@ type Screen struct {
 // until the details arrive. archived hides and disables the comment action
 // (SPEC §11.2).
 func New(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest, archived bool) *Screen {
+	return NewOnTab(env, ref, repo, initial, archived, tabOverview)
+}
+
+// NewOnTab is New with the tab shown first (TabDiff for "d" in a list). The
+// diff of a screen that starts on it is requested when the screen activates.
+func NewOnTab(env *app.Env, ref gitlab.ProjectRef, repo *gitremote.Repo, initial gitlab.MergeRequest, archived bool, tab int) *Screen {
 	s := &Screen{
 		env: env, ref: ref, iid: initial.IID, mr: initial, archived: archived,
 		mrGen: common.NewGen(), discGen: common.NewGen(), pipeGen: common.NewGen(), poll: common.NewGen(), recheckGen: common.NewGen(), commitGen: common.NewGen(),
 		rechecked: map[string]bool{},
 		tbl:       table.New(env.Styles), ctbl: table.New(env.Styles), md: map[string]string{},
 	}
+	s.diffGen = common.NewGen()
+	s.diff.fold = map[string]bool{}
+	s.tab = tab
+	s.diff.opened = tab == tabDiff
 	s.threads = threads.New(env, s.threadLink)
 	s.act = mractions.New(env, func() gitlab.ProjectRef { return s.ref }, func() *gitremote.Repo { return repo })
 	s.rebuildTable()
@@ -167,12 +183,28 @@ func (s *Screen) MR() gitlab.MergeRequest { return s.mr }
 
 func (s *Screen) KeyMap() common.KeyMap {
 	k := s.env.Msg.Keys
-	short := []common.Binding{
-		common.NewBinding([]string{"tab"}, "tab", k.NextTab, common.PriorityHigh),
-		common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh),
+	dm := s.env.Msg.Diff
+	short := []common.Binding{common.NewBinding([]string{"tab"}, "tab", k.NextTab, common.PriorityHigh)}
+	if s.tab == tabDiff {
+		short = append(short, common.NewBinding([]string{"j", "down"}, "j/k", dm.KeyLine, common.PriorityHigh))
+	} else {
+		short = append(short, common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh))
 	}
-	if s.tab != tabCommits { // enter on a commit does nothing until diffs exist
+	if s.tab != tabCommits && s.tab != tabDiff { // enter on a commit does nothing: no diffs of one commit
 		short = append(short, common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityNormal))
+	}
+	commentLabel, commentPrio := k.Comment, common.PriorityLow
+	if s.tab == tabDiff {
+		short = append(short,
+			common.NewBinding([]string{"J", "K"}, "J/K", dm.KeyFile, common.PriorityNormal),
+			common.NewBinding([]string{"space"}, "space", k.Fold, common.PriorityNormal),
+		)
+		if s.onThreadRow() {
+			short = append(short, common.NewBinding([]string{"enter"}, "", dm.KeyThread, common.PriorityNormal))
+		} else if _, _, ok := s.linePosition(); ok {
+			commentLabel, commentPrio = dm.KeyToLine, common.PriorityHigh
+		}
+		short = append(short, common.NewBinding([]string{"left", "right"}, "←/→", dm.KeyShift, common.PriorityLow))
 	}
 	if s.tab == tabDiscussions {
 		short = append(short,
@@ -181,8 +213,11 @@ func (s *Screen) KeyMap() common.KeyMap {
 		)
 	}
 	browser := k.Browser
-	if s.tab == tabCommits {
+	switch s.tab {
+	case tabCommits:
 		browser = k.BrowserCommit
+	case tabDiff:
+		browser = s.env.Msg.Diff.KeyBrowser
 	}
 	short = append(short, s.act.Bindings()...)
 	hide := func(b common.Binding) common.Binding {
@@ -190,7 +225,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 		return b
 	}
 	short = append(short,
-		hide(common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
+		hide(common.NewBinding([]string{"c"}, "", commentLabel, commentPrio)),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
@@ -261,11 +296,14 @@ func (s *Screen) loadCommits(force bool) tea.Cmd {
 	}
 }
 
-// loadAll reloads everything. Commits (once their tab was opened) follow
+// loadAll reloads everything. Commits and the diff (once their tabs were opened) follow
 // the MR details, so they are requested once and at the new head SHA.
 func (s *Screen) loadAll(force bool) tea.Cmd {
 	if s.commits.opened {
 		s.commits.refresh = true
+	}
+	if s.diff.opened {
+		s.diff.refresh = true
 	}
 	return tea.Batch(s.loadMR(force), s.loadDiscussions(force), s.loadPipelines(force))
 }
@@ -355,7 +393,12 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 	case app.ActivatedMsg:
 		s.active = true
 		if s.updated.IsZero() {
-			return s, s.loadAll(false)
+			cmd := s.loadAll(false)
+			if s.tab == tabDiff && !s.diff.loaded && !s.diff.loading {
+				s.diff.refresh = false // the first request is the one at this head SHA
+				cmd = tea.Batch(cmd, s.loadDiffs(false))
+			}
+			return s, cmd
 		}
 		if env.Now().Sub(s.updated) >= s.pollDelay() && !env.AuthLost {
 			return s, s.loadMR(true)
@@ -371,7 +414,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, nil
 		}
 		if msg.err != nil {
-			return s, tea.Batch(env.Fail(msg.err), s.reloadCommits(false), s.schedulePoll())
+			return s, tea.Batch(env.Fail(msg.err), s.reloadCommits(false), s.reloadDiffs(false), s.schedulePoll())
 		}
 		s.mr = msg.mr
 		s.linksOK = false
@@ -380,7 +423,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		s.rebuildTable()
 		s.rebuildCommits()
 		recheck := s.maybeRecheck()
-		return s, tea.Batch(recheck, s.reloadCommits(true), s.schedulePoll(), s.refreshLinks())
+		return s, tea.Batch(recheck, s.reloadCommits(true), s.reloadDiffs(true), s.schedulePoll(), s.refreshLinks())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -402,6 +445,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		}
 		s.discs, s.discLoaded = msg.discs, true
 		s.threads.SetDiscussions(msg.discs)
+		s.rebuildDiff()
 	case comment.SentMsg:
 		if msg.Target.Kind != comment.KindMR || msg.Target.Project.FullPath != s.ref.FullPath || msg.Target.IID != s.iid {
 			return s, nil
@@ -435,6 +479,18 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, s.loadCommits(true)
 		}
 
+	case diffsLoadedMsg:
+		if !s.diffGen.Valid(msg.tok) {
+			return s, nil
+		}
+		s.diff.loading = false
+		if msg.err != nil {
+			s.diff.err = true
+			return s, env.Fail(msg.err)
+		}
+		s.diff.err = false
+		s.setDiffFiles(msg.files)
+
 	case common.PollTickMsg:
 		if !s.poll.Valid(msg.Token) || !s.active || env.AuthLost {
 			return s, nil
@@ -450,6 +506,8 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 			return s, s.loadPipelines(false)
 		case msg.Key == s.key("mrcommits") && s.commits.opened:
 			return s, s.loadCommits(false)
+		case msg.Key == s.diff.reqKey && s.diff.opened:
+			return s, s.loadDiffs(false)
 		}
 	case app.AuthLostMsg:
 		s.poll.Next()
@@ -488,18 +546,18 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 	case "L":
 		return s.openLinks()
 	case "c":
-		if !s.archived {
-			return comment.Open(s.env, comment.Target{Project: s.ref, Kind: comment.KindMR, IID: s.iid, Title: s.mr.Title})
-		}
-		return nil
+		return s.commentCmd()
 	case "o":
 		return app.OpenURL(s.env, s.link())
 	case "y":
 		return app.Copy(s.env, s.link(), render.ShortURL(s.link()))
 	}
 	if s.tab == tabCommits {
-		s.ctbl.HandleKey(k) // enter does nothing: diffs come after the MVP
+		s.ctbl.HandleKey(k) // enter on a commit does nothing: diffs of one commit are out of scope
 		return nil
+	}
+	if s.tab == tabDiff {
+		return s.diffKey(k.String())
 	}
 	if s.tab == tabPipelines {
 		if k.String() == "enter" {
@@ -535,6 +593,15 @@ func (s *Screen) setTab(i int) tea.Cmd {
 	s.tab = i % tabCount
 	s.scroll = 0
 	s.threads.Reset()
+	if s.tab == tabDiff {
+		d := &s.diff
+		d.opened = true
+		s.diffVisible()
+		if (!d.loaded || d.err) && !d.loading {
+			return s.loadDiffs(false)
+		}
+		return nil
+	}
 	if s.tab != tabCommits {
 		return nil
 	}
@@ -698,6 +765,8 @@ func (s *Screen) View() string {
 	switch s.tab {
 	case tabOverview:
 		body = s.window(s.overview())
+	case tabDiff:
+		body = s.diffView()
 	case tabDiscussions:
 		body = s.window(s.discussionsView())
 	case tabCommits:
@@ -846,7 +915,7 @@ func (s *Screen) tabBar() string {
 	case c.loaded:
 		commits = fmt.Sprintf(" %d", len(c.list))
 	}
-	names := []string{m.TabOverview, m.TabDiscussions + discs, m.TabPipelines + pipes, m.TabCommits + commits}
+	names := []string{m.TabOverview, s.diffTabName(), m.TabDiscussions + discs, m.TabPipelines + pipes, m.TabCommits + commits}
 	parts := make([]string, len(names))
 	for i, n := range names {
 		if i == s.tab {

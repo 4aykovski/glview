@@ -5,7 +5,9 @@ package comment
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -38,6 +40,11 @@ type Target struct {
 	Kind    string // KindIssue | KindMR
 	IID     int64
 	Title   string
+	// Position and Where make it a line comment (MR only, SPEC 3.16): the
+	// thread is anchored to Position, Where ("path:42") replaces Title in the
+	// heading.
+	Position *gitlab.DiffPosition
+	Where    string
 }
 
 // Ref is how the object is named: "#1318" for an issue, "!479" for an MR.
@@ -80,13 +87,22 @@ type Form struct {
 
 // New creates the form for the target, with the stored draft in the field.
 func New(env *app.Env, t Target) *Form {
-	f := &Form{env: env, t: t, draftKey: env.DraftKey(t.Project.FullPath, t.Kind, t.IID), runGen: common.NewGen()}
+	f := &Form{env: env, t: t, draftKey: draftKey(env, t), runGen: common.NewGen()}
 	f.ta = common.NewTextArea(env.Styles)
 	f.ta.DynamicHeight = true
 	f.ta.MinHeight = minRows
 	f.ta.SetValue(env.Draft(f.draftKey))
 	f.ta.CursorEnd()
 	return f
+}
+
+// draftKey is the key of the draft of t; a line comment adds the position.
+func draftKey(env *app.Env, t Target) string {
+	key := env.DraftKey(t.Project.FullPath, t.Kind, t.IID)
+	if p := t.Position; p != nil {
+		key += fmt.Sprintf("|%s|%d|%d", p.NewPath, p.OldLine, p.NewLine)
+	}
+	return key
 }
 
 // Open shows the form for t.
@@ -188,9 +204,15 @@ func (f *Form) submit() tea.Cmd {
 			note gitlab.Note
 			err  error
 		)
-		if t.Kind == KindMR {
+		switch {
+		case t.Kind == KindMR && t.Position != nil:
+			var d gitlab.Discussion
+			if d, err = client.MergeRequests().CommentLine(ctx, t.Project, t.IID, body, *t.Position); err == nil && len(d.Notes) > 0 {
+				note = d.Notes[0]
+			}
+		case t.Kind == KindMR:
 			note, err = client.MergeRequests().Comment(ctx, t.Project, t.IID, body)
-		} else {
+		default:
 			note, err = client.Issues().Comment(ctx, t.Project, t.IID, body)
 		}
 		return sentMsg{tok: tok, note: note, err: err}
@@ -204,7 +226,7 @@ func (f *Form) onSent(msg sentMsg) (app.Overlay, tea.Cmd) {
 		if !f.button {
 			focus = f.ta.Focus()
 		}
-		return f, tea.Batch(f.env.Fail(msg.err), focus)
+		return f, tea.Batch(f.failure(msg.err), focus)
 	}
 	f.env.SetDraft(f.draftKey, "")
 	Invalidate(f.env, f.t)
@@ -214,6 +236,17 @@ func (f *Form) onSent(msg sentMsg) (app.Overlay, tea.Cmd) {
 		app.Toast(common.ToastSuccess, f.env.Msg.Comment.Added, ""),
 		func() tea.Msg { return SentMsg{Target: t, Note: note} },
 	)
+}
+
+// failure is the toast of a failed request. A rejected line comment (400:
+// the line is gone, the MR moved on) shows GitLab's own text and the hint to
+// refresh.
+func (f *Form) failure(err error) tea.Cmd {
+	var ge *gitlab.Error
+	if f.t.Position != nil && errors.As(err, &ge) && ge.Status == http.StatusBadRequest && ge.Message != "" {
+		return app.Toast(common.ToastError, ge.Message, f.env.Msg.Diff.StaleHint)
+	}
+	return f.env.Fail(err)
 }
 
 // Invalidate drops the cached comments of the target: GitLab has a new
@@ -234,7 +267,11 @@ func Invalidate(env *app.Env, t Target) {
 func (f *Form) View(width, height int) string {
 	s, m := f.env.Styles, f.env.Msg.Comment
 	w := min(76, width-6)
-	title := render.Clip(s.ModalTitle.Render(m.Title(f.t.Ref(), f.t.Title)), w)
+	heading := m.Title(f.t.Ref(), f.t.Title)
+	if f.t.Where != "" {
+		heading = f.env.Msg.Diff.CommentTitle(f.t.Ref(), f.t.Where)
+	}
+	title := render.Clip(s.ModalTitle.Render(heading), w)
 
 	maxRows := max(minRows, min(height/2, height-frameRows))
 	f.ta.MaxHeight = maxRows

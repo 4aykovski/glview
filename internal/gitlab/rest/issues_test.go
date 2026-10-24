@@ -214,11 +214,11 @@ func TestProjectMilestones(t *testing.T) {
 	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
 		"GET /api/v4/projects/platform%2Froute-service/milestones": func(w http.ResponseWriter, r *http.Request) {
 			query = r.URL.RawQuery
-			jsonReply(200, `[{"title":"2026-Q4"},{"title":"2026-Q3"}]`)(w, r)
+			jsonReply(200, `[{"id":31,"title":"2026-Q4"},{"id":30,"title":"2026-Q3"}]`)(w, r)
 		},
 	})
 	ms, err := c.Projects().Milestones(context.Background(), issueProject, "2026")
-	if err != nil || len(ms) != 2 || ms[0] != "2026-Q4" {
+	if err != nil || len(ms) != 2 || ms[0].Title != "2026-Q4" || ms[0].ID != 31 {
 		t.Fatalf("ms = %v, err = %v", ms, err)
 	}
 	for _, want := range []string{"state=active", "search=2026", "per_page=20"} {

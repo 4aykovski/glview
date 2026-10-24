@@ -27,6 +27,9 @@ type Project struct {
 	LastActivityAt time.Time
 	Archived       bool
 	Starred        bool
+	// Only from Projects().Get (REST), for the New MR form (SPEC 3.18).
+	RemoveSourceBranchAfterMerge bool   // remove_source_branch_after_merge
+	SquashOption                 string // never | always | default_on | default_off; "" = unknown
 }
 
 type User struct {
@@ -98,6 +101,9 @@ type MergeRequest struct {
 	// defaults of the merge dialog.
 	Squash                  bool
 	ForceRemoveSourceBranch bool
+	// DiffRefs are the SHAs line comments are anchored to; detail views only,
+	// nil when the instance does not report them.
+	DiffRefs *DiffRefs
 }
 
 // Link is a hyperlink found in an MR title or description.
@@ -127,6 +133,9 @@ type MRFilter struct {
 	// SourceBranch selects MRs from one branch (the local branch preview
 	// of the workspace).
 	SourceBranch string
+	// TargetBranch narrows SourceBranch to one pair (duplicate check of the
+	// new-MR form: GitLab forbids two open MRs with the same pair).
+	TargetBranch string
 }
 
 // Key is a canonical signature of the filter for cache keys and equality.
@@ -139,7 +148,7 @@ func (f MRFilter) Key() string {
 	if scope == "" {
 		scope = MRScopeAll
 	}
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t|%s", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine, f.SourceBranch)
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%t|%s|%s", f.State, scope, f.Reviewer, draft, strings.Join(f.Labels, ","), f.Search, f.Mine, f.SourceBranch, f.TargetBranch)
 }
 
 // MergeOptions are the parameters of a merge request merge.
@@ -188,10 +197,15 @@ type Note struct {
 	CreatedAt time.Time
 }
 
-// NotePosition locates a diff note; the diff itself is not shown in the MVP.
+// NotePosition locates a diff note.
 type NotePosition struct {
-	Path string
-	Line int
+	Path string // new_path, old_path for a removed line (shown as path:line)
+	Line int    // new_line, old_line for a removed line
+	// The position as the API reports it; 0 means "none".
+	OldPath, NewPath string
+	OldLine, NewLine int
+	// The versions of the diff the position belongs to; "" means unknown.
+	BaseSHA, StartSHA, HeadSHA string
 }
 
 type PipelineSummary struct {
@@ -288,6 +302,7 @@ type Tag struct {
 type Comparison struct {
 	Head    *CommitSummary  // last commit of "to"; nil when unknown
 	Commits []CommitSummary // commits from..to, newest first
+	Files   int             // number of files in the diffs of the response
 }
 
 // MatchTagPipelines sets Tag.Pipeline to the first (newest) pipeline of

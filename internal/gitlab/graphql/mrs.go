@@ -97,6 +97,11 @@ type gqlMR struct {
 	CommitCount      *int     `json:"commitCount"`
 	TitleHTML        string   `json:"titleHtml"`
 	DescriptionHTML  string   `json:"descriptionHtml"`
+	DiffRefs         *struct {
+		BaseSHA  string `json:"baseSha"`
+		HeadSHA  string `json:"headSha"`
+		StartSHA string `json:"startSha"`
+	} `json:"diffRefs"`
 }
 
 // domain maps a node to a MergeRequest; me is the current user's name.
@@ -162,6 +167,9 @@ func (m gqlMR) domain(project gitlab.ProjectRef, me, origin string) gitlab.Merge
 	}
 	if m.CommitCount != nil {
 		mr.CommitCount = *m.CommitCount
+	}
+	if r := m.DiffRefs; r != nil && r.HeadSHA != "" {
+		mr.DiffRefs = &gitlab.DiffRefs{BaseSHA: r.BaseSHA, StartSHA: r.StartSHA, HeadSHA: r.HeadSHA}
 	}
 	if m.HeadPipeline != nil {
 		ps := m.HeadPipeline.summary(project, origin)
@@ -379,6 +387,11 @@ func buildProjectMRs(project gitlab.ProjectRef, f gitlab.MRFilter, me string, al
 		vars["sourceBranches"] = []string{f.SourceBranch}
 		common = append(common, "sourceBranches: $sourceBranches")
 	}
+	if f.TargetBranch != "" {
+		decls = append(decls, "$targetBranches: [String!]")
+		vars["targetBranches"] = []string{f.TargetBranch}
+		common = append(common, "targetBranches: $targetBranches")
+	}
 
 	var b strings.Builder
 	var proj []string
@@ -437,6 +450,9 @@ fragment MRDetail on MergeRequest {
   #@end
   #@opt descriptionHtml
   descriptionHtml
+  #@end
+  #@opt diffRefs
+  diffRefs { baseSha headSha startSha }
   #@end
   headPipeline {
     stages { nodes { name detailedStatus { group } jobs { nodes { status duration } } } }

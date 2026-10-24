@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/4aykovski/glview/internal/ui/screens/linkslist"
 	"github.com/4aykovski/glview/internal/ui/screens/mractions"
 	"github.com/4aykovski/glview/internal/ui/screens/mrdetail"
+	"github.com/4aykovski/glview/internal/ui/screens/newmr"
 	"github.com/4aykovski/glview/internal/ui/screens/project"
 	"github.com/4aykovski/glview/internal/ui/screens/render"
 )
@@ -255,6 +257,8 @@ func (t *mrsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if mr := t.selected(); t.linksGen.Valid(msg.Tok) && mr != nil && mr.IID == msg.IID && t.cursorGroup() == msg.Ref.FullPath {
 			return t, linkslist.Done(env, msg, *mr)
 		}
+	case newmr.CreatedMsg:
+		t.updated = time.Time{} // the groups reload when the tab is shown again
 	case pickedMsg:
 		ours, cmd := t.onPicked(msg)
 		if ours {
@@ -331,6 +335,11 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if path != "" {
 			return app.OpenURL(env, t.listURL(path))
 		}
+	case "n":
+		if path != "" && !t.archived(path) {
+			ov, _ := t.sh.overview(path)
+			return app.Push(newmr.New(env, newmr.Options{Project: t.ref(path), Repo: t.sh.primaryRepo(path), DefaultBranch: ov.DefaultBranch}))
+		}
 	}
 	if _, _, kind := t.tbl.Cursor(); kind == grouped.KindHeader && k.String() == "enter" {
 		return t.toggle()
@@ -342,6 +351,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 	switch k.String() {
 	case "enter":
 		return app.Push(mrdetail.New(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path)))
+	case "d":
+		return app.Push(mrdetail.NewOnTab(env, t.ref(path), t.sh.primaryRepo(path), *mr, t.archived(path), mrdetail.TabDiff))
 	case "c":
 		if !t.archived(path) {
 			return comment.Open(env, comment.Target{Project: t.ref(path), Kind: comment.KindMR, IID: mr.IID, Title: mr.Title})
@@ -435,8 +446,12 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		common.NewBinding([]string{"J", "K"}, "J/K", w.KeyGroups, common.PriorityNormal),
 		common.NewBinding([]string{"space"}, "space", w.KeyCollapse, common.PriorityLow),
 		common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityHigh),
+		common.NewBinding([]string{"d"}, "", env.Msg.Diff.KeyDiff, common.PriorityLow),
 		common.NewBinding([]string{"f"}, "", w.KeyProject, common.PriorityHigh),
 		common.NewBinding([]string{"m"}, "", k.Me, common.PriorityNormal),
+	}
+	if path := t.cursorGroup(); path != "" && !t.archived(path) {
+		short = append(short, common.NewBinding([]string{"n"}, "", env.Msg.NewMR.KeyNew, common.PriorityLow))
 	}
 	short = append(short, t.act.Bindings()...)
 	if t.selected() != nil { // not on a group header or "N more"
