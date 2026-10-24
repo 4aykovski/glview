@@ -98,6 +98,9 @@ type MergeRequest struct {
 	// defaults of the merge dialog.
 	Squash                  bool
 	ForceRemoveSourceBranch bool
+	// DiffRefs are the SHAs line comments are anchored to; detail views only,
+	// nil when the instance does not report them.
+	DiffRefs *DiffRefs
 }
 
 // Link is a hyperlink found in an MR title or description.
@@ -188,10 +191,13 @@ type Note struct {
 	CreatedAt time.Time
 }
 
-// NotePosition locates a diff note; the diff itself is not shown in the MVP.
+// NotePosition locates a diff note.
 type NotePosition struct {
-	Path string
-	Line int
+	Path string // new_path, old_path for a removed line (shown as path:line)
+	Line int    // new_line, old_line for a removed line
+	// The position as the API reports it; 0 means "none".
+	OldPath, NewPath string
+	OldLine, NewLine int
 }
 
 type PipelineSummary struct {

@@ -1,14 +1,14 @@
 ## 0. Подготовка
 
-- [ ] 0.1 Ветка `t35-mr-diff` от `after-mvp`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); SPEC уже поправлен (коммит «SPEC: диффы, To-Do, создание MR …» в `after-mvp`), правки SPEC — только при расхождении, сначала SPEC
+- [x] 0.1 Ветка `t35-mr-diff` от `after-mvp`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); SPEC уже поправлен (коммит «SPEC: диффы, To-Do, создание MR …» в `after-mvp`), правки SPEC — только при расхождении, сначала SPEC
 
 ## 1. Слой gitlab (#27, T35)
 
-- [ ] 1.1 `internal/gitlab`: `DiffFile`, `DiffRefs`, `DiffPosition`, `MergeRequest.DiffRefs`, поля `NotePosition.OldPath/NewPath/OldLine/NewLine` (`Path/Line` остаются); `MergeRequestService.Diffs`, `CommentLine` (решения 8–10); проверка: `go build ./...`
-- [ ] 1.2 `internal/diff`: `Parse`, `Find` (решение 1); проверка: unit-тесты — номера по `@@ -a,b +c,d @@` (в том числе без `,b`), несколько ханков, `\ No newline at end of file`, пустой ввод, `Find` по новой строке, по старой у удалённой, не найдено → -1
-- [ ] 1.3 `gitlab/rest`: `Diffs` (все страницы, `per_page=100`, `too_large`/`collapsed` → `TooLarge`, `generated_file`), `CommentLine` (`POST /discussions` с `position[...]`), позиции заметок в `NotePosition` (все четыре поля); `hybrid` делегирует; проверка: httptest-тесты на выдуманных данных — параметры позиции для добавленной/удалённой/контекстной строки, две страницы диффа, 400 с сообщением сервера
-- [ ] 1.4 `gitlab/graphql`: `diffRefs { baseSha headSha startSha }` в `MRDetail` через `#@opt` (решение 9); проверка: тест на JSON-фикстуре и тест «Field 'diffRefs' doesn't exist» → `DiffRefs == nil`, детали загружены
-- [ ] 1.5 Фейк: диффы MR в памяти (демо — выдуманные файлы), `CommentLine` добавляет diff-тред с позицией в discussions, журнал вызовов, инъекция ошибок (400); проверка: `go test ./internal/gitlab/...`
+- [x] 1.1 `internal/gitlab`: `DiffFile`, `DiffRefs`, `DiffPosition`, `MergeRequest.DiffRefs`, поля `NotePosition.OldPath/NewPath/OldLine/NewLine` (`Path/Line` остаются); `MergeRequestService.Diffs`, `CommentLine` (решения 8–10); проверка: `go build ./...`
+- [x] 1.2 `internal/diff`: `Parse`, `Find` (решение 1); проверка: unit-тесты — номера по `@@ -a,b +c,d @@` (в том числе без `,b`), несколько ханков, `\ No newline at end of file`, пустой ввод, `Find` по новой строке, по старой у удалённой, не найдено → -1
+- [x] 1.3 `gitlab/rest`: `Diffs` (все страницы, `per_page=100`, `too_large`/`collapsed` → `TooLarge`, `generated_file`), `CommentLine` (`POST /discussions` с `position[...]`), позиции заметок в `NotePosition` (все четыре поля); `hybrid` делегирует; проверка: httptest-тесты на выдуманных данных — параметры позиции для добавленной/удалённой/контекстной строки, две страницы диффа, 400 с сообщением сервера
+- [x] 1.4 `gitlab/graphql`: `diffRefs { baseSha headSha startSha }` в `MRDetail` через `#@opt` (решение 9); проверка: тест на JSON-фикстуре и тест «Field 'diffRefs' doesn't exist» → `DiffRefs == nil`, детали загружены
+- [x] 1.5 Фейк: диффы MR в памяти (демо — выдуманные файлы), `CommentLine` добавляет diff-тред с позицией в discussions, журнал вызовов, инъекция ошибок (400); проверка: `go test ./internal/gitlab/...`
 
 ## 2. Вкладка Diff (#27, T35)
 

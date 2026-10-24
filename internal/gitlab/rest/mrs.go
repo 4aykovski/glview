@@ -68,7 +68,11 @@ func mapDiscussion(d *gl.Discussion) gitlab.Discussion {
 					path, line = n.Position.OldPath, n.Position.OldLine
 				}
 				if path != "" {
-					out.Position = &gitlab.NotePosition{Path: path, Line: int(line)}
+					out.Position = &gitlab.NotePosition{
+						Path: path, Line: int(line),
+						OldPath: n.Position.OldPath, NewPath: n.Position.NewPath,
+						OldLine: int(n.Position.OldLine), NewLine: int(n.Position.NewLine),
+					}
 				}
 			}
 		}
