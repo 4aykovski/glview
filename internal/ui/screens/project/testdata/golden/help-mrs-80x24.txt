@@ -12,13 +12,13 @@ gitlab-tui  pla╭────────────────────�
   !476   Docume│ ⌫      reset filters                           │      1/2   42m
                │ m      me                                      │
                │ c      comment                                 │
+               │ n      new MR                                  │
                │ L      links                                   │
                │ o      list in browser                         │
                │ O      MR in browser                           │
-               │ y      copy                                    │
                │                                                │
                │ Language: English · ctrl+l switches to Russian │
-               │ esc / ? close · j/k scroll 1–15/29             │
+               │ esc / ? close · j/k scroll 1–15/30             │
                ╰────────────────────────────────────────────────╯
 ────────────────────────────────────────────────────────────────────────────────
 j/k down  enter open  / filter  a approve  M merge  s state  ? help      poll 3s

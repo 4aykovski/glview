@@ -13,6 +13,7 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
                                    │ ⌫      reset filters                           │
                                    │ m      me                                      │
                                    │ c      comment                                 │
+                                   │ n      new MR                                  │
                                    │ L      links                                   │
                                    │ o      list in browser                         │
                                    │ O      MR in browser                           │
@@ -30,11 +31,10 @@ gitlab-tui  platform/route-service · gitlab.example.com · ⎇ fix/slot-race   
                                    │ o        browser                               │
                                    │ ctrl+l   язык: RU                              │
                                    │ q        quit                                  │
-                                   │ ?        help                                  │
-┌──────────────────────────────────│                                                │──────────────────────────────────┐
-│ !471  Fix race in courier slot al│ Language: English · ctrl+l switches to Russian │                                  │
-│ ● mergeable ready to merge · 1/2 │ esc / ? close                                  │                                  │
-│ Fixes the allocation race.       ╰────────────────────────────────────────────────╯                                  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────│ ?        help                                  │──────────────────────────────────┐
+│ !471  Fix race in courier slot al│                                                │                                  │
+│ ● mergeable ready to merge · 1/2 │ Language: English · ctrl+l switches to Russian │                                  │
+│ Fixes the allocation race.       │ esc / ? close                                  │                                  │
+└──────────────────────────────────╰────────────────────────────────────────────────╯──────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 j/k down  enter open  / filter  a approve  M merge  b rebase  s state  m me  1-4 tabs  r refresh  ? help         poll 3s
