@@ -520,6 +520,10 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if mr := t.selected(); mr != nil {
 			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived))
 		}
+	case "d":
+		if mr := t.selected(); mr != nil {
+			return app.Push(mrdetail.NewOnTab(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived, mrdetail.TabDiff))
+		}
 	case "o":
 		return app.OpenURL(env, t.listURL())
 	case "O":
@@ -681,6 +685,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 	short := []common.Binding{
 		common.NewBinding([]string{"j", "down"}, "j/k", k.Down, common.PriorityHigh),
 		common.NewBinding([]string{"enter"}, "", k.Open, common.PriorityHigh),
+		common.NewBinding([]string{"d"}, "", t.env().Msg.Diff.KeyDiff, common.PriorityLow),
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),
 	}
 	short = append(short, t.act.Bindings()...)
