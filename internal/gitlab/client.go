@@ -14,6 +14,7 @@ type Client interface {
 	Tags() TagService
 	Workspace() WorkspaceService
 	Search() SearchService
+	Todos() TodoService
 	Instance() InstanceService
 }
 
