@@ -28,7 +28,7 @@ func (e *Env) PollInterval(active bool) time.Duration {
 			base = DefaultPollActive
 		}
 	}
-	return common.PollInterval(base, e.Focused)
+	return common.PollInterval(e.Net.Backoff(base), e.Focused)
 }
 
 // WorkspacePoll is the workspace poll interval (polling.workspace), slowed
@@ -38,7 +38,7 @@ func (e *Env) WorkspacePoll() time.Duration {
 	if base <= 0 {
 		base = DefaultPollWorkspace
 	}
-	return common.PollInterval(base, e.Focused)
+	return common.PollInterval(e.Net.Backoff(base), e.Focused)
 }
 
 // ErrorText turns a gitlab error into a translated message.
@@ -58,7 +58,7 @@ func ErrorText(env *Env, err error) string {
 	case errors.Is(err, gitlab.ErrNotPossible):
 		return t.NotPossible
 	case errors.Is(err, gitlab.ErrRateLimited):
-		return t.RateLimited(30)
+		return t.RateLimited(retryAfterSeconds(err))
 	case errors.Is(err, gitlab.ErrTLS):
 		return t.TLS
 	case errors.Is(err, gitlab.ErrNetwork):
@@ -67,6 +67,19 @@ func ErrorText(env *Env, err error) string {
 		return t.Server
 	}
 	return t.Unknown
+}
+
+// defaultRetryAfter is shown for a 429 without a usable Retry-After.
+const defaultRetryAfter = 30
+
+// retryAfterSeconds is the "retry in N s" of a rate-limit error: the
+// server's Retry-After, rounded up, else defaultRetryAfter.
+func retryAfterSeconds(err error) int {
+	var ge *gitlab.Error
+	if errors.As(err, &ge) && ge.RetryAfter > 0 {
+		return int((ge.RetryAfter + time.Second - 1) / time.Second)
+	}
+	return defaultRetryAfter
 }
 
 // Fail reports a failed request: a 401 becomes AuthLostMsg (the root shows
@@ -79,7 +92,11 @@ func (e *Env) Fail(err error) tea.Cmd {
 	case errors.Is(err, gitlab.ErrUnauthorized):
 		return msgCmd(AuthLostMsg{Err: err})
 	}
-	return Toast(common.ToastError, ErrorText(e, err), "")
+	hint := ""
+	if errors.Is(err, gitlab.ErrTLS) {
+		hint = e.Msg.Errors.HintTLS
+	}
+	return Toast(common.ToastError, ErrorText(e, err), hint)
 }
 
 // authHint is the "where to fix the token" hint for the token's source.
@@ -128,6 +145,24 @@ func (m *Model) onAuthChecked(msg authCheckedMsg) tea.Cmd {
 		Toast(common.ToastSuccess, m.env.Msg.Toast.AuthRestored, ""),
 		m.broadcast(AuthRestoredMsg{}),
 	)
+}
+
+// listenNet waits for the next change of the host's reachability.
+func (m *Model) listenNet() tea.Cmd {
+	ch := m.env.Net.Changes()
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg { return NetChangedMsg{Online: <-ch} }
+}
+
+// onNetChanged re-listens and announces the recovery (an outage is already
+// visible: the failed requests toast and the header gets "(offline)").
+func (m *Model) onNetChanged(msg NetChangedMsg) tea.Cmd {
+	if !msg.Online {
+		return m.listenNet()
+	}
+	return tea.Batch(m.listenNet(), Toast(common.ToastSuccess, m.env.Msg.Toast.Online, ""))
 }
 
 // listenCache waits for the next background cache refresh.
@@ -179,8 +214,15 @@ func (e *Env) HeaderRight(updated time.Time) string {
 	if p := e.Git.Header(e.Msg); p != "" {
 		s = e.Styles.Accent.Render(p) + " · " + s
 	}
+	age := ""
 	if !updated.IsZero() {
-		s += " · " + e.Msg.Header.Updated(i18n.RelTimeShort(e.Lang, e.Now().Sub(updated)))
+		age = e.Msg.Header.Updated(i18n.RelTimeShort(e.Lang, e.Now().Sub(updated)))
+	}
+	if e.Net.Offline() {
+		age = strings.TrimSpace(age + " " + e.Styles.Warning.Render("("+e.Msg.Header.Offline+")"))
+	}
+	if age != "" {
+		s += " · " + age
 	}
 	if e.AuthLost {
 		s += " · " + e.Styles.Error.Render(e.Msg.Header.AuthError)

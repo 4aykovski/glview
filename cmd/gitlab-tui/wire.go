@@ -79,10 +79,12 @@ func buildRoot(opts options) (*app.Model, error) {
 	debuglog.RegisterSecret(plan.Token)
 	debuglog.L().Info("plan", "mode", plan.Mode, "host", plan.HostURL, "hostSource", plan.HostSource, "tokenSource", plan.TokenSource)
 
+	env.Net = gitlab.NewMonitor()
 	hc, err := httpx.NewClient(httpx.Options{
 		CAFile:             cfg.TLS.CAFile,
 		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify,
 		UserAgent:          "gitlab-tui/" + version,
+		Monitor:            env.Net,
 	})
 	if err != nil {
 		return nil, err

@@ -103,7 +103,7 @@ func (m *Model) Overlay() Overlay { return m.overlay }
 func (m *Model) Depth() int { return len(m.stack) }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.refreshStarred()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.Top().Init(), m.sendTop(ActivatedMsg{}), m.listenCache(), m.listenNet(), m.refreshStarred()}
 	for _, t := range m.opts.InitialToasts {
 		cmds = append(cmds, msgCmd(t))
 	}
@@ -173,6 +173,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CacheRevalidatedMsg:
 		return m, tea.Batch(m.broadcast(msg), m.listenCache())
+
+	case NetChangedMsg:
+		return m, m.onNetChanged(msg)
 
 	case AuthLostMsg:
 		return m, m.onAuthLost(msg)

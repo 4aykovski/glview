@@ -69,7 +69,7 @@ type MRMessages struct {
 	MergePushed                                                 string
 	CannotMerge                                                 func(status string) string
 	RebaseTitle                                                 func(iid int64) string
-	RebaseBody, RebaseDone, RebaseStillRunning                  string
+	RebaseBody, RebaseDone, RebaseStillRunning, RebaseNotQueued string
 	RebaseFailed                                                func(reason string) string
 	RebaseChip                                                  string
 	MergeTitle                                                  func(iid int64) string

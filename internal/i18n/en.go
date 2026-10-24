@@ -60,6 +60,7 @@ var en = func() Messages {
 	m.Toast.BrowserFailed = "Could not open the browser"
 	m.Toast.Copied = func(what string) string { return "copied: " + what }
 	m.Toast.AuthRestored = "Token accepted"
+	m.Toast.Online = "Connection restored"
 
 	m.Errors.Unauthorized = "Token rejected"
 	m.Errors.Forbidden = "Not enough permissions"

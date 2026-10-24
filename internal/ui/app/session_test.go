@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/cache"
 	"github.com/4aykovski/glview/internal/config"
@@ -222,4 +223,148 @@ func TestFooterShowsStatusUntilToast(t *testing.T) {
 	d.Send(ToastMsg{Level: common.ToastSuccess, Text: "approved !1"})
 	d.RequireView("approved !1")
 	d.RequireNoView("poll 3s while running")
+}
+
+// toastOf runs the command Fail returned and returns its toast.
+func toastOf(t *testing.T, cmd tea.Cmd) ToastMsg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("no toast")
+	}
+	m, ok := cmd().(ToastMsg)
+	if !ok {
+		t.Fatalf("not a toast: %T", cmd())
+	}
+	return m
+}
+
+// TestFailToastsFollowTheErrorTable is SPEC §11.1, one row per case, in en
+// and ru: the toast text, the hint, the level.
+func TestFailToastsFollowTheErrorTable(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		en, ru   string
+		hintEN   string
+		hintRU   string
+		wantAuth bool
+	}{
+		{name: "403", err: &gitlab.Error{Kind: gitlab.ErrForbidden, Status: 403}, en: "Not enough permissions", ru: "Недостаточно прав"},
+		{name: "403 scope", err: &gitlab.Error{Kind: gitlab.ErrInsufficientScope, Status: 403}, en: "The token lacks the api scope (read-only)", ru: "У токена нет scope api (только чтение)"},
+		{name: "404", err: &gitlab.Error{Kind: gitlab.ErrNotFound, Status: 404}, en: "Not found or no access", ru: "Не найдено или нет доступа"},
+		{name: "409", err: &gitlab.Error{Kind: gitlab.ErrConflict, Status: 409}, en: "Conflict: the object changed, refresh (r)", ru: "Конфликт: объект изменился, обнови (r)"},
+		{name: "422", err: &gitlab.Error{Kind: gitlab.ErrNotPossible, Status: 422}, en: "Operation not possible", ru: "Операция невозможна"},
+		{name: "429 with Retry-After", err: &gitlab.Error{Kind: gitlab.ErrRateLimited, Status: 429, RetryAfter: 120 * time.Second}, en: "GitLab rate limit, retry in 120s", ru: "GitLab ограничил запросы, повтор через 120 с"},
+		{name: "429 fractional Retry-After rounds up", err: &gitlab.Error{Kind: gitlab.ErrRateLimited, Status: 429, RetryAfter: 1500 * time.Millisecond}, en: "GitLab rate limit, retry in 2s", ru: "GitLab ограничил запросы, повтор через 2 с"},
+		{name: "429 without Retry-After", err: &gitlab.Error{Kind: gitlab.ErrRateLimited, Status: 429}, en: "GitLab rate limit, retry in 30s", ru: "GitLab ограничил запросы, повтор через 30 с"},
+		{name: "network", err: &gitlab.Error{Kind: gitlab.ErrNetwork, Err: errors.New("dial tcp: no such host")}, en: "Host unreachable", ru: "Хост недоступен"},
+		{name: "tls", err: &gitlab.Error{Kind: gitlab.ErrTLS, Err: errors.New("x509: unknown authority")}, en: "TLS error", ru: "Ошибка TLS", hintEN: "set tls.ca_file in config.yaml", hintRU: "укажи tls.ca_file в config.yaml"},
+		{name: "5xx", err: &gitlab.Error{Kind: gitlab.ErrServer, Status: 502}, en: "GitLab server error", ru: "Ошибка сервера GitLab"},
+	}
+	for _, c := range cases {
+		for _, lang := range []i18n.Lang{i18n.EN, i18n.RU} {
+			env := NewEnv(lang)
+			got := toastOf(t, env.Fail(c.err))
+			want, hint := c.en, c.hintEN
+			if lang == i18n.RU {
+				want, hint = c.ru, c.hintRU
+			}
+			if got.Text != want || got.Hint != hint || got.Level != common.ToastError {
+				t.Errorf("%s/%s: toast = %+v, want %q hint %q", c.name, lang, got, want, hint)
+			}
+		}
+	}
+}
+
+func TestOfflineHeaderBackoffAndRecovery(t *testing.T) {
+	client := fake.New()
+	env := NewEnv(i18n.EN)
+	env.Client, env.User = client, client.User
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	env.Now = func() time.Time { return now }
+	env.Net = gitlab.NewMonitor()
+	env.Settings = Settings{PollActive: 3 * time.Second, PollIdle: 30 * time.Second, PollWorkspace: 60 * time.Second}
+	p := &probe{env: env}
+	root := New(env, p, Options{})
+	d := uitest.New(t, root)
+
+	updated := now.Add(-5 * time.Minute)
+	if got := env.HeaderRight(updated); got != "@"+env.User.Username+" · ⟳ 5m" {
+		t.Fatalf("online header = %q", got)
+	}
+
+	netErr := &gitlab.Error{Kind: gitlab.ErrNetwork, Err: errors.New("dial tcp: no route to host")}
+	env.Net.Report(netErr)
+	d.Send(NetChangedMsg{Online: false})
+	if got := ansi.Strip(env.HeaderRight(updated)); !strings.HasSuffix(got, "⟳ 5m (offline)") {
+		t.Fatalf("offline header = %q", got)
+	}
+	if got := ansi.Strip(env.HeaderRight(time.Time{})); !strings.HasSuffix(got, "(offline)") {
+		t.Fatalf("offline header without a load = %q", got)
+	}
+	d.Key("ctrl+l")
+	if got := ansi.Strip(env.HeaderRight(updated)); !strings.HasSuffix(got, "⟳ 5м (офлайн)") {
+		t.Fatalf("offline header in ru = %q", got)
+	}
+	d.Key("ctrl+l")
+
+	// The delay grows exponentially: 3s → 6, 12, 24, 48, then 60 s at most.
+	var got []time.Duration
+	got = append(got, env.PollInterval(true)) // one failure: ×2
+	for range 5 {
+		env.Net.Report(netErr)
+		got = append(got, env.PollInterval(true))
+	}
+	want := []time.Duration{6, 12, 24, 48, 60, 60}
+	for i, w := range want {
+		if got[i] != w*time.Second {
+			t.Fatalf("active delays = %v", got)
+		}
+	}
+	if env.PollInterval(false) != 60*time.Second || env.WorkspacePoll() != 60*time.Second {
+		t.Fatalf("idle = %v, workspace = %v", env.PollInterval(false), env.WorkspacePoll())
+	}
+
+	// The first answer ends the outage: one toast, normal delays again.
+	env.Net.Report(nil)
+	d.Send(NetChangedMsg{Online: true})
+	d.RequireView("Connection restored")
+	if env.Net.Offline() || env.PollInterval(true) != 3*time.Second {
+		t.Fatalf("still offline: fails = %d, interval = %v", env.Net.Fails(), env.PollInterval(true))
+	}
+	if got := env.HeaderRight(updated); strings.Contains(got, "offline") {
+		t.Fatalf("header = %q", got)
+	}
+}
+
+func TestListenNetDeliversChanges(t *testing.T) {
+	env := NewEnv(i18n.EN)
+	env.Client = fake.New()
+	env.Net = gitlab.NewMonitor()
+	root := New(env, &probe{env: env}, Options{})
+	cmd := root.listenNet()
+	if cmd == nil {
+		t.Fatal("no listener")
+	}
+	env.Net.Report(&gitlab.Error{Kind: gitlab.ErrNetwork})
+	msg := make(chan tea.Msg, 1)
+	go func() { msg <- cmd() }()
+	select {
+	case m := <-msg:
+		if n, ok := m.(NetChangedMsg); !ok || n.Online {
+			t.Fatalf("msg = %#v", m)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no message")
+	}
+	if New(NewEnv(i18n.EN), &probe{}, Options{}).listenNet() != nil {
+		t.Fatal("no monitor, no listener")
+	}
+}
+
+// Toasts live 4 s, errors 8 s (SPEC §11.1).
+func TestToastLifetimes(t *testing.T) {
+	if toastTTL != 4*time.Second || toastErrorTTL != 8*time.Second {
+		t.Fatalf("ttl = %v / %v", toastTTL, toastErrorTTL)
+	}
 }

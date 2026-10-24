@@ -64,6 +64,7 @@ var ru = func() Messages {
 	m.Toast.BrowserFailed = "Не удалось открыть браузер"
 	m.Toast.Copied = func(what string) string { return "скопировано: " + what }
 	m.Toast.AuthRestored = "Токен принят"
+	m.Toast.Online = "Соединение восстановлено"
 
 	m.Errors.Unauthorized = "Токен не принят"
 	m.Errors.Forbidden = "Недостаточно прав"

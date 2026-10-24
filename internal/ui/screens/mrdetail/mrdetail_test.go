@@ -423,6 +423,16 @@ func TestRebaseTracking(t *testing.T) {
 	}
 }
 
+// SPEC §11.1: 409 on rebase is "could not queue the rebase", not the
+// generic conflict text.
+func TestRebaseConflictSaysItWasNotQueued(t *testing.T) {
+	d, _, _, client := setup(t, baseMR())
+	client.FailNext("MergeRequests.Rebase", &gitlab.Error{Kind: gitlab.ErrConflict, Status: 409})
+	d.Key("b", "y")
+	d.RequireView("Could not queue the rebase")
+	d.RequireNoView("rebase…", "Conflict: the object changed")
+}
+
 func TestRebaseFailureShowsMergeError(t *testing.T) {
 	d, _, scr, client := setup(t, baseMR())
 	client.OnCall("MergeRequests.Get", func(n int) {

@@ -52,6 +52,7 @@ type Messages struct {
 		BrowserFailed     string
 		Copied            func(what string) string
 		AuthRestored      string
+		Online            string
 	}
 
 	Errors struct {

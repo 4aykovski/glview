@@ -77,6 +77,9 @@ type Env struct {
 	TokenSource config.Source
 	// AuthLost is set when a request was rejected with 401 mid-session.
 	AuthLost bool
+	// Net tracks reachability of the host (offline mark, poll backoff,
+	// recovery toast). May be nil: always online.
+	Net *gitlab.Monitor
 	// Focused reports whether the terminal window has focus.
 	Focused bool
 	// Browser opens a URL (browser.Open; replaced in tests).
@@ -221,6 +224,9 @@ type (
 	// AuthLostMsg means a request was rejected with 401. The root stops
 	// polling (screens check env.AuthLost) and shows the hint.
 	AuthLostMsg struct{ Err error }
+	// NetChangedMsg reports that the host became unreachable (Online false)
+	// or reachable again (true).
+	NetChangedMsg struct{ Online bool }
 	// AuthRestoredMsg follows a successful token re-check; screens reload.
 	AuthRestoredMsg struct{}
 

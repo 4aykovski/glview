@@ -237,6 +237,7 @@ func fillM1RU(m *Messages) {
 	r.RebaseTitle = func(iid int64) string { return fmt.Sprintf("Сделать rebase !%d?", iid) }
 	r.RebaseBody = "Source-ветка будет перебазирована на target-ветку на сервере."
 	r.RebaseDone, r.RebaseStillRunning = "rebase выполнен", "rebase ещё идёт"
+	r.RebaseNotQueued = "Не удалось поставить rebase в очередь"
 	r.RebaseFailed = func(reason string) string { return "rebase не удался: " + reason }
 	r.RebaseChip = "◐ rebase…"
 	r.MergeTitle = func(iid int64) string { return fmt.Sprintf("Merge !%d", iid) }

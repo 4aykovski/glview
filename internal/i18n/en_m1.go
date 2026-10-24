@@ -223,6 +223,7 @@ func fillM1EN(m *Messages) {
 	r.RebaseTitle = func(iid int64) string { return fmt.Sprintf("Rebase !%d?", iid) }
 	r.RebaseBody = "The source branch will be rebased onto the target branch on the server."
 	r.RebaseDone, r.RebaseStillRunning = "rebase done", "rebase is still running"
+	r.RebaseNotQueued = "Could not queue the rebase"
 	r.RebaseFailed = func(reason string) string { return "rebase failed: " + reason }
 	r.RebaseChip = "◐ rebase…"
 	r.MergeTitle = func(iid int64) string { return fmt.Sprintf("Merge !%d", iid) }
