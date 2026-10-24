@@ -747,8 +747,7 @@ func filterInputView(fl *filterline.Model, s *common.Styles, hint string, errTex
 	if err := fl.Err(); err != nil {
 		return strings.Join(lines, "\n") + "\n" + s.Error.Render(errText(err))
 	}
-	lines[0] += "  " + s.Muted.Render(hint)
-	return strings.Join(lines, "\n")
+	return fl.ViewWithHint(hint, s.Muted)
 }
 
 // hideArchived hides a binding that does not work in an archived project.

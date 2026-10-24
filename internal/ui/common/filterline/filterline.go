@@ -10,6 +10,8 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/ui/common"
 )
@@ -572,4 +574,29 @@ func (m *Model) View() string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// minInputCells is the room kept for typing when a hint shares the line.
+const minInputCells = 30
+
+// ViewWithHint is View with hint (rendered by style) on the right of the
+// input line. The input shrinks so the line never exceeds the width it has
+// without the hint; a hint that does not fit is cut with "…", and dropped
+// when even the shortest would squeeze the input below minInputCells.
+func (m *Model) ViewWithHint(hint string, style lipgloss.Style) string {
+	full := lipgloss.Width(m.input.View())
+	hw := min(lipgloss.Width(hint), full-minInputCells-2)
+	if hw < 2 {
+		return m.View()
+	}
+	hint = ansi.Truncate(hint, hw, "…")
+	orig := m.input.Width()
+	m.input.SetWidth(max(1, orig-(hw+2)))
+	line := m.input.View() + "  " + style.Render(hint)
+	m.input.SetWidth(orig)
+	rest := strings.SplitN(m.View(), "\n", 2)
+	if len(rest) == 2 {
+		line += "\n" + rest[1]
+	}
+	return line
 }

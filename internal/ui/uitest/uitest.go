@@ -8,6 +8,8 @@
 package uitest
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,11 +20,19 @@ import (
 	"github.com/charmbracelet/x/exp/teatest/v2"
 )
 
-// Default terminal size for UI tests.
-const (
-	Width  = 120
-	Height = 40
-)
+// Default terminal size for UI tests: 120×40, or WxH from the UITEST_SIZE
+// environment variable. UITEST_SIZE=80x24 go test ./... sweeps the whole
+// suite at the minimum size to look for overflow; the failures that are not
+// about overflow are expected there (texts are cut).
+var Width, Height = defaultSize()
+
+func defaultSize() (int, int) {
+	var w, h int
+	if _, err := fmt.Sscanf(os.Getenv("UITEST_SIZE"), "%dx%d", &w, &h); err == nil && w > 0 && h > 0 {
+		return w, h
+	}
+	return 120, 40
+}
 
 // CmdTimeout is how long a command may run before it is treated as a timer
 // and dropped.
@@ -35,6 +45,11 @@ type Driver struct {
 	Quit  bool
 	Msgs  []tea.Msg // every message delivered to Update, for assertions
 	depth int
+
+	// width and height are the last window size sent to the model.
+	width, height int
+	// NoFitCheck turns off the check of View against the terminal size.
+	NoFitCheck bool
 }
 
 // New initialises m, sends a window size and runs the init commands.
@@ -55,6 +70,9 @@ func (d *Driver) Send(msg tea.Msg) {
 		d.t.Fatalf("uitest: message loop too deep (last %T)", msg)
 	}
 	d.Msgs = append(d.Msgs, msg)
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		d.width, d.height = ws.Width, ws.Height
+	}
 	m, cmd := d.Model.Update(msg)
 	d.Model = m
 	d.run(cmd)
@@ -75,9 +93,39 @@ func (d *Driver) Key(keys ...string) {
 	}
 }
 
-// View returns the rendered view without ANSI sequences.
+// View returns the rendered view without ANSI sequences. Unless NoFitCheck
+// is set, it fails the test when the view does not fit the terminal (SPEC
+// §12.3): every assertion on a screen therefore also checks 80×24 and
+// 120×40 overflow.
 func (d *Driver) View() string {
-	return ansi.Strip(d.Model.View().Content)
+	d.t.Helper()
+	v := ansi.Strip(d.Model.View().Content)
+	if !d.NoFitCheck {
+		if err := FitError(v, d.width, d.height); err != "" {
+			d.t.Fatalf("%s:\n%s", err, v)
+		}
+	}
+	return v
+}
+
+// FitError reports the first way a plain-text view does not fit a w×h
+// terminal: a line wider than w or more than h lines. Empty when it fits or
+// when the terminal is smaller than the supported minimum (the "too small"
+// message is not required to fit). A zero size is not checked.
+func FitError(view string, w, h int) string {
+	if w == 0 || h == 0 || w < 80 || h < 24 {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
+	if len(lines) > h {
+		return fmt.Sprintf("view has %d lines, terminal %dx%d", len(lines), w, h)
+	}
+	for i, l := range lines {
+		if lw := ansi.StringWidth(l); lw > w {
+			return fmt.Sprintf("line %d is %d cells wide, terminal %dx%d: %q", i+1, lw, w, h, l)
+		}
+	}
+	return ""
 }
 
 // RequireView fails unless the view contains every substring.
@@ -183,4 +231,28 @@ func KeyPress(k string) tea.KeyPressMsg {
 func Program(t testing.TB, m tea.Model) *teatest.TestModel {
 	t.Helper()
 	return teatest.NewTestModel(t, m, teatest.WithInitialTermSize(Width, Height))
+}
+
+// RequireFitsSizes renders the current state at 80×24 and 120×40 and fails
+// if either view overflows the terminal (the check of View), then restores
+// the default size.
+func (d *Driver) RequireFitsSizes() {
+	d.t.Helper()
+	for _, sz := range [][2]int{{80, 24}, {120, 40}} {
+		d.Send(tea.WindowSizeMsg{Width: sz[0], Height: sz[1]})
+		d.View()
+	}
+	d.Send(tea.WindowSizeMsg{Width: Width, Height: Height})
+}
+
+// RequireFits checks the current state at 80×24 and 120×40 in the current
+// language and, switching with ctrl+l, in the other one (the state is not
+// changed otherwise). It is the SPEC §12.3 invariant: no line wider than
+// the terminal, no more lines than its height.
+func (d *Driver) RequireFits() {
+	d.t.Helper()
+	d.RequireFitsSizes()
+	d.Key("ctrl+l")
+	d.RequireFitsSizes()
+	d.Key("ctrl+l")
 }

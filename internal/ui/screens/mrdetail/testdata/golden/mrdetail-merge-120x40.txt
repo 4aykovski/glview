@@ -6,35 +6,35 @@ anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
 ╰──────────────────────────────╯ ╰────────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
  Overview   Discussions 2   Pipelines 2   Commits
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Why                                                                                 │ APPROVALS
-                              ╭──────────────────────────────────────────────────────────╮ob
- • slot map raced             │ Merge !479  Fix race in courier slot allocator           │ore needed
+ Why                                                                                │ APPROVALS
+                              ╭──────────────────────────────────────────────────────────╮b
+ • slot map raced             │ Merge !479  Fix race in courier slot allocator           │re needed
  • see slotMap                │                                                          │
-                              │ ┌──────────────────────────────────────────────────────┐ │ELS
-  func main() {}              │ │› (•) Merge now   ( ) Merge when the pipeline succeeds│ │, backend
+                              │ ┌──────────────────────────────────────────────────────┐ │LS
+  func main() {}              │ │› (•) Merge now   ( ) Merge when the pipeline succeeds│ │ backend
                               │ │  [x] Squash commits                                  │ │
-                              │ │  [ ] Remove source branch                            │ │ELINE #91840
-                              │ └──────────────────────────────────────────────────────┘ │uild                      1m02s
-                              │                                                          │est                       4m40s
+                              │ │  [ ] Remove source branch                            │ │LINE #91840
+                              │ └──────────────────────────────────────────────────────┘ │ild                      1m02s
+                              │                                                          │st                       4m40s
                               │ ←/→ method · space toggle · enter merge · esc cancel     │
-                              │ sha a91f2c0d                                             │T THREAD
+                              │ sha a91f2c0d                                             │ THREAD
                               ╰──────────────────────────────────────────────────────────╯
-                                                                                     │ LGTM overall
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
-                                                                                     │
+                                                                                    │ LGTM overall
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 tab next tab  j/k down  enter open  a approve  M merge  b rebase  c comment  r refresh  o browser  ? help       poll 30s

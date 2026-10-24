@@ -883,7 +883,7 @@ func (s *Screen) overview() []string {
 	wide := s.w >= wideW
 	textW := s.w - 2
 	if wide {
-		textW = s.w - sideW - 3
+		textW = s.w - sideW - 4 // " " l " " rule " " r
 	}
 	var left []string
 	if strings.TrimSpace(s.mr.Description) == "" {

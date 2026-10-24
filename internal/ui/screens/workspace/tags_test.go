@@ -311,7 +311,7 @@ func TestTagsRussian(t *testing.T) {
 func TestGoldenTagsTab(t *testing.T) {
 	d, _, _, _ := openTags(t, tagsFake(), routeSvc, engine)
 	d.Key("j")
-	d.RequireGolden("tags-expanded-120x40")
+	d.RequireGoldenSizes("tags-expanded")
 }
 
 // toasts counts the toasts with the text shown so far.

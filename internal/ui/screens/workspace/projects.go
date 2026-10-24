@@ -516,9 +516,7 @@ func (t *projectsTab) filterLine() string {
 	env := t.env()
 	s := env.Styles
 	if t.fl.Focused() {
-		lines := strings.Split(t.fl.View(), "\n")
-		lines[0] += "  " + s.Muted.Render(env.Msg.WS.FilterHint)
-		return strings.Join(lines, "\n")
+		return t.fl.ViewWithHint(env.Msg.WS.FilterHint, s.Muted)
 	}
 	extra := s.Muted.Render(env.Msg.WS.Search)
 	if t.text != "" {

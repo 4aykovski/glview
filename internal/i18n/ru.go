@@ -36,6 +36,7 @@ var ru = func() Messages {
 	m.Help.Screen = "Этот экран"
 	m.Help.Global = "Везде"
 	m.Help.Close = "esc / ? закрыть"
+	m.Help.Scroll = "j/k прокрутка"
 	m.Help.LanguageLine = "Язык: русский · ctrl+l — английский"
 	m.Help.TokenSource = "Токен из"
 	m.Help.GlabFound = func(host string) string { return "glab: найден, используется для " + host }

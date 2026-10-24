@@ -1,0 +1,24 @@
+gitlab-tui  ~/src · workspace · 5 GitLab projects                  @egor · ⟳ <1m
+ 1 Projects 5   2 MRs 6   3 Pipelines   4 Tags
+────────────────────────────────────────────────────────────────────────────────
+/ search  me: not applied to tags               per project: 3 · sort: version ↓
+  Tag         Commit   Message                                  Pipeline     Ago
+────────────────────────────────────────────────────────────────────────────────
+  ▾ platform/route-service  58 tags · showing 3
+› v1.58.0     9fa2c8a  release: v1.58.0 ◆ release               ✓ #91761     1mo
+  v1.57.0     9fa2c89  release: v1.57.0                         —            1mo
+  v1.56.0     9fa2c88  release: v1.56.0                         —            1mo
+  ↳ 55 more · f filter by project
+  ▾ platform/routing-engine  12 tags · showing 3
+  v0.12.0     3e81b0c  Bump                                     ✓ #40100      3w
+  v0.11.0     3e81b0b  Bump                                     —             3w
+  v0.10.0     3e81b0a  Bump                                     —             2w
+  ↳ 9 more · f filter by project
+  ▸ frontend/route-planner-ui  v2.3.1
+  ▸ infra/router-configs  no tags
+  ▸ qa/e2e-routes  no tags
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+j/k down  enter tag pipeline  n new tag  ? help        groups by latest activity

@@ -612,8 +612,7 @@ func (b *groupBase[T]) filterInput(errText func(error) string) (string, bool) {
 	if err := b.fl.Err(); err != nil {
 		return strings.Join(lines, "\n") + "\n" + env.Styles.Error.Render(errText(err)), true
 	}
-	lines[0] += "  " + env.Styles.Muted.Render(env.Msg.Project.FilterHint)
-	return strings.Join(lines, "\n"), true
+	return b.fl.ViewWithHint(env.Msg.Project.FilterHint, env.Styles.Muted), true
 }
 
 // chip is the P chip ("projects: 3 ✕", "project: route ✕"), "" without P.

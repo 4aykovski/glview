@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -60,10 +61,15 @@ func (c *Confirm) View(width, _ int) string {
 	return s.Modal.Render(s.ModalTitle.Render(c.title) + "\n\n" + body + "\n\n" + buttons)
 }
 
-// Help lists the top screen's key groups and the global keys.
+// Help lists the top screen's key groups and the global keys. When the
+// list is taller than the terminal, the key groups scroll (j/k, pgup/pgdn).
 type Help struct {
 	env    *Env
 	groups []common.Group
+
+	off    int // first visible line of the key groups
+	maxOff int // largest off for the height of the last View
+	page   int // visible lines of the key groups in the last View
 }
 
 // NewHelp builds the help overlay from the screen and global key maps;
@@ -85,17 +91,35 @@ func (h *Help) Update(msg tea.Msg) (Overlay, tea.Cmd) {
 		switch k.String() {
 		case "esc", "?", "q", "enter":
 			return nil, nil
+		case "j", "down":
+			h.off = min(h.off+1, h.maxOff)
+		case "k", "up":
+			h.off = max(h.off-1, 0)
+		case "pgdown", "ctrl+d", "space":
+			h.off = min(h.off+max(1, h.page-1), h.maxOff)
+		case "pgup", "ctrl+u":
+			h.off = max(h.off-max(1, h.page-1), 0)
+		case "home", "g":
+			h.off = 0
+		case "end", "G":
+			h.off = h.maxOff
 		}
 	}
 	return h, nil
 }
 
-func (h *Help) View(width, _ int) string {
+// helpChrome is the number of terminal rows kept free around the box's
+// scrolling content: the border (2) and two free rows of the screen.
+const helpChrome = 4
+
+func (h *Help) View(width, height int) string {
 	s := h.env.Styles
-	var b strings.Builder
-	b.WriteString(s.ModalTitle.Render(h.env.Msg.Help.Title))
-	for _, g := range h.groups {
-		b.WriteString("\n\n" + s.Muted.Render(strings.ToUpper(g.Title)))
+	var lines []string
+	for gi, g := range h.groups {
+		if gi > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, s.Muted.Render(strings.ToUpper(g.Title)))
 		keyW := 0
 		for _, bd := range g.Bindings {
 			if bd.Visible() {
@@ -107,10 +131,24 @@ func (h *Help) View(width, _ int) string {
 				continue
 			}
 			hk := bd.Help()
-			b.WriteString("\n" + s.Key.Render(hk.Key) + strings.Repeat(" ", keyW-lipgloss.Width(hk.Key)+2) + hk.Desc)
+			lines = append(lines, s.Key.Render(hk.Key)+strings.Repeat(" ", keyW-lipgloss.Width(hk.Key)+2)+hk.Desc)
 		}
 	}
+	// Fixed rows: title, blank, blank, language line, close line.
+	h.page = max(3, height-helpChrome-5)
+	total := len(lines)
+	h.maxOff = max(0, total-h.page)
+	h.off = min(h.off, h.maxOff)
+	closeLine := s.Muted.Render(h.env.Msg.Help.Close)
+	if h.maxOff > 0 {
+		lines = lines[h.off : h.off+h.page]
+		closeLine = s.Muted.Render(h.env.Msg.Help.Close + " · " + h.env.Msg.Help.Scroll + " " +
+			strconv.Itoa(h.off+1) + "–" + strconv.Itoa(h.off+h.page) + "/" + strconv.Itoa(total))
+	}
+	var b strings.Builder
+	b.WriteString(s.ModalTitle.Render(h.env.Msg.Help.Title) + "\n\n")
+	b.WriteString(strings.Join(lines, "\n"))
 	b.WriteString("\n\n" + s.Muted.Render(h.env.Msg.Help.LanguageLine))
-	b.WriteString("\n" + s.Muted.Render(h.env.Msg.Help.Close))
+	b.WriteString("\n" + closeLine)
 	return s.Modal.MaxWidth(width - 2).Render(b.String())
 }
