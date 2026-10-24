@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › MRs › !479                    @egor · ⟳ <1m
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
+✗ not_approved  ✓ 1/2 approved  ✗ pipeline #91840 · failed  1 thread unresolved
+ Overview   Diff 5   Discussions 3   Pipelines 2   Commits
+────────────────────────────────────────────────────────────────────────────────
+ ▾ internal/slots/alloc.go                                                 +2 −1
+ @@ -40,3 +40,4 @@ func alloc() {
+ 40 40  func alloc() {
+ 41    -    slots = nil
+       ✓ bob · 3h · Fine to drop
+›   41 +    mu.Lock()
+    42 +    slots = map[int]int{}
+       ● anna.k · 2h · Why a mutex here? · 1 reply
+ 42 43  }
+
+ ▾ docs/old.md → docs/metrics.md                                           +1 −1
+ @@ -1 +1 @@
+  1    -# Old
+     1 +# Metrics
+
+ ▾ cmd/tool/main.go  new                                                   +2 −0
+────────────────────────────────────────────────────────────────────────────────
+tab next tab  j/k line  J/K file  space fold  c to line  ? help         poll 30s

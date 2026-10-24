@@ -48,7 +48,7 @@ func plainTabBar(s *Screen) string { return ansi.Strip(s.tabBar()) }
 
 func TestCommitsTabLoadsLazilyOnce(t *testing.T) {
 	d, scr, client := commitsSetup(t, baseMR())
-	d.Key("tab", "tab")
+	d.Key("tab", "tab", "tab")
 	if n := client.CallCount(commitsMethod); n != 0 {
 		t.Fatalf("commits requested before the tab was opened: %d", n)
 	}
@@ -65,13 +65,13 @@ func TestCommitsTabLoadsLazilyOnce(t *testing.T) {
 	if v := d.View(); strings.Index(v, "c3d4e5f6") > strings.Index(v, "b2c3d4e5") {
 		t.Fatal("API order (newest first) must be kept")
 	}
-	d.Key("tab", "tab", "tab", "tab")
+	d.Key("tab", "tab", "tab", "tab", "tab")
 	if n := client.CallCount(commitsMethod); n != 1 {
 		t.Fatalf("second visit must not reload: %d requests", n)
 	}
 }
 
-func TestShiftTabCyclesOverFourTabs(t *testing.T) {
+func TestShiftTabCyclesOverFiveTabs(t *testing.T) {
 	d, scr, client := commitsSetup(t, baseMR())
 	d.Key("shift+tab")
 	if scr.tab != tabCommits || client.CallCount(commitsMethod) != 1 {

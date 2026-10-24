@@ -1,0 +1,24 @@
+gitlab-tui  platform/route-service › MRs › !479                    @egor · ⟳ <1м
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · открыт 1ч назад · +48 −12 3 файла
+✗ not_approved  ✓ 1/2 апрувов  ✗ pipeline #91840 · failed  1 тред не разрешено
+ Обзор   Diff 5   Обсуждения 3   Пайплайны 2   Коммиты
+────────────────────────────────────────────────────────────────────────────────
+ ▾ internal/slots/alloc.go                                                 +2 −1
+ @@ -40,3 +40,4 @@ func alloc() {
+ 40 40  func alloc() {
+ 41    -    slots = nil
+       ✓ bob · 3ч · Fine to drop
+›   41 +    mu.Lock()
+    42 +    slots = map[int]int{}
+       ● anna.k · 2ч · Why a mutex here? · 1 ответ
+ 42 43  }
+
+ ▾ docs/old.md → docs/metrics.md                                           +1 −1
+ @@ -1 +1 @@
+  1    -# Old
+     1 +# Metrics
+
+ ▾ cmd/tool/main.go  новый                                                 +2 −0
+────────────────────────────────────────────────────────────────────────────────
+tab след. таб  j/k строка  J/K файл  a апрув  c к строке  ? хелп   Язык: русский

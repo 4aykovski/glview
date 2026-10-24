@@ -13,7 +13,7 @@ func TestGoldenOverview(t *testing.T) {
 
 func TestGoldenDiscussions(t *testing.T) {
 	d, _, _, _ := setup(t, baseMR())
-	d.Key("tab")
+	d.Key("tab", "tab")
 	d.RequireGoldenSizes("mrdetail-discussions")
 }
 
@@ -35,7 +35,7 @@ func TestGoldenMerged(t *testing.T) {
 func TestGoldenDiscussionsRich(t *testing.T) {
 	d, _, _, client := setup(t, baseMR())
 	client.SetDiscussions(path, 479, richDiscussions(t))
-	d.Key("r", "tab")
+	d.Key("r", "tab", "tab")
 	d.RequireGoldenSizes("mrdetail-discussions-rich")
 }
 
