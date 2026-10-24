@@ -10,3 +10,14 @@
 #### Scenario: Группы в шаблоне
 - **WHEN** правило `pattern: 'INC(\d+)'`, `url: 'https://tracker.example.com/incident/$1'`, title `INC42 hotfix`
 - **THEN** ссылка `INC42 — https://tracker.example.com/incident/42`
+
+### Requirement: Значение `theme`
+Конфиг SHALL принимать `theme: terminal` (по умолчанию) и `theme: terminal-faint`. Неизвестное значение SHALL заменяться на `terminal` с тостом-предупреждением, называющим ключ `theme`; запуск не прерывается.
+
+#### Scenario: Тема terminal-faint
+- **WHEN** в конфиге `theme: terminal-faint`
+- **THEN** второстепенный текст рисуется цветом по умолчанию с атрибутом Faint, без ANSI 8
+
+#### Scenario: Неизвестная тема
+- **WHEN** в конфиге `theme: foo`
+- **THEN** при старте тост-предупреждение с `theme`, используется `terminal`

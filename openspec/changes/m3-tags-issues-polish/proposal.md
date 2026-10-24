@@ -8,7 +8,9 @@ M2 закрыт (архив `2026-10-22-m2-workspace`). Веха «M3 — тег
 
 Issues и комментарии (#24, T24): таб Issues — заглушка, комментарий к MR (`c`, SPEC §13.1 п.14) не сделан. Нельзя посмотреть issues проекта, прокомментировать issue или MR и закрыть issue без браузера (SPEC §1, цель 3).
 
-Задачи вехи: #51 (T34), #23 (T23) — сделаны; #24 (T24) — в работе; #25 (T25) — добавится в эту change позже.
+Задачи вехи: #51 (T34), #23 (T23), #24 (T24) — сделаны (остались ручные проверки на живом инстансе); #25 (T25) — в работе.
+
+Полировка (#25, T25): в 80×24 часть экранов не проверена снимками; ошибки 401/403/429 и офлайн (SPEC §11.1) не сверены с кодом целиком; Muted = ANSI 8 сливается с фоном в Solarized Dark (SPEC §13.2, вопрос 1); README описывает только M1.
 
 ## What Changes
 
@@ -32,6 +34,11 @@ Issues и комментарии (#24, T24): таб Issues — заглушка,
 - Форма комментария (`screens/comment`): textarea, `tab` → кнопка `enter Отправить`, `alt+enter`, черновик в памяти сессии; `c` в Issues, на экране issue, в табах MRs и MR detail (#24).
 - `x` close (confirm) / reopen (#24).
 - Строки — i18n en/ru; правки SPEC до кода: §2.6, §3.1, §3.4, §3.5, §3.15, §3.16, §4, §5.2, §6.1, §6.3 (#24).
+- Проверка 80×24 и ширины < 80 на всех экранах и оверлеях, en и ru; недостающие golden 80×24 (#25).
+- Аудит ошибок по SPEC §11.1: маппинг REST/GraphQL, тосты и подсказки, 401 посреди сессии, офлайн с backoff и «соединение восстановлено» — тесты и исправления расхождений (#25).
+- Тема `terminal-faint`: Muted через атрибут Faint вместо ANSI 8 (Solarized Dark); `theme` в конфиге получает второе значение (#25).
+- README: workspace, поиск, теги, issues, комментарии, `links`, темы, хоткеи M2–M3 (#25).
+- Правки SPEC до кода: §7, §9, §12.3, §13.2 (#25).
 
 ## Capabilities
 
@@ -42,7 +49,7 @@ Issues и комментарии (#24, T24): таб Issues — заглушка,
 - `merge-requests`: ссылки MR — источники, OSC 8 в title и описании, оверлей `L` в MR detail; комментарий `c` к MR (#24).
 - `project-view`: OSC 8 в title списка MR, `L` в табе MRs; таб Tags, предложение версии, форма New tag, удаление тега (#23); заглушек табов больше нет (#24).
 - `workspace`: то же в групповом табе MRs; групповой таб Tags, свёрнутые группы и `P` для Tags, `f` → Tags (#23); `c` в групповом табе MRs (#24).
-- `configuration`: правила `links`.
+- `configuration`: правила `links`; значение `theme: terminal-faint` (#25).
 
 ## Impact
 
@@ -53,3 +60,4 @@ Issues и комментарии (#24, T24): таб Issues — заглушка,
 - Документы: docs/SPEC.md (см. design.md, решение 7).
 - #23: `internal/gitlab` (`TagService`, `Comparison`, `MatchTagPipelines`, `WorkspaceService.Tags`), `gitlab/rest` (теги, compare, пайплайны тегов, workspace), `gitlab/hybrid`, `gitlab/fake`; новый `internal/semver`; `ui/screens/project` (таб Tags, `Options.TagSearch`), `ui/screens/workspace` (таб Tags), новые `ui/screens/newtag`, `ui/screens/tagactions`; `internal/i18n`. Документы: docs/SPEC.md (design.md, решение 14).
 - #24: `internal/gitlab` (`IssueService`, `IssueFilter`, `RelatedMR`, поля `Issue`, `MergeRequestService.Comment`, `ProjectService.Milestones`), `gitlab/rest` (issues, notes, milestones), `gitlab/hybrid`, `gitlab/fake`; `ui/screens/project` (таб Issues, подсказки milestones, `c` в MRs), `ui/screens/workspace` (`c` в MRs), `ui/screens/mrdetail` (переход на `threads`, `c`); новые `ui/screens/threads`, `ui/screens/issuedetail`, `ui/screens/comment`, `ui/screens/issueactions`; `ui/app` (черновики комментариев в `Env`); `internal/i18n`. Документы: docs/SPEC.md (design.md, решение 21).
+- #25: `internal/ui/common` (`Theme`, `Styles`), `internal/config` (проверка `theme`), `cmd/gitlab-tui` (выбор темы), `gitlab/httpx` и маппинг ошибок (только при найденных расхождениях), `ui/app` (офлайн/401 — при расхождениях), тесты экранов 80×24; README.md. Документы: docs/SPEC.md (design.md, решение 34).
