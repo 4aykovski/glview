@@ -1,12 +1,12 @@
 ## 0. Подготовка
 
-- [ ] 0.1 Ветка `t36-todos` от `after-mvp`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); SPEC уже поправлен (коммит «SPEC: диффы, To-Do, создание MR …» в `after-mvp`), правки SPEC — только при расхождении, сначала SPEC
+- [x] 0.1 Ветка `t36-todos` от `after-mvp`, `git config --get core.hooksPath` = `scripts/githooks` (иначе `make hooks`); SPEC уже поправлен (коммит «SPEC: диффы, To-Do, создание MR …» в `after-mvp`), правки SPEC — только при расхождении, сначала SPEC
 
 ## 1. Слой gitlab (#28, T36)
 
-- [ ] 1.1 `internal/gitlab`: `Todo`, `TodoFilter`, `TodoService`, `Client.Todos()`; проверка: `go build ./...`
-- [ ] 1.2 `gitlab/rest/todos.go` (решение 9), `hybrid` делегирует; проверка: httptest-тесты на выдуманных данных — параметры `state`/`type`/`page`, цели MR, issue и commit в одном ответе, `X-Total` → `Total`, `Pending` без `X-Total` → -1, `mark_as_done` по ID и все, 401/403 → доменные ошибки
-- [ ] 1.3 Фейк (`fake/todos.go`): задачи в памяти (выдуманные), `MarkDone`/`MarkAllDone` меняют state, журнал вызовов, инъекция ошибок; демо-данные; проверка: `go test ./internal/gitlab/...`
+- [x] 1.1 `internal/gitlab`: `Todo`, `TodoFilter`, `TodoService`, `Client.Todos()`; проверка: `go build ./...`
+- [x] 1.2 `gitlab/rest/todos.go` (решение 9), `hybrid` делегирует; проверка: httptest-тесты на выдуманных данных — параметры `state`/`type`/`page`, цели MR, issue и commit в одном ответе, `X-Total` → `Total`, `Pending` без `X-Total` → -1, `mark_as_done` по ID и все, 401/403 → доменные ошибки
+- [x] 1.3 Фейк (`fake/todos.go`): задачи в памяти (выдуманные), `MarkDone`/`MarkAllDone` меняют state, журнал вызовов, инъекция ошибок; демо-данные; проверка: `go test ./internal/gitlab/...`
 
 ## 2. Экран и корень (#28, T36)
 

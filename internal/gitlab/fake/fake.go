@@ -39,6 +39,10 @@ type Client struct {
 	groups        []gitlab.Group
 	groupProjects map[int64][]string
 	unknownTotal  map[int64]bool // ListGroupProjects reports total -1
+
+	// To-dos (todos.go).
+	todos       []gitlab.Todo
+	todoNoTotal bool
 }
 
 var _ gitlab.Client = (*Client)(nil)
