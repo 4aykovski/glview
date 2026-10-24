@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,8 +18,22 @@ import (
 	"github.com/4aykovski/glview/internal/xdg"
 )
 
-// version is set at build time via -ldflags "-X main.version=...".
+// version is set at build time via -ldflags "-X main.version=...";
+// otherwise run resolves it from the module build info.
 var version = "dev"
+
+// resolveVersion prefers the ldflags value and falls back to the main
+// module version (set by go install module@version).
+func resolveVersion(ldflags string, info func() (*debug.BuildInfo, bool)) string {
+	if ldflags != "dev" {
+		return ldflags
+	}
+	bi, ok := info()
+	if !ok || bi == nil || bi.Main.Version == "" || bi.Main.Version == "(devel)" {
+		return ldflags
+	}
+	return bi.Main.Version
+}
 
 type options struct {
 	project     string
@@ -52,6 +67,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	version = resolveVersion(version, debug.ReadBuildInfo)
 	opts, err := parseFlags(args, stderr)
 	if err != nil {
 		if err == flag.ErrHelp {
