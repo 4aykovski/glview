@@ -394,6 +394,23 @@ func TestDiffThreadsUnderTheirLines(t *testing.T) {
 	d.RequireView("1 ответ")
 }
 
+func TestDiffThreadOfAnotherVersionIsNotAttached(t *testing.T) {
+	d, scr, client := diffSetupOverview(t, baseMR(), testDiffs())
+	ths := lineThreads()
+	ths[0].Position.HeadSHA = "a91f2c0d" // the current version: stays
+	ths[1].Position.HeadSHA = "0ldf0rce" // the line number matches, the code does not
+	client.SetDiscussions(path, 479, ths)
+	d.Key("r", "tab")
+	d.RequireView("anna.k · 2h · Why a mutex here?")
+	d.RequireNoView("Fine to drop", "bob")
+	if _, ok := scr.diff.threads["t2"]; ok {
+		t.Fatal("a thread of another head must not be attached to a line")
+	}
+	if _, ok := scr.threads.Current(); !ok {
+		t.Fatal("the thread stays in Discussions")
+	}
+}
+
 func TestDiffEnterOnThreadOpensDiscussions(t *testing.T) {
 	d, scr, _ := threadSetup(t)
 	for range len(scr.diff.rows) {

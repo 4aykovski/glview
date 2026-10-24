@@ -204,6 +204,8 @@ type NotePosition struct {
 	// The position as the API reports it; 0 means "none".
 	OldPath, NewPath string
 	OldLine, NewLine int
+	// The versions of the diff the position belongs to; "" means unknown.
+	BaseSHA, StartSHA, HeadSHA string
 }
 
 type PipelineSummary struct {

@@ -100,13 +100,13 @@ func TestCommentLineBadRequest(t *testing.T) {
 
 func TestDiscussionPositionFields(t *testing.T) {
 	c, _ := newServer(t, "", map[string]func(http.ResponseWriter, *http.Request){
-		"GET /api/v4/projects/42/merge_requests/479/discussions": jsonReply(200, `[{"id":"d1","notes":[{"id":1,"body":"x","author":{"username":"anna.k"},"position":{"old_path":"a.go","new_path":"b.go","old_line":7,"new_line":0}}]}]`),
+		"GET /api/v4/projects/42/merge_requests/479/discussions": jsonReply(200, `[{"id":"d1","notes":[{"id":1,"body":"x","author":{"username":"anna.k"},"position":{"old_path":"a.go","new_path":"b.go","old_line":7,"new_line":0,"base_sha":"b0b0","start_sha":"5757","head_sha":"a91f"}}]}]`),
 	})
 	ds, err := c.MergeRequests().Discussions(context.Background(), proj, 479)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := gitlab.NotePosition{Path: "b.go", Line: 0, OldPath: "a.go", NewPath: "b.go", OldLine: 7}
+	want := gitlab.NotePosition{Path: "b.go", Line: 0, OldPath: "a.go", NewPath: "b.go", OldLine: 7, BaseSHA: "b0b0", StartSHA: "5757", HeadSHA: "a91f"}
 	if ds[0].Position == nil || *ds[0].Position != want {
 		t.Fatalf("position = %+v, want %+v", ds[0].Position, want)
 	}

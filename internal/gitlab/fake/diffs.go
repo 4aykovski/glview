@@ -43,6 +43,7 @@ func (s mrService) CommentLine(ctx context.Context, p gitlab.ProjectRef, iid int
 	np := &gitlab.NotePosition{
 		Path: pos.NewPath, Line: pos.NewLine,
 		OldPath: pos.OldPath, NewPath: pos.NewPath, OldLine: pos.OldLine, NewLine: pos.NewLine,
+		BaseSHA: pos.BaseSHA, StartSHA: pos.StartSHA, HeadSHA: pos.HeadSHA,
 	}
 	if pos.NewLine == 0 {
 		np.Path, np.Line = pos.OldPath, pos.OldLine

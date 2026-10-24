@@ -72,6 +72,7 @@ func mapDiscussion(d *gl.Discussion) gitlab.Discussion {
 						Path: path, Line: int(line),
 						OldPath: n.Position.OldPath, NewPath: n.Position.NewPath,
 						OldLine: int(n.Position.OldLine), NewLine: int(n.Position.NewLine),
+						BaseSHA: n.Position.BaseSHA, StartSHA: n.Position.StartSHA, HeadSHA: n.Position.HeadSHA,
 					}
 				}
 			}

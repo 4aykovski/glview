@@ -138,6 +138,13 @@ func pathMatches(p *gitlab.NotePosition, f gitlab.DiffFile) bool {
 	return p.OldPath != "" && p.OldPath == f.OldPath
 }
 
+// outdated reports whether position p belongs to another version of the diff
+// than refs: its line numbers would point at foreign code. Unknown SHAs
+// (either side) leave the position to the line lookup alone.
+func (*diffTab) outdated(p *gitlab.NotePosition, refs *gitlab.DiffRefs) bool {
+	return refs != nil && refs.HeadSHA != "" && p.HeadSHA != "" && p.HeadSHA != refs.HeadSHA
+}
+
 // rebuildDiff recomputes the rows from the files, folds and discussions and
 // keeps the cursor on the same row (else on the header of its file, else at
 // the same index).
@@ -156,7 +163,7 @@ func (s *Screen) rebuildDiff() {
 	d.threads = map[string]gitlab.Discussion{}
 	for _, disc := range threads.User(s.discs) {
 		p := disc.Position
-		if p == nil {
+		if p == nil || d.outdated(p, s.mr.DiffRefs) {
 			continue
 		}
 		for fi, f := range d.files {
