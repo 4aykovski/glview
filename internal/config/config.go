@@ -206,7 +206,12 @@ func (c *Config) normalize() []Warning {
 	if c.Language != "en" && c.Language != "ru" {
 		c.Language = d.Language
 	}
-	if c.Theme == "" {
+	switch c.Theme {
+	case "terminal", "terminal-faint":
+	case "":
+		c.Theme = d.Theme
+	default:
+		warns = append(warns, badValue("theme", c.Theme, d.Theme))
 		c.Theme = d.Theme
 	}
 	if c.Workspace.PerProject <= 0 {

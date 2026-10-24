@@ -58,12 +58,15 @@ const (
 // can rebuild cached strings and key maps.
 type Env struct {
 	Styles *common.Styles
-	Msg    *i18n.Messages
-	Lang   i18n.Lang
-	Client gitlab.Client // nil until authenticated (setup screen)
-	User   gitlab.User
-	Host   string // instance URL
-	Now    func() time.Time
+	// ThemeName is the config theme; the root rebuilds Styles from it when
+	// the terminal background changes. Empty = terminal.
+	ThemeName string
+	Msg       *i18n.Messages
+	Lang      i18n.Lang
+	Client    gitlab.Client // nil until authenticated (setup screen)
+	User      gitlab.User
+	Host      string // instance URL
+	Now       func() time.Time
 
 	Cache    *cache.Cache // nil disables caching (every load goes to the network)
 	Glab     *glab.Glab   // nil when glab is not installed or disabled

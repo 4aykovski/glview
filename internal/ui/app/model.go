@@ -50,7 +50,7 @@ func New(env *Env, first Screen, opts Options) *Model {
 	}
 	m := &Model{env: env, opts: opts, isDark: true}
 	if env.Styles == nil {
-		env.Styles = common.NewStyles(common.TerminalTheme(true))
+		env.Styles = common.NewStyles(common.ThemeByName(env.ThemeName, true))
 	} else {
 		m.isDark = env.Styles.Theme.IsDark
 	}
@@ -125,7 +125,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.BackgroundColorMsg:
 		if dark := msg.IsDark(); dark != m.isDark {
 			m.isDark = dark
-			m.env.Styles = common.NewStyles(common.TerminalTheme(dark))
+			m.env.Styles = common.NewStyles(common.ThemeByName(m.env.ThemeName, dark))
 			return m, m.broadcast(ThemeChangedMsg{Styles: m.env.Styles})
 		}
 		return m, nil

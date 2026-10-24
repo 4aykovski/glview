@@ -197,6 +197,8 @@ func applyConfig(env *app.Env, cfg config.Config, warns []config.Warning, cfgPat
 		PrefillLocalBranch: cfg.RunPipeline.PrefillLocalBranch,
 		LinkRules:          linkRules(cfg.Links),
 	}
+	env.ThemeName = cfg.Theme
+	env.Styles = common.NewStyles(common.ThemeByName(cfg.Theme, env.Styles.Theme.IsDark))
 	var toasts []app.ToastMsg
 	for _, w := range warns {
 		var text string

@@ -184,3 +184,23 @@ func TestLoadLinksBadRules(t *testing.T) {
 		t.Fatalf("keys = %v, want %v", keys, want)
 	}
 }
+
+func TestLoadThemeValues(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "theme: terminal-faint\n", 0o600))
+	if err != nil || len(warns) != 0 || cfg.Theme != "terminal-faint" {
+		t.Fatalf("theme = %q, warns = %+v, err = %v", cfg.Theme, warns, err)
+	}
+}
+
+func TestLoadUnknownThemeWarnsAndFallsBack(t *testing.T) {
+	cfg, warns, err := Load(writeFile(t, "theme: foo\n", 0o600))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme != "terminal" {
+		t.Fatalf("theme = %q", cfg.Theme)
+	}
+	if len(warns) != 1 || warns[0].Kind != WarnValue || warns[0].Key != "theme" || warns[0].Value != "foo" || warns[0].Default != "terminal" {
+		t.Fatalf("want one value warning, got %+v", warns)
+	}
+}

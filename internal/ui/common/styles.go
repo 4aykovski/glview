@@ -71,6 +71,11 @@ func NewStyles(t Theme) *Styles {
 
 	s.Text = fg(t.Fg)
 	s.Muted = fg(t.Muted)
+	canceled := fg(t.Status.Canceled)
+	if t.Faint {
+		s.Muted = s.Muted.Faint(true)
+		canceled = canceled.Faint(true)
+	}
 	s.Accent = fg(t.Accent)
 	s.Bold = lipgloss.NewStyle().Bold(true)
 	s.Success = fg(t.Status.Success)
@@ -162,10 +167,10 @@ func NewStyles(t Theme) *Styles {
 		gitlab.StatusPending:            fg(t.Status.Pending),
 		gitlab.StatusPreparing:          fg(t.Status.Pending),
 		gitlab.StatusWaitingForResource: fg(t.Status.Pending),
-		gitlab.StatusCanceling:          fg(t.Status.Canceled),
+		gitlab.StatusCanceling:          canceled,
 		gitlab.StatusManual:             fg(t.Status.Manual),
 		gitlab.StatusScheduled:          fg(t.Status.Manual),
-		gitlab.StatusCanceled:           fg(t.Status.Canceled),
+		gitlab.StatusCanceled:           canceled,
 		gitlab.StatusCreated:            s.Muted,
 		gitlab.StatusSkipped:            s.Muted,
 	}

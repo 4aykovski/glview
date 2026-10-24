@@ -50,3 +50,13 @@ func TestApplyConfigLinkRules(t *testing.T) {
 		t.Fatalf("toasts = %+v", toasts)
 	}
 }
+
+func TestApplyConfigTheme(t *testing.T) {
+	env := app.NewEnv(i18n.EN)
+	cfg := config.Default()
+	cfg.Theme = "terminal-faint"
+	applyConfig(env, cfg, nil, "config.yaml")
+	if !env.Styles.Theme.Faint || env.ThemeName != "terminal-faint" {
+		t.Fatalf("theme = %+v, name = %q", env.Styles.Theme, env.ThemeName)
+	}
+}
