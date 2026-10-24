@@ -1,0 +1,40 @@
+gitlab-tui  To-Do · gitlab.example.com                                                                                         @egor · To-Do 5 · ⟳ <1m
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+state:pending  type:any                                                    5 of 5 │  Slot allocator rewrite
+  Target    Title                 Action            Ago  Author   Project         │  !479 · platform/route-service · opened · 2h
+───────────────────────────────────────────────────────────────────────────────── │  review requested · anna.k
+› !479      Slot allocator rewr…  review request…    2h  anna.k   platform/route… │  Slot allocator rewrite
+  #1318     Surge coefficient i…  mentioned          3h  d.orlov  platform/route… │
+  01234567  Fix slot overflow     pipeline failed    1d  anna.k   platform/route… │
+  —         Q4 planning           okr_checkin_re…    1d  d.orlov  —               │
+  !482      Cache warmup on dep…  added              2d  anna.k   platform/route… │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+                                                                                  │
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+j/k down  enter open  x done  X all done  s state  t type  ⌫ reset filters  o To-Do in browser  O target in browser  y copy  ? help              1 / 5
