@@ -411,6 +411,21 @@ func TestDiffThreadOfAnotherVersionIsNotAttached(t *testing.T) {
 	}
 }
 
+func TestDiffThreadRowWithLongLoginFitsTheWidth(t *testing.T) {
+	d, _, client := diffSetupOverview(t, baseMR(), testDiffs())
+	ths := lineThreads()
+	ths[0].Notes[0].Author.Username = strings.Repeat("anna.k.the.reviewer.", 5)
+	client.SetDiscussions(path, 479, ths)
+	d.Send(tea.WindowSizeMsg{Width: 80, Height: 24})
+	d.Key("r", "tab")
+	d.RequireView("anna.k.the.reviewer.")
+	for _, l := range strings.Split(d.View(), "\n") {
+		if w := ansi.StringWidth(l); w > 80 {
+			t.Fatalf("line of %d columns on an 80-column screen: %q", w, ansi.Strip(l))
+		}
+	}
+}
+
 func TestDiffEnterOnThreadOpensDiscussions(t *testing.T) {
 	d, scr, _ := threadSetup(t)
 	for range len(scr.diff.rows) {

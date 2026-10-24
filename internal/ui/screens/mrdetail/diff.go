@@ -670,5 +670,6 @@ func (s *Screen) threadRow(disc gitlab.Discussion, numCols, cw int) string {
 	}
 	first := strings.Join(strings.Fields(render.FirstLine(n.Body)), " ")
 	room := cw - numCols - ansi.StringWidth(head) - ansi.StringWidth(tail)
-	return strings.Repeat(" ", numCols) + head + ansi.Truncate(first, max(1, room), "…") + tail
+	row := strings.Repeat(" ", numCols) + head + ansi.Truncate(first, max(1, room), "…") + tail
+	return ansi.Truncate(row, cw, "…") // a long login must not widen the window
 }
