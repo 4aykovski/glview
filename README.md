@@ -1,4 +1,4 @@
-# gitlab-tui
+# glview
 
 Терминальный клиент GitLab на Go и [Bubble Tea](https://github.com/charmbracelet/bubbletea). Показывает MR, пайплайны, логи джоб, теги и issues текущего проекта или целой папки с проектами и делает частые действия без браузера: approve, merge, rebase, комментарии, retry/cancel/play джоб, запуск пайплайна с переменными, создание и удаление тегов, close/reopen issues.
 
@@ -29,7 +29,7 @@ Self-hosted GitLab — первоклассный сценарий: свой URL
 Нужен Go 1.26+.
 
 ```sh
-go install github.com/4aykovski/glview/cmd/gitlab-tui@latest
+go install github.com/4aykovski/glview/cmd/glview@latest
 ```
 
 Или из исходников:
@@ -37,7 +37,7 @@ go install github.com/4aykovski/glview/cmd/gitlab-tui@latest
 ```sh
 git clone https://github.com/4aykovski/glview.git
 cd glview
-make build        # бинарь в ./bin/gitlab-tui
+make build        # бинарь в ./bin/glview
 ```
 
 Опционально:
@@ -48,10 +48,10 @@ make build        # бинарь в ./bin/gitlab-tui
 ## Запуск
 
 ```sh
-cd ~/src/route-service && gitlab-tui      # режим проекта: проект из remote origin
-cd ~/src && gitlab-tui                    # режим workspace: подпапки с .git на один уровень
-gitlab-tui -p platform/route-service      # проект напрямую
-gitlab-tui -p https://gitlab.example.com/platform/route-service
+cd ~/src/route-service && glview      # режим проекта: проект из remote origin
+cd ~/src && glview                    # режим workspace: подпапки с .git на один уровень
+glview -p platform/route-service      # проект напрямую
+glview -p https://gitlab.example.com/platform/route-service
 ```
 
 В workspace `F` ищет проекты и группы на сервере; выбранная группа открывается как workspace из её проектов (до `workspace.max_group_projects`), `esc` возвращает назад. В проекте `p` переключает проект, не выходя из TUI.
@@ -62,7 +62,7 @@ gitlab-tui -p https://gitlab.example.com/platform/route-service
 |---|---|
 | `-p, --project <path\|url>` | открыть проект напрямую: `group/sub/project` или полный URL проекта |
 | `--config <file>` | другой конфиг |
-| `--debug` | лог в `$XDG_CACHE_HOME/gitlab-tui/debug.log`, токены маскируются |
+| `--debug` | лог в `$XDG_CACHE_HOME/glview/debug.log`, токены маскируются |
 | `--debug-styles` | показать все стили и статусы темы и выйти |
 | `--version` | версия и выход |
 
@@ -77,7 +77,7 @@ gitlab-tui -p https://gitlab.example.com/platform/route-service
 
 ## Конфиг
 
-`$XDG_CONFIG_HOME/gitlab-tui/config.yaml`, по умолчанию `~/.config/gitlab-tui/config.yaml` (и на macOS). Все ключи необязательные:
+`$XDG_CONFIG_HOME/glview/config.yaml`, по умолчанию `~/.config/glview/config.yaml` (и на macOS). Все ключи необязательные:
 
 ```yaml
 host: https://gitlab.example.com     # URL инстанса; можно с path-prefix: https://example.com/gitlab
@@ -135,7 +135,7 @@ links:                               # свои ссылки в заголовк
 - `theme: terminal-faint` — второстепенный текст цветом терминала по умолчанию с атрибутом Faint, рамки на тёмном фоне в ANSI 0. Подходит для палитр, где ANSI 8 сливается с фоном; не все терминалы одинаково рисуют Faint.
 - `NO_COLOR=1` — цвета отключаются, остаются жирный и инверсия: выделение и активный таб видны, статусы различимы по глифам.
 
-`gitlab-tui --debug-styles` печатает образец всех стилей выбранной темы — удобно сравнить темы на своей палитре.
+`glview --debug-styles` печатает образец всех стилей выбранной темы — удобно сравнить темы на своей палитре.
 
 ## Хоткеи
 
@@ -167,7 +167,7 @@ links:                               # свои ссылки в заголовк
 ## Разработка
 
 ```sh
-make build         # бинарь в ./bin/gitlab-tui
+make build         # бинарь в ./bin/glview
 make test          # go test ./...
 make lint          # golangci-lint run
 make run ARGS="-p platform/route-service"

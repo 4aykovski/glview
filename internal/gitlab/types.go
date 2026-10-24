@@ -1,4 +1,4 @@
-// Package gitlab holds gitlab-tui's own domain types and service
+// Package gitlab holds glview's own domain types and service
 // interfaces. The UI depends only on this package; transports (REST via
 // client-go, GraphQL) live in sub-packages and map into these types.
 package gitlab

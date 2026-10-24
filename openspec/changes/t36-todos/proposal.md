@@ -21,6 +21,6 @@
 
 ## Impact
 
-- Код: `internal/gitlab` (types, client), `gitlab/rest` (`todos.go`), `gitlab/hybrid`, `gitlab/fake`, `internal/ui/screens/todos` (новый), `internal/ui/app` (корень, `Env`, шапка), `cmd/gitlab-tui/wire.go`, `internal/i18n`.
+- Код: `internal/gitlab` (types, client), `gitlab/rest` (`todos.go`), `gitlab/hybrid`, `gitlab/fake`, `internal/ui/screens/todos` (новый), `internal/ui/app` (корень, `Env`, шапка), `cmd/glview/wire.go`, `internal/i18n`.
 - API: REST `/todos`. Новое фоновое обращение корня — один запрос раз в 5 мин.
 - Зависимостей не добавляется.

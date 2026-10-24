@@ -283,12 +283,12 @@ func TestNoCounterRequestWithoutTodoScreen(t *testing.T) {
 func TestHeaderDropsTodoCounterFirst(t *testing.T) {
 	st := common.NewStyles(common.TerminalTheme(true))
 	right := "@egor" + common.Optional(" · To-Do 5") + " · ⟳ 5m"
-	long := "a-rather-long-project-context-that-fills-the-line"
+	long := "a-rather-long-project-context-that-fills-the-whole-line"
 	wide := common.Header(st, long, right, 100)
 	if !strings.Contains(wide, "To-Do 5") {
 		t.Fatalf("fits: %q", wide)
 	}
-	// Left 'gitlab-tui  ' + 49 = 61, right 'To-Do 5' variant is 25: 86 < 90.
+	// Left 'glview  ' + 55 = 63, right 'To-Do 5' variant is 25: 88 < 90.
 	// At 80 the line is too narrow for all of it: the counter goes.
 	narrow := common.Header(st, long, right, 80)
 	if strings.Contains(narrow, "To-Do") || !strings.Contains(narrow, "@egor") || !strings.Contains(narrow, "⟳ 5m") || !strings.Contains(narrow, long) {

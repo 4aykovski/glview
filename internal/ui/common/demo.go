@@ -7,7 +7,7 @@ import (
 )
 
 // StyleDemo renders a sample of every style for manual checks on light and
-// dark terminals and with NO_COLOR (gitlab-tui --debug-styles).
+// dark terminals and with NO_COLOR (glview --debug-styles).
 func StyleDemo(s *Styles) string {
 	var b strings.Builder
 	line := func(parts ...string) { b.WriteString(strings.Join(parts, "  ") + "\n") }
@@ -16,7 +16,7 @@ func StyleDemo(s *Styles) string {
 	if !s.Theme.IsDark {
 		bg = "light"
 	}
-	line(s.AppName.Render("gitlab-tui"), s.Header.Render("platform/route-service"), s.HeaderMuted.Render("· theme "+s.Theme.Name+", "+bg+" background"))
+	line(s.AppName.Render("glview"), s.Header.Render("platform/route-service"), s.HeaderMuted.Render("· theme "+s.Theme.Name+", "+bg+" background"))
 	line(s.TabActive.Render("1 MRs 6"), s.Tab.Render("2 Pipelines"), s.Tab.Render("3 Issues 12"), s.Tab.Render("4 Tags"))
 	line(s.FilterKey.Render("state:")+s.FilterValue.Render("opened"), s.FilterKey.Render("reviewer:")+s.FilterValue.Render("@me"))
 	line(s.ColumnHeader.Render("IID    Title                                   Pipeline"))

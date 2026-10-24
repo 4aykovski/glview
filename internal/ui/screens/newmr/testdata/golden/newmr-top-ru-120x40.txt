@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › MRs › новый MR                                                                @egor
+glview  platform/route-service › MRs › новый MR                                                                    @egor
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 › Из ветки   feat/surge
   В ветку    main

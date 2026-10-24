@@ -89,7 +89,7 @@ const RecentLimit = 20
 // groups; the ones not opened for the longest time are dropped first.
 const WorkspaceLimit = 50
 
-// State is persisted user state ($XDG_STATE_HOME/gitlab-tui/state.json),
+// State is persisted user state ($XDG_STATE_HOME/glview/state.json),
 // kept per host. The old host-less "recent" field is ignored and dropped
 // on the next save.
 type State struct {

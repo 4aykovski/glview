@@ -11,7 +11,7 @@ func TestVersionFlag(t *testing.T) {
 	if code := run([]string{"--version"}, &out, &errb); code != 0 {
 		t.Fatalf("exit code %d, stderr %q", code, errb.String())
 	}
-	if !strings.HasPrefix(out.String(), "gitlab-tui ") {
+	if !strings.HasPrefix(out.String(), "glview ") {
 		t.Fatalf("unexpected output %q", out.String())
 	}
 }

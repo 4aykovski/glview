@@ -1,4 +1,4 @@
-gitlab-tui  ~/src · workspace · 5 GitLab projects                                                          @egor · ⟳ <1m
+glview  ~/src · workspace · 5 GitLab projects                                                              @egor · ⟳ <1m
  1 Projects 5   2 MRs 4   3 Pipelines   4 Tags
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /  state:opened  me: author/assignee/reviewer  project: platform ✕                              found in 2 of 2 projects

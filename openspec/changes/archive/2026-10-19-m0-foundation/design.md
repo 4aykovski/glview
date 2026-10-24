@@ -19,7 +19,7 @@
 ## Decisions
 
 ### Путь модуля — `github.com/4aykovski/glview`
-По remote репозитория. Бинарь — `gitlab-tui`.
+По remote репозитория. Бинарь — `glview`.
 
 ### Структура корня UI: стек + отдельный слой оверлеев
 `app.Model` хранит `[]Screen` и необязательный `overlay` (Help, Confirm, позже picker/search/формы). Оверлеи не кладутся в стек: они не меняют вершину, не вызывают Activated/Deactivated и не останавливают поллинг под собой. Отрисовка — композиция слоёв Lip Gloss v2 (`lipgloss.NewLayer` + canvas) поверх View вершины.

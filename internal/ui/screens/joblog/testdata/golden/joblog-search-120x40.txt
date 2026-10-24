@@ -1,4 +1,4 @@
-gitlab-tui  #91840 › test:integration ✗ failed 1m12s                                    ○ paused · 8 lines · updated <1m
+glview  #91840 › test:integration ✗ failed 1m12s                                        ○ paused · 8 lines · updated <1m
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  1 Running with gitlab-runner
  2 ▾ Preparing executor                                                                                              3s

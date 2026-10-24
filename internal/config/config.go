@@ -1,4 +1,4 @@
-// Package config loads and saves ~/.config/gitlab-tui/config.yaml and
+// Package config loads and saves ~/.config/glview/config.yaml and
 // resolves which GitLab host and token to use.
 package config
 

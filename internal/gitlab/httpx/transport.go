@@ -31,7 +31,7 @@ type Options struct {
 	Monitor *gitlab.Monitor
 }
 
-// NewClient returns an *http.Client with the gitlab-tui transport chain.
+// NewClient returns an *http.Client with the glview transport chain.
 func NewClient(o Options) (*http.Client, error) {
 	if o.MaxConcurrent <= 0 {
 		o.MaxConcurrent = 6

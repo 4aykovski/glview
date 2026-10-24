@@ -33,4 +33,4 @@
 - Расширение интерфейсов `internal/gitlab` (MergeRequestService, PipelineService, JobService, TagService.List, ProjectService.Branches/CIConfigVariables), REST-адаптера, GraphQL-запросов и фейка.
 - Новая зависимость: `charm.land/glamour/v2` (+ chroma транзитивно).
 - Правки SPEC: §4 (поле `MergeError`), §5.2 (фильтр «я» в режиме проекта, опрос rebase через `Get`), §6.1 (пакеты `hybrid`, `browser`).
-- Экран-заглушка `start.Project` удаляется, `cmd/gitlab-tui/wire.go` собирает новый экран.
+- Экран-заглушка `start.Project` удаляется, `cmd/glview/wire.go` собирает новый экран.

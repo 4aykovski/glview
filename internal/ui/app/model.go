@@ -437,7 +437,7 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 	v.ReportFocus = true
-	v.WindowTitle = "gitlab-tui — " + m.Top().Title()
+	v.WindowTitle = "glview — " + m.Top().Title()
 	return v
 }
 

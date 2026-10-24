@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service ╭────────────────────────────────────────────────╮                      @egor · ⟳ <1m
+glview  platform/route-service · gi╭────────────────────────────────────────────────╮                      @egor · ⟳ <1m
  1 MRs 6   2 Pipelines   3 Issues  │ Keys                                           │
 ───────────────────────────────────│                                                │───────────────────────────────────
 /  state:opened  scope:all  reviewe│ THIS SCREEN                                    │                             6 of 6

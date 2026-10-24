@@ -146,13 +146,13 @@ func TestUserAgent(t *testing.T) {
 	var ua string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { ua = r.UserAgent() }))
 	defer srv.Close()
-	hc, _ := NewClient(Options{UserAgent: "gitlab-tui/test"})
+	hc, _ := NewClient(Options{UserAgent: "glview/test"})
 	resp, err := hc.Get(srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if ua != "gitlab-tui/test" {
+	if ua != "glview/test" {
 		t.Fatalf("ua = %q", ua)
 	}
 }

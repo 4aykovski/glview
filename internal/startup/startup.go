@@ -1,4 +1,4 @@
-// Package startup decides how gitlab-tui starts: which mode (project or
+// Package startup decides how glview starts: which mode (project or
 // workspace), which host and token, and what the target project is.
 package startup
 

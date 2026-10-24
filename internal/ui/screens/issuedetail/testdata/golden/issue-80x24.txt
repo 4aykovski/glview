@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › Issues › #1318                @egor · ⟳ <1m
+glview  platform/route-service › Issues › #1318                    @egor · ⟳ <1m
 ────────────────────────────────────────────────────────────────────────────────
   Surge coefficient ignores zone overrides
   ● open · #1318 · anna.k · assignee: egor · milestone: 2026-Q4

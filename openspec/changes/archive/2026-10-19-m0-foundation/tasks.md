@@ -1,9 +1,9 @@
 ## 1. Скелет репозитория (T01)
 
-- [x] 1.1 `go mod init glview`, `cmd/gitlab-tui/main.go` с флагами `-p`, `--config`, `--debug`, `--version`; проверка: `go run ./cmd/gitlab-tui --version` печатает версию
+- [x] 1.1 `go mod init glview`, `cmd/glview/main.go` с флагами `-p`, `--config`, `--debug`, `--version`; проверка: `go run ./cmd/glview --version` печатает версию
 - [x] 1.2 Пустая программа Bubble Tea v2, выход по `q`/`ctrl+c`; проверка: `make run` открывает и закрывает экран
 - [x] 1.3 `Makefile` (`build`, `test`, `lint`, `run`), `.golangci.yml` с depguard для `internal/ui/**`; проверка: `make build test lint` зелёные
-- [x] 1.4 Debug-логгер в `$XDG_CACHE_HOME/gitlab-tui/debug.log` с маскированием токенов; проверка: unit-тест маскирования
+- [x] 1.4 Debug-логгер в `$XDG_CACHE_HOME/glview/debug.log` с маскированием токенов; проверка: unit-тест маскирования
 
 ## 2. Конфиг и токен (T02)
 

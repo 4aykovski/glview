@@ -1,4 +1,4 @@
-gitlab-tui  platform/route-service › Pipelines › #91840                                                    @egor · ⟳ <1m
+glview  platform/route-service › Pipelines › #91840                                                        @egor · ⟳ <1m
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ◐ running  #91840 on feat/surge · a91f2c0d surge: add pricing
 anna.k · merge_request_event · 3m40s  6 jobs: 2 ✓ 1 ✗ 1 ◐ 1 ► 1 ○
