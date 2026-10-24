@@ -34,6 +34,7 @@ func fillTodoRU(m *Messages) {
 	t.ColTarget, t.ColTitle, t.ColAction, t.ColAgo, t.ColAuthor, t.ColProject = "Цель", "Заголовок", "Причина", "Назад", "Автор", "Проект"
 	t.EmptyPending = "В To-Do пусто"
 	t.EmptyDone = "Нет выполненных задач"
+	t.FilterAny, t.FilterMR, t.FilterIssue = "любой", "MR", "issue"
 	t.EmptyFiltered = "Нет задач по фильтрам · backspace — сбросить"
 	t.KeyType = "тип"
 	t.KeyDone = "выполнено"

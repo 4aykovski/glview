@@ -60,6 +60,7 @@ type (
 // undo remembers what a row marked done looked like, to put it back when
 // GitLab refuses.
 type undo struct {
+	epoch     int
 	todo      gitlab.Todo
 	at        int
 	prevCount int
@@ -91,6 +92,9 @@ type Screen struct {
 	// list that arrives meanwhile must not bring them back.
 	hidden map[int64]bool
 	undo   map[int64]undo
+	// epoch counts the resets of the list (filter changes, mark-all-done): a
+	// row refused by GitLab goes back only into the list it was taken from.
+	epoch int
 
 	md map[mdKey]string
 
@@ -293,6 +297,7 @@ func (s *Screen) loadFirst(reset, force bool) tea.Cmd {
 	tok := s.gen.Next()
 	s.moreLoading, s.moreErr, s.err = false, false, nil
 	if reset {
+		s.epoch++
 		s.items, s.firstLen, s.next, s.total, s.loaded = nil, 0, "", -1, false
 		s.loading = true
 		s.rebuild()
@@ -426,7 +431,13 @@ func (s *Screen) onLoaded(msg loadedMsg) tea.Cmd {
 		s.loaded, s.loading = true, false
 		s.updated = env.Now()
 		if s.filter.State == "pending" && s.filter.Type == "" {
-			count = app.TodoCount(page.Total)
+			// The server may still count the to-dos marked done whose request
+			// is in flight.
+			n := page.Total
+			if n > 0 {
+				n = max(0, n-len(s.hidden))
+			}
+			count = app.TodoCount(n)
 		}
 	}
 	s.rebuild()
@@ -470,7 +481,7 @@ func (s *Screen) markDone() tea.Cmd {
 		s.total--
 	}
 	s.hidden[todo.ID] = true
-	s.undo[todo.ID] = undo{todo: todo, at: i, prevCount: env.TodoCount, hadCount: env.TodoKnown}
+	s.undo[todo.ID] = undo{epoch: s.epoch, todo: todo, at: i, prevCount: env.TodoCount, hadCount: env.TodoKnown}
 	s.rebuild()
 
 	// The counter goes down before the request starts: a refusal puts it
@@ -515,9 +526,15 @@ func (s *Screen) onDone(msg doneMsg) tea.Cmd {
 	}
 	cmds := []tea.Cmd{env.Fail(msg.err)}
 	if ok {
-		s.restore(u)
 		if u.hadCount {
 			cmds = append(cmds, app.TodoCount(u.prevCount))
+		}
+		if u.epoch == s.epoch {
+			s.restore(u)
+		} else if s.loaded {
+			// The list is another one now (the filter changed meanwhile): the
+			// row is not put into it, the server's list brings it back.
+			cmds = append(cmds, s.loadFirst(false, true))
 		}
 	}
 	return tea.Batch(cmds...)
@@ -664,19 +681,20 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 
 // ---- view ----
 
-func typeLabel(t string) string {
+func (s *Screen) typeLabel(t string) string {
+	m := s.env.Msg.Todo
 	switch t {
 	case "MergeRequest":
-		return "MR"
+		return m.FilterMR
 	case "Issue":
-		return "issue"
+		return m.FilterIssue
 	}
-	return "any"
+	return m.FilterAny
 }
 
 func (s *Screen) filterLine() string {
 	st, m := s.env.Styles, s.env.Msg
-	pairs := [][2]string{{"state", s.filter.State}, {"type", typeLabel(s.filter.Type)}}
+	pairs := [][2]string{{"state", s.filter.State}, {"type", s.typeLabel(s.filter.Type)}}
 	parts := make([]string, len(pairs))
 	for i, kv := range pairs {
 		parts[i] = st.FilterKey.Render(kv[0]+":") + st.FilterValue.Render(kv[1])

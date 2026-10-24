@@ -34,6 +34,7 @@ func fillTodoEN(m *Messages) {
 	t.ColTarget, t.ColTitle, t.ColAction, t.ColAgo, t.ColAuthor, t.ColProject = "Target", "Title", "Action", "Ago", "Author", "Project"
 	t.EmptyPending = "To-Do is empty"
 	t.EmptyDone = "No done to-dos"
+	t.FilterAny, t.FilterMR, t.FilterIssue = "any", "MR", "issue"
 	t.EmptyFiltered = "No to-dos for the filters · backspace — reset"
 	t.KeyType = "type"
 	t.KeyDone = "done"

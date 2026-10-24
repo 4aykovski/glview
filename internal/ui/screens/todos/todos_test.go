@@ -107,7 +107,7 @@ func lastFilter(c *fake.Client) gitlab.TodoFilter {
 
 func TestListRu(t *testing.T) {
 	o := openLang(t, todoFake(), i18n.RU)
-	o.d.RequireView("To-Do · gitlab.example.com", "state:pending", "type:any", "5 из 5", "Цель", "Заголовок", "Причина", "Назад", "Автор", "Проект")
+	o.d.RequireView("To-Do · gitlab.example.com", "state:pending", "type:любой", "5 из 5", "Цель", "Заголовок", "Причина", "Назад", "Автор", "Проект")
 	requireRow(t, o.d, "› !479 Slot allocator rewrite ревью 2ч anna.k platform/route-service")
 	requireRow(t, o.d, "#1318 Surge coefficient ignores zone overrides упоминание 3ч d.orlov platform/route-service")
 	requireRow(t, o.d, "01234567 Fix slot overflow пайплайн упал")
@@ -384,6 +384,58 @@ func TestMarkDoneFailureRestoresTheRow(t *testing.T) {
 	requireRow(t, o.d, "› #1318")
 	o.d.RequireView("5 of 5")
 	o.d.RequireNoView("Done:")
+}
+
+func TestRefusedRowDoesNotReturnIntoAnotherFilter(t *testing.T) {
+	o := open(t, todoFake())
+	o.scr.markDone() // the request is in flight: only its answer is sent by hand
+	o.d.Key("s")     // meanwhile the list becomes the done one
+	o.d.RequireView("state:done", "#1297")
+	total := o.scr.total
+	o.d.Send(doneMsg{owner: o.scr.gen.Current(), id: 101, err: &gitlab.Error{Kind: gitlab.ErrNetwork}})
+	for _, it := range o.scr.Items() {
+		if it.ID == 101 {
+			t.Fatal("a pending to-do must not be put into the done list")
+		}
+	}
+	if o.scr.total != total {
+		t.Fatalf("total = %d, want %d", o.scr.total, total)
+	}
+	o.d.RequireNoView("Slot allocator rewrite")
+	if !o.env.TodoKnown || o.env.TodoCount != 5 {
+		t.Fatalf("counter = %d (known %v), the header is restored in any case", o.env.TodoCount, o.env.TodoKnown)
+	}
+}
+
+func TestCounterSubtractsToDosBeingMarkedDone(t *testing.T) {
+	o := open(t, todoFake())
+	o.d.RequireView("To-Do 5")
+	o.scr.markDone() // in flight; the server still counts it
+	o.d.Key("r")
+	o.d.RequireView("To-Do 4")
+	if o.env.TodoCount != 4 {
+		t.Fatalf("counter = %d, want 4", o.env.TodoCount)
+	}
+}
+
+func TestMarkAllDoneConfirmWithUnknownTotal(t *testing.T) {
+	c := todoFake()
+	c.SetTodoTotalUnknown(true)
+	o := open(t, c)
+	o.d.Key("X")
+	o.d.RequireView("Over 10 000 to-dos")
+	o.d.RequireNoView("-1")
+}
+
+func TestFilterLineIsTranslated(t *testing.T) {
+	o := openLang(t, todoFake(), i18n.RU)
+	o.d.RequireView("type:любой")
+	o.d.Key("t")
+	o.d.RequireView("type:MR")
+	o.d.Key("t")
+	o.d.RequireView("type:issue")
+	o = open(t, todoFake())
+	o.d.RequireView("type:any")
 }
 
 func TestMarkDoneIsHiddenInDone(t *testing.T) {

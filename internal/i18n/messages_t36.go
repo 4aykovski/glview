@@ -12,6 +12,10 @@ type TodoMessages struct {
 
 	EmptyPending, EmptyDone, EmptyFiltered string
 
+	// Values of the type filter in the filter line; its keys (state, type) are
+	// filter syntax and stay as they are, like in the other filter lines.
+	FilterAny, FilterMR, FilterIssue string
+
 	KeyType, KeyDone, KeyDoneAll, KeyBrowserPage, KeyTarget string
 
 	Done        func(ref string) string // toast: "Done: !479"
