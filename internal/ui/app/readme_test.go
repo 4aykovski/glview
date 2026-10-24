@@ -43,10 +43,23 @@ func readRepoFile(t *testing.T, name string) string {
 	return string(data)
 }
 
-// The hotkey table of the README names only keys that SPEC §3 knows, and the
+// readmes are the README translations and the heading of their hotkey table.
+var readmes = []struct{ file, hotkeys string }{
+	{"README.md", "\n## Hotkeys"},
+	{"README.ru.md", "\n## Хоткеи"},
+}
+
+// The hotkey table of each README names only keys that SPEC §3 knows, and the
 // global keys of the help overlay (?) are all in it.
 func TestREADMEHotkeysMatchSpecAndHelp(t *testing.T) {
-	readme := section(t, readRepoFile(t, "README.md"), "\n## Хоткеи", "\n## ")
+	for _, r := range readmes {
+		t.Run(r.file, func(t *testing.T) {
+			readmeHotkeys(t, section(t, readRepoFile(t, r.file), r.hotkeys, "\n## "))
+		})
+	}
+}
+
+func readmeHotkeys(t *testing.T, readme string) {
 	spec := section(t, readRepoFile(t, "docs/SPEC.md"), "\n## 3. Экраны", "\n## 4. ")
 	shown, known := keyAtoms(readme), keyAtoms(spec)
 	if len(shown) < 40 {
