@@ -390,3 +390,37 @@ func TestFakeMRCommentAndMilestones(t *testing.T) {
 		t.Fatalf("ms = %v", ms)
 	}
 }
+
+func TestFakeApproveUpdatesRules(t *testing.T) {
+	c := New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 1, FullPath: "a/b"}})
+	ref := gitlab.ProjectRef{FullPath: "a/b"}
+	egor, bob := gitlab.User{Username: "egor"}, gitlab.User{Username: "bob"}
+	c.AddMR("a/b", gitlab.MergeRequest{
+		IID: 1, State: gitlab.MRStateOpened, Reviewers: []gitlab.User{egor},
+		ReviewStates: map[string]gitlab.ReviewState{"egor": gitlab.ReviewUnreviewed},
+		Approvals: gitlab.Approvals{Required: 1, Left: 1, Rules: []gitlab.ApprovalRule{
+			{Name: "Backend", Type: gitlab.ApprovalRegular, Required: 1, Eligible: []gitlab.User{egor, bob}},
+			{Name: "Docs", Type: gitlab.ApprovalCodeOwner, Required: 1, Eligible: []gitlab.User{bob}},
+		}},
+	})
+	ctx := context.Background()
+	if err := c.MergeRequests().Approve(ctx, ref, 1, "sha"); err != nil {
+		t.Fatal(err)
+	}
+	mr, _ := c.MergeRequests().Get(ctx, ref, 1)
+	r := mr.Approvals.Rules
+	if !r[0].Approved || len(r[0].ApprovedBy) != 1 || r[1].Approved || len(r[1].ApprovedBy) != 0 {
+		t.Fatalf("after approve: %+v", r)
+	}
+	if mr.ReviewStates["egor"] != gitlab.ReviewApproved {
+		t.Fatalf("state = %v", mr.ReviewStates)
+	}
+	if err := c.MergeRequests().Unapprove(ctx, ref, 1); err != nil {
+		t.Fatal(err)
+	}
+	mr, _ = c.MergeRequests().Get(ctx, ref, 1)
+	if mr.Approvals.Rules[0].Approved || len(mr.Approvals.Rules[0].ApprovedBy) != 0 || mr.ReviewStates["egor"] != gitlab.ReviewUnapproved {
+		t.Fatalf("after unapprove: %+v %v", mr.Approvals.Rules, mr.ReviewStates)
+	}
+}
