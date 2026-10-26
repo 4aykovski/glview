@@ -259,6 +259,12 @@ func Pad(s string, w int) string {
 	return s
 }
 
+// Spread puts right at the right edge of a w-wide line after left (one
+// space apart at least).
+func Spread(left, right string, w int) string {
+	return left + strings.Repeat(" ", max(1, w-ansi.StringWidth(left)-ansi.StringWidth(right))) + right
+}
+
 // MRPreview is the dense three-line summary of an MR in list previews:
 // title; status · approvals · pipeline · diff; first line of the description.
 func MRPreview(s *common.Styles, m *i18n.Messages, mr *gitlab.MergeRequest, rules []mrlinks.Rule) []string {

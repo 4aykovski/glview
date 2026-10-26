@@ -10,7 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/4aykovski/glview/internal/debuglog"
 	"github.com/4aykovski/glview/internal/gitlab"
@@ -135,6 +134,7 @@ type Screen struct {
 	linksOK   bool
 	linksKey  string
 	linksOpen bool
+	apprOpen  bool // the A overlay was opened: details refresh it
 
 	// Discussions tab: thread cards with the current thread and the folds
 	// the user toggled; both survive reloads.
@@ -228,6 +228,7 @@ func (s *Screen) KeyMap() common.KeyMap {
 		hide(common.NewBinding([]string{"c"}, "", commentLabel, commentPrio)),
 		common.NewBinding([]string{"r"}, "", k.Refresh, common.PriorityNormal),
 		common.NewBinding([]string{"L"}, "", s.env.Msg.Links.Key, common.PriorityLinks),
+		common.NewBinding([]string{"A"}, "", s.env.Msg.Approvers.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", browser, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),
 		common.NewBinding([]string{"esc"}, "", k.Back, common.PriorityLow),
@@ -423,7 +424,7 @@ func (s *Screen) Update(msg tea.Msg) (app.Screen, tea.Cmd) {
 		s.rebuildTable()
 		s.rebuildCommits()
 		recheck := s.maybeRecheck()
-		return s, tea.Batch(recheck, s.reloadCommits(true), s.reloadDiffs(true), s.schedulePoll(), s.refreshLinks())
+		return s, tea.Batch(recheck, s.reloadCommits(true), s.reloadDiffs(true), s.schedulePoll(), s.refreshLinks(), s.refreshApprovers())
 	case recheckedMsg:
 		if !s.recheckGen.Valid(msg.tok) {
 			return s, nil
@@ -545,6 +546,8 @@ func (s *Screen) onKey(k tea.KeyPressMsg) tea.Cmd {
 		return s.loadAll(true)
 	case "L":
 		return s.openLinks()
+	case "A":
+		return s.openApprovers()
 	case "c":
 		return s.commentCmd()
 	case "o":
@@ -975,10 +978,7 @@ func (s *Screen) side() []string {
 	mr := s.mr
 	head := func(t string) string { return st.Muted.Render(t) }
 	out := []string{head(m.SecApprovals)}
-	out = append(out, approvalLines(st, approvalText{
-		none: m.None, needYour: m.NeedYourApproval, anyApprover: m.AnyApprover,
-		invalid: m.InvalidRule, changes: m.ChangesAsked, needMore: m.NeedApprovals,
-	}, mr, s.env.User.Username, sideW)...)
+	out = append(out, render.ApprovalColumn(st, s.env.Msg, render.NewApprovalView(mr, s.env.User.Username), sideW)...)
 	out = append(out, "", head(m.SecLabels))
 	if len(mr.Labels) == 0 {
 		out = append(out, st.Muted.Render(m.None))
@@ -1001,8 +1001,7 @@ func (s *Screen) side() []string {
 			case stg.Status == gitlab.StatusManual:
 				dur = "manual"
 			}
-			gap := max(1, sideW-ansi.StringWidth(name)-len(dur))
-			out = append(out, name+strings.Repeat(" ", gap)+st.Muted.Render(dur))
+			out = append(out, render.Spread(name, st.Muted.Render(dur), sideW))
 		}
 	}
 	out = append(out, "", head(m.SecLastThread))
@@ -1061,4 +1060,20 @@ func (s *Screen) refreshLinks() tea.Cmd {
 		return nil
 	}
 	return app.LinksRefresh(s.linksOverlayKey(), s.linkList())
+}
+
+func (s *Screen) approversOverlayKey() string { return s.key("approvers") }
+
+// openApprovers shows the A overlay, or a toast when the MR has no approvers.
+func (s *Screen) openApprovers() tea.Cmd {
+	s.apprOpen = true
+	return app.OpenApprovers(s.env, s.approversOverlayKey(), fmt.Sprintf("!%d", s.iid), s.mr)
+}
+
+// refreshApprovers sends the current MR to the overlay, if one was opened.
+func (s *Screen) refreshApprovers() tea.Cmd {
+	if !s.apprOpen {
+		return nil
+	}
+	return app.ApproversRefresh(s.approversOverlayKey(), s.mr)
 }

@@ -1,9 +1,9 @@
 glview  platform/route-service › MRs › !479                                                                @egor · ⟳ <1m
 Fix race in courier slot allocator
 anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
-╭──────────────────────────────────╮ ╭────────────────╮ ╭────────────────────────────╮ ╭─────────────────────╮
-│ ✗ not_approved · needs approvals │ │ ✓ 1/2 approved │ │ ✗ pipeline #91840 · failed │ │ 1 thread unresolved │
-╰──────────────────────────────────╯ ╰────────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
+╭──────────────────────────────────╮ ╭──────────────╮ ╭────────────────────────────╮ ╭─────────────────────╮
+│ ✗ not_approved · needs approvals │ │ ✓ 2 approved │ │ ✗ pipeline #91840 · failed │ │ 1 thread unresolved │
+╰──────────────────────────────────╯ ╰──────────────╯ ╰────────────────────────────╯ ╰─────────────────────╯
  Overview   Diff 3   Discussions 2   Pipelines 2   Commits
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Why                                                                                │ APPROVALS
@@ -17,6 +17,8 @@ anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
                                                                                     │ ✗ Security                     0/1
                                                                                     │   invalid rule
                                                                                     │ ✓ Security review              1/1
+                                                                                    │   ✓ olga
+                                                                                    │ A — all
                                                                                     │
                                                                                     │ LABELS
                                                                                     │ bug, backend
@@ -28,8 +30,6 @@ anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
                                                                                     │ LAST THREAD
                                                                                     │ bob
                                                                                     │ LGTM overall
-                                                                                    │
-                                                                                    │
                                                                                     │
                                                                                     │
                                                                                     │

@@ -15,6 +15,7 @@ glview  platform/route-service · gi╭─────────────�
                                    │ c      comment                                 │
                                    │ n      new MR                                  │
                                    │ L      links                                   │
+                                   │ A      approvers                               │
                                    │ o      list in browser                         │
                                    │ O      MR in browser                           │
                                    │ y      copy                                    │
@@ -30,11 +31,10 @@ glview  platform/route-service · gi╭─────────────�
                                    │ r        refresh                               │
                                    │ o        browser                               │
                                    │ ctrl+l   язык: RU                              │
-                                   │ q        quit                                  │
-┌──────────────────────────────────│ ?        help                                  │──────────────────────────────────┐
+┌──────────────────────────────────│ q        quit                                  │──────────────────────────────────┐
 │ !471  Fix race in courier slot al│                                                │                                  │
 │ ● mergeable ready to merge · 1/2 │ Language: English · ctrl+l switches to Russian │                                  │
-│ Fixes the allocation race.       │ esc / ? close                                  │                                  │
+│ Fixes the allocation race.       │ esc / ? close · j/k scroll 1–31/32             │                                  │
 └──────────────────────────────────╰────────────────────────────────────────────────╯──────────────────────────────────┘
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 j/k down  enter open  d diff  / filter  a approve  M merge  s state  m me  y copy  1-4 tabs  r refresh  ? help   poll 3s

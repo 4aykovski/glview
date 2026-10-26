@@ -98,21 +98,22 @@ type Messages struct {
 		Project, Web, DefaultBranch, LocalDir, Branch, Activity, Detached string
 	}
 
-	Project ProjectMessages
-	MR      MRMessages
-	Pipe    PipelineMessages
-	Log     LogMessages
-	Form    FormMessages
-	WS      WorkspaceMessages
-	Search  SearchMessages
-	Git     GitMessages
-	Links   LinksMessages
-	Tag     TagMessages
-	Issue   IssueMessages
-	Todo    TodoMessages
-	Comment CommentMessages
-	Diff    DiffMessages
-	NewMR   NewMRMessages
+	Project   ProjectMessages
+	MR        MRMessages
+	Approvers ApproversMessages
+	Pipe      PipelineMessages
+	Log       LogMessages
+	Form      FormMessages
+	WS        WorkspaceMessages
+	Search    SearchMessages
+	Git       GitMessages
+	Links     LinksMessages
+	Tag       TagMessages
+	Issue     IssueMessages
+	Todo      TodoMessages
+	Comment   CommentMessages
+	Diff      DiffMessages
+	NewMR     NewMRMessages
 
 	Plural struct {
 		GitLabProjects func(n int) string // "5 GitLab projects" / "5 GitLab-проектов"

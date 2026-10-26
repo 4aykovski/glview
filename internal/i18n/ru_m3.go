@@ -13,6 +13,12 @@ func fillM3RU(m *Messages) {
 	l.Title = func(ref string) string { return "Ссылки · " + ref }
 	l.Hints = "j/k ход · enter открыть · y копировать · esc закрыть"
 	l.NoLinks = "В MR нет ссылок"
+	a := &m.Approvers
+	a.Key = "апруверы"
+	a.Title = func(ref string) string { return "Апруверы · " + ref }
+	a.Hints = "j/k ход · enter профиль · y копия · esc закрыть"
+	a.NoApprovers = "В MR нет апруверов"
+	a.More = "A — все"
 	l.What = "ссылка"
 	l.BadRule = func(detail string) string { return "Конфиг: правило links пропущено: " + detail }
 	l.LoadFailed = "Не удалось загрузить ссылки MR"

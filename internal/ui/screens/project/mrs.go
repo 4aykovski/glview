@@ -60,7 +60,7 @@ type mrsTab struct {
 
 	loaded, loading, moreLoading, moreErr bool
 	err                                   error
-	linksGen                              common.Gen // the L request in flight
+	linksGen                              common.Gen // the L or A request in flight
 	updated                               time.Time
 	active                                bool
 	w, h                                  int
@@ -525,6 +525,10 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		if mr := t.selected(); mr != nil {
 			return linkslist.Load(env, t.linksGen.Next(), t.sh.ref, mr.IID)
 		}
+	case "A":
+		if mr := t.selected(); mr != nil {
+			return linkslist.LoadApprovers(env, t.linksGen.Next(), t.sh.ref, mr.IID)
+		}
 	case "enter":
 		if mr := t.selected(); mr != nil {
 			return app.Push(mrdetail.New(env, t.sh.ref, t.sh.repo, *mr, t.sh.archived))
@@ -705,6 +709,7 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 		hideArchived(t.sh, common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)),
 		hideArchived(t.sh, common.NewBinding([]string{"n"}, "", t.env().Msg.NewMR.KeyNew, common.PriorityLow)),
 		common.NewBinding([]string{"L"}, "", t.env().Msg.Links.Key, common.PriorityLinks),
+		common.NewBinding([]string{"A"}, "", t.env().Msg.Approvers.Key, common.PriorityLinks),
 		common.NewBinding([]string{"o"}, "", k.BrowserList, common.PriorityLow),
 		common.NewBinding([]string{"O"}, "", k.BrowserMR, common.PriorityLow),
 		common.NewBinding([]string{"y"}, "", k.Copy, common.PriorityLow),

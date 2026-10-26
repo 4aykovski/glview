@@ -1,0 +1,40 @@
+glview  platform/route-service › MRs › !479                                                                @egor · ⟳ <1m
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · opened 1h ago · +48 −12 3 files
+╭──────────────────────────────────╮ ╭──────────────╮ ╭────────────────────────────╮ ╭─────────────────────╮
+│ ✗ not_approved · needs approvals │ │ ✓ 2 approved │ │ ✗ pipeline #91840 · failed │ │ 1 thread unresolved │
+╰─────────────────╭──────────────────────────────────────────────────────────────────────────────────╮─────╯
+ Overview   Diff 3│ Approvers · !479                                                                 │
+──────────────────│ ──────────────────────────────────────────────────────────────────────────────── │──────────────────
+ Why              │ ○ Backend                                                                    1/2 │
+                  │   ✓ bob Bob                                                                      │val
+ • slot map raced │   ○ anna.k Anna.k                                                                │               1/2
+ • see slotMap    │ › ○ egor Egor                                                                    │
+                  │   ○ dima Dima                                                                    │, dima, lena +2
+  func main() {}  │   ○ lena Lena                                                                    │               0/1
+                  │   ○ kate Kate                                                                    │
+                  │   ○ olga Olga                                                                    │               0/1
+                  │ ○ Docs · /docs/                                                              0/1 │pprover
+                  │   ○ lena Lena                                                                    │               0/1
+                  │ ○ All Members                                                                0/1 │
+                  │   any eligible approver                                                          │w              1/1
+                  │ ✗ Security                                                                   0/1 │
+                  │   invalid rule                                                                   │
+                  │ ✓ Security review                                                            1/1 │
+                  │   ✓ olga Olga                                                                    │
+                  │                                                                                  │
+                  │                                                                                  │
+                  │ ──────────────────────────────────────────────────────────────────────────────── │
+                  │ j/k move · enter profile · y copy · esc close                                3/9 │             1m02s
+                  ╰──────────────────────────────────────────────────────────────────────────────────╯             4m40s
+                                                                                    │
+                                                                                    │ LAST THREAD
+                                                                                    │ bob
+                                                                                    │ LGTM overall
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+                                                                                    │
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+tab next tab  j/k down  enter open  a approve  M merge  b rebase  c comment  r refresh  o browser  ? help       poll 30s

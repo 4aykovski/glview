@@ -16,6 +16,12 @@ func fillM3EN(m *Messages) {
 	l.What = "link"
 	l.BadRule = func(detail string) string { return "Config: links rule skipped: " + detail }
 	l.LoadFailed = "Could not load the MR links"
+	a := &m.Approvers
+	a.Key = "approvers"
+	a.Title = func(ref string) string { return "Approvers · " + ref }
+	a.Hints = "j/k move · enter profile · y copy · esc close"
+	a.NoApprovers = "No approvers in the MR"
+	a.More = "A — all"
 }
 
 func fillTagsEN(m *Messages) {

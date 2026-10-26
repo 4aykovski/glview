@@ -142,3 +142,28 @@ func TestLinksErrorWithoutRowLinks(t *testing.T) {
 	d.Key("L")
 	d.RequireNoView("Links · !1")
 }
+
+func TestApproversKeyRequestsDetails(t *testing.T) {
+	client := newFake(3)
+	client.UpdateMR(path, 1, func(m *gitlab.MergeRequest) {
+		m.Approvals.Rules = []gitlab.ApprovalRule{{Name: "Backend", Required: 1, Eligible: []gitlab.User{{Username: "bob", Name: "Bob"}}}}
+	})
+	d, _, _ := open(t, client, nil)
+	d.Key("A")
+	if client.CallCount("MergeRequests.Get") != 1 {
+		t.Fatalf("Get calls = %d", client.CallCount("MergeRequests.Get"))
+	}
+	// The list row has no rules: they come with the details.
+	d.RequireView("Approvers · !1", "Backend", "bob Bob")
+	d.Key("esc")
+	d.RequireNoView("Approvers · !1")
+}
+
+func TestApproversNobodyToast(t *testing.T) {
+	client := newFake(2)
+	client.UpdateMR(path, 1, func(m *gitlab.MergeRequest) { m.Approvals, m.Reviewers = gitlab.Approvals{}, nil })
+	d, _, _ := open(t, client, nil)
+	d.Key("A")
+	d.RequireView("No approvers in the MR")
+	d.RequireNoView("Approvers · !1")
+}

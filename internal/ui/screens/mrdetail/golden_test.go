@@ -95,3 +95,18 @@ func TestGoldenApprovalReviewersMine(t *testing.T) {
 	d.Send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	d.RequireGolden("mrdetail-approvals-reviewers-mine-120x40")
 }
+
+func TestGoldenApproversOverlay(t *testing.T) {
+	d, _, _, _ := setup(t, rulesMR())
+	d.Key("A", "j", "j")
+	d.RequireGoldenSizes("mrdetail-approvers")
+	d.Key("ctrl+l")
+	d.RequireGoldenSizes("mrdetail-approvers-ru")
+}
+
+func TestGoldenApproversOverlayReviewers(t *testing.T) {
+	d, _, _, _ := setup(t, reviewersMR("egor"))
+	d.Key("A", "j")
+	d.Send(tea.WindowSizeMsg{Width: 120, Height: 40})
+	d.RequireGolden("mrdetail-approvers-reviewers-120x40")
+}
