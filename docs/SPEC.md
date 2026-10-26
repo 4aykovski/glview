@@ -694,6 +694,7 @@ type MergeRequest struct {
     Assignees      []User
     Reviewers      []User
     ReviewStates   map[string]ReviewState // только в деталях: username reviewer'а → состояние (3.5 APPROVALS)
+    Detailed       bool                   // детали загружены (не строка списка): Rules и ReviewStates осмысленны (3.5 APPROVALS)
     SourceBranch   string
     TargetBranch   string
     SHA            string

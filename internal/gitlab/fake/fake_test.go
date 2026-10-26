@@ -424,3 +424,44 @@ func TestFakeApproveUpdatesRules(t *testing.T) {
 		t.Fatalf("after unapprove: %+v %v", mr.Approvals.Rules, mr.ReviewStates)
 	}
 }
+
+func TestFakeUnapproveWithoutRequiredApprovals(t *testing.T) {
+	c := New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 1, FullPath: "a/b"}})
+	ref := gitlab.ProjectRef{FullPath: "a/b"}
+	egor := gitlab.User{Username: "egor"}
+	c.AddMR("a/b", gitlab.MergeRequest{
+		IID: 1, State: gitlab.MRStateOpened, Reviewers: []gitlab.User{egor},
+		ReviewStates: map[string]gitlab.ReviewState{"egor": gitlab.ReviewApproved},
+		Approvals: gitlab.Approvals{ApprovedBy: []gitlab.User{egor}, Rules: []gitlab.ApprovalRule{
+			{Name: "Any", Type: gitlab.ApprovalAnyApprover, Required: 1, Approved: true, ApprovedBy: []gitlab.User{egor}},
+		}},
+	})
+	ctx := context.Background()
+	if err := c.MergeRequests().Unapprove(ctx, ref, 1); err != nil {
+		t.Fatal(err)
+	}
+	mr, _ := c.MergeRequests().Get(ctx, ref, 1)
+	if mr.Approvals.Left != 0 || mr.Approvals.Rules[0].Approved || len(mr.Approvals.Rules[0].ApprovedBy) != 0 || mr.ReviewStates["egor"] != gitlab.ReviewUnapproved {
+		t.Fatalf("after unapprove: %+v %v", mr.Approvals, mr.ReviewStates)
+	}
+}
+
+func TestFakeListRowsCarryNoDetails(t *testing.T) {
+	c := New()
+	c.AddProject(gitlab.Project{ProjectRef: gitlab.ProjectRef{ID: 1, FullPath: "a/b"}})
+	ref := gitlab.ProjectRef{FullPath: "a/b"}
+	c.AddMR("a/b", gitlab.MergeRequest{
+		IID: 1, State: gitlab.MRStateOpened,
+		ReviewStates: map[string]gitlab.ReviewState{"bob": gitlab.ReviewApproved},
+		Approvals:    gitlab.Approvals{Rules: []gitlab.ApprovalRule{{Name: "Backend", Required: 1}}},
+	})
+	ctx := context.Background()
+	page, _ := c.MergeRequests().List(ctx, ref, gitlab.MRFilter{State: gitlab.MRStateAll}, "", 20)
+	if r := page.Items[0]; r.Approvals.Rules != nil || r.ReviewStates != nil || r.Detailed {
+		t.Fatalf("row carries details: %+v", r)
+	}
+	if mr, _ := c.MergeRequests().Get(ctx, ref, 1); len(mr.Approvals.Rules) != 1 || mr.ReviewStates == nil || !mr.Detailed {
+		t.Fatalf("details lack rules: %+v", mr)
+	}
+}
