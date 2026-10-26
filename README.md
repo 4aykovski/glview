@@ -152,7 +152,7 @@ Hotkeys are case-sensitive; `?` shows the hotkeys of the current screen.
 | Workspace | `J/K` between groups, `space` and `enter` collapse/expand a group, `P` pick projects, `f` open the row's project, `u` fetch all, `U` pull ff-only all |
 | `p` and `F` overlays | `↓/↑` `ctrl+n/ctrl+p` move, `ctrl+d/ctrl+u` and `pgdown/pgup` half a page, `enter` open, `esc` close |
 | MRs and Pipelines | `s` cycle the main filter, `backspace` reset filters |
-| MR (list and detail) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout via glab, `L` MR links, `c` comment |
+| MR (list and detail) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout via glab, `L` MR links, `A` all approvers, `c` comment |
 | MRs tab | `n` new MR, `d` MR on the Diff tab, `O` MR in browser, `o` project MR list with filters |
 | MR, Diff tab | `J/K` between files, `←/→` horizontal scroll, `space` collapse file, `z` collapse all, `c` comment on line, `enter` on a thread — thread on Discussions, `o` file in browser |
 | MR, Discussions tab | `J/K` between threads, `space` collapse thread |

@@ -1,0 +1,24 @@
+{"data":{"project":{"mergeRequest":
+{"iid":"479","title":"Fix race in courier slot allocator","description":"","draft":false,"state":"opened",
+ "createdAt":"2026-10-19T09:00:00Z","updatedAt":"2026-10-19T11:00:00Z","webUrl":"https://gitlab.example.com/platform/route-service/-/merge_requests/479",
+ "sourceBranch":"fix/slot-race","targetBranch":"main","diffHeadSha":"a91f2c0d","detailedMergeStatus":"NOT_APPROVED","conflicts":false,
+ "author":{"username":"anna.k","name":"Anna K","webUrl":""},
+ "reviewers":{"nodes":[
+  {"username":"bob","name":"Bob","mergeRequestInteraction":{"approved":true,"reviewState":"APPROVED"}},
+  {"username":"dima","name":"Dima","mergeRequestInteraction":{"approved":false,"reviewState":"REQUESTED_CHANGES"}},
+  {"username":"lena","name":"Lena","mergeRequestInteraction":null}]},
+ "assignees":{"nodes":[]},"labels":{"nodes":[]},
+ "approvedBy":{"nodes":[{"username":"bob","name":"Bob","webUrl":"https://gitlab.example.com/bob"}]},"approvalsRequired":2,"approvalsLeft":1,
+ "approvalState":{"rules":[
+  {"name":"Backend","type":"REGULAR","section":null,"approvalsRequired":2,"approved":false,"invalid":false,
+   "approvedBy":{"nodes":[{"username":"bob","name":"Bob","webUrl":"https://gitlab.example.com/bob"}]},
+   "eligibleApprovers":[{"username":"bob","name":"Bob","webUrl":"https://gitlab.example.com/bob"},{"username":"anna.k","name":"Anna K"},{"username":"egor","name":"Egor"}]},
+  {"name":"/docs/","type":"CODE_OWNER","section":"Docs","approvalsRequired":1,"approved":false,"invalid":false,
+   "approvedBy":{"nodes":[]},"eligibleApprovers":[{"username":"lena","name":"Lena","webUrl":"https://gitlab.example.com/lena"}]},
+  {"name":"All Members","type":"ANY_APPROVER","section":null,"approvalsRequired":1,"approved":false,"invalid":false,
+   "approvedBy":{"nodes":[]},"eligibleApprovers":[]},
+  {"name":"Security","type":"REGULAR","section":null,"approvalsRequired":1,"approved":false,"invalid":true,
+   "approvedBy":{"nodes":[]},"eligibleApprovers":[]},
+  {"name":"Legacy","type":"REGULAR","section":null,"approvalsRequired":0,"approved":true,"invalid":false,
+   "approvedBy":{"nodes":[]},"eligibleApprovers":[{"username":"dima","name":"Dima"}]}]}}
+}}}

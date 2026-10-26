@@ -3,6 +3,7 @@ package fake
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -197,6 +198,12 @@ func (c *Client) findMR(path string, iid int64) (*gitlab.MergeRequest, error) {
 // withMe returns a copy of mr with ApprovedByMe computed for the fake user.
 func (c *Client) withMe(mr gitlab.MergeRequest) gitlab.MergeRequest {
 	mr.Approvals.ApprovedBy = slices.Clone(mr.Approvals.ApprovedBy)
+	mr.Approvals.Rules = slices.Clone(mr.Approvals.Rules)
+	for i := range mr.Approvals.Rules {
+		mr.Approvals.Rules[i].ApprovedBy = slices.Clone(mr.Approvals.Rules[i].ApprovedBy)
+	}
+	mr.ReviewStates = maps.Clone(mr.ReviewStates)
+	mr.Detailed = true
 	mr.Approvals.ApprovedByMe = slices.ContainsFunc(mr.Approvals.ApprovedBy, func(u gitlab.User) bool {
 		return u.Username == c.User.Username
 	})
@@ -204,9 +211,10 @@ func (c *Client) withMe(mr gitlab.MergeRequest) gitlab.MergeRequest {
 }
 
 // row strips what a list row (MRRow) does not carry: the real API gives the
-// HTML links in MR details only.
+// HTML links, approval rules and review states in MR details only.
 func row(mr gitlab.MergeRequest) gitlab.MergeRequest {
 	mr.TitleLinks, mr.DescriptionLinks = nil, nil
+	mr.Approvals.Rules, mr.ReviewStates, mr.Detailed = nil, nil, false
 	return mr
 }
 
@@ -377,8 +385,37 @@ func (s mrService) Approve(ctx context.Context, p gitlab.ProjectRef, iid int64, 
 	if !slices.ContainsFunc(mr.Approvals.ApprovedBy, func(u gitlab.User) bool { return u.Username == s.c.User.Username }) {
 		mr.Approvals.ApprovedBy = append(mr.Approvals.ApprovedBy, s.c.User)
 		mr.Approvals.Left = max(0, mr.Approvals.Left-1)
+		s.c.approveRules(mr, true)
 	}
 	return nil
+}
+
+// approveRules records (or withdraws) the fake user's approval in the rules
+// they are eligible for and in the reviewer states.
+func (c *Client) approveRules(mr *gitlab.MergeRequest, approve bool) {
+	me := c.User
+	rules := slices.Clone(mr.Approvals.Rules)
+	for i := range rules {
+		r := &rules[i]
+		if r.Type != gitlab.ApprovalAnyApprover && !slices.ContainsFunc(r.Eligible, func(u gitlab.User) bool { return u.Username == me.Username }) {
+			continue
+		}
+		by := slices.DeleteFunc(slices.Clone(r.ApprovedBy), func(u gitlab.User) bool { return u.Username == me.Username })
+		if approve {
+			by = append(by, me)
+		}
+		r.ApprovedBy = by
+		r.Approved = len(by) >= r.Required
+	}
+	mr.Approvals.Rules = rules
+	if _, ok := mr.ReviewStates[me.Username]; ok {
+		states := maps.Clone(mr.ReviewStates)
+		states[me.Username] = gitlab.ReviewUnapproved
+		if approve {
+			states[me.Username] = gitlab.ReviewApproved
+		}
+		mr.ReviewStates = states
+	}
 }
 
 func (s mrService) Unapprove(ctx context.Context, p gitlab.ProjectRef, iid int64) error {
@@ -395,8 +432,11 @@ func (s mrService) Unapprove(ctx context.Context, p gitlab.ProjectRef, iid int64
 	mr.Approvals.ApprovedBy = slices.DeleteFunc(slices.Clone(mr.Approvals.ApprovedBy), func(u gitlab.User) bool {
 		return u.Username == s.c.User.Username
 	})
-	if len(mr.Approvals.ApprovedBy) < before && mr.Approvals.Required > 0 {
-		mr.Approvals.Left++
+	if len(mr.Approvals.ApprovedBy) < before {
+		if mr.Approvals.Required > 0 {
+			mr.Approvals.Left++
+		}
+		s.c.approveRules(mr, false)
 	}
 	return nil
 }

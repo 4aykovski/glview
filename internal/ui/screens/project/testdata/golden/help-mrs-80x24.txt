@@ -15,10 +15,10 @@ glview  platfor╭────────────────────�
                │ c      comment                                 │
                │ n      new MR                                  │
                │ L      links                                   │
-               │ o      list in browser                         │
+               │ A      approvers                               │
                │                                                │
                │ Language: English · ctrl+l switches to Russian │
-               │ esc / ? close · j/k scroll 1–15/31             │
+               │ esc / ? close · j/k scroll 1–15/32             │
                ╰────────────────────────────────────────────────╯
 ────────────────────────────────────────────────────────────────────────────────
 j/k down  enter open  / filter  a approve  M merge  s state  ? help      poll 3s

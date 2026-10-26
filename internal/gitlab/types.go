@@ -72,6 +72,8 @@ type MergeRequest struct {
 	Author       User
 	Assignees    []User
 	Reviewers    []User
+	ReviewStates map[string]ReviewState // details only: reviewer username -> state
+	Detailed     bool                   // the details were loaded (not a list row): Rules and ReviewStates are meaningful
 	SourceBranch string
 	TargetBranch string
 	SHA          string
@@ -175,7 +177,42 @@ type Approvals struct {
 	Required     int // 0 on CE or without approval rules
 	Left         int
 	ApprovedByMe bool
+	Rules        []ApprovalRule // details only; nil: no rules or approvalState unsupported
 }
+
+// ApprovalRuleType is the lowercase GraphQL ApprovalRuleType.
+type ApprovalRuleType string
+
+const (
+	ApprovalRegular        ApprovalRuleType = "regular"
+	ApprovalCodeOwner      ApprovalRuleType = "code_owner"
+	ApprovalReportApprover ApprovalRuleType = "report_approver"
+	ApprovalAnyApprover    ApprovalRuleType = "any_approver"
+)
+
+// ApprovalRule is one approval rule of a merge request.
+type ApprovalRule struct {
+	Name       string
+	Type       ApprovalRuleType
+	Section    string // CODEOWNERS section; code_owner only
+	Required   int
+	Approved   bool
+	Invalid    bool
+	ApprovedBy []User
+	Eligible   []User // everyone who may approve (explicit and via groups)
+}
+
+// ReviewState is the lowercase MergeRequestReviewState; "" is unknown.
+type ReviewState string
+
+const (
+	ReviewUnreviewed       ReviewState = "unreviewed"
+	ReviewStarted          ReviewState = "review_started"
+	ReviewReviewed         ReviewState = "reviewed"
+	ReviewRequestedChanges ReviewState = "requested_changes"
+	ReviewApproved         ReviewState = "approved"
+	ReviewUnapproved       ReviewState = "unapproved"
+)
 
 type DiscussionStats struct{ Total, Unresolved int }
 

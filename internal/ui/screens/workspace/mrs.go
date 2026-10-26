@@ -37,7 +37,7 @@ type mrsTab struct {
 	act    *mractions.Controller
 	actRef gitlab.ProjectRef // project of the selected line (actions)
 
-	linksGen common.Gen // the L request in flight
+	linksGen common.Gen // the L or A request in flight
 }
 
 func defaultMRFilter() gitlab.MRFilter {
@@ -359,6 +359,8 @@ func (t *mrsTab) onKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 	case "L":
 		return linkslist.Load(env, t.linksGen.Next(), t.ref(path), mr.IID)
+	case "A":
+		return linkslist.LoadApprovers(env, t.linksGen.Next(), t.ref(path), mr.IID)
 	case "a", "M", "b", "C":
 		t.syncAct()
 		cmd, _ := t.act.Key(k.String(), *mr)
@@ -457,7 +459,8 @@ func (t *mrsTab) KeyMap() common.KeyMap {
 	if t.selected() != nil { // not on a group header or "N more"
 		c := common.NewBinding([]string{"c"}, "", k.Comment, common.PriorityLow)
 		c.Hidden = t.archived(t.cursorGroup()) // an archived project takes no writes
-		short = append(short, c, common.NewBinding([]string{"L"}, "", env.Msg.Links.Key, common.PriorityLinks))
+		short = append(short, c, common.NewBinding([]string{"L"}, "", env.Msg.Links.Key, common.PriorityLinks),
+			common.NewBinding([]string{"A"}, "", env.Msg.Approvers.Key, common.PriorityLinks))
 	}
 	short = append(short,
 		common.NewBinding([]string{"/"}, "", k.Filter, common.PriorityNormal),

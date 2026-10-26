@@ -100,3 +100,17 @@ func TestGroupMRsLinksKeyOnHeaderAndMore(t *testing.T) {
 		t.Fatal("L is not offered on a group header")
 	}
 }
+
+func TestGroupMRsApproversKeyUsesRowProject(t *testing.T) {
+	client := linkedFake()
+	client.UpdateMR("platform/route-service", 482, func(m *gitlab.MergeRequest) {
+		m.Approvals.Rules = []gitlab.ApprovalRule{{Name: "Backend", Required: 1, Eligible: []gitlab.User{{Username: "bob", Name: "Bob"}}}}
+	})
+	d, _ := openLinked(t, client, 0)
+	d.Key("2", "j", "A")
+	calls := client.CallsOf("MergeRequests.Get")
+	if len(calls) != 1 || calls[0][0] != "platform/route-service" || calls[0][1] != int64(482) {
+		t.Fatalf("Get calls = %v", calls)
+	}
+	d.RequireView("Approvers · !482", "Backend", "bob Bob")
+}

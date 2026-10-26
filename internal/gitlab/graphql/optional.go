@@ -2,8 +2,10 @@ package graphql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -22,7 +24,8 @@ import (
 // A marker names the field(s) the segment depends on (comma separated).
 // When the instance answers "Field 'x' doesn't exist", the segment naming x
 // is dropped, the decision is remembered for the session and the request
-// is repeated without it.
+// is repeated without it. A segment that also names "complexity" is dropped
+// the same way when the instance rejects the query as too complex.
 const (
 	optBegin = "#@opt "
 	optEnd   = "#@end"
@@ -30,12 +33,21 @@ const (
 
 var unknownFieldRe = regexp.MustCompile(`Field '([A-Za-z0-9_]+)' doesn't exist on type`)
 
+// complexityName is the pseudo field name of segments that may be dropped
+// when the instance rejects the query as too complex:
+//
+//	#@opt approvalState,complexity
+const complexityName = "complexity"
+
 // DoOpt is Do for queries with optional segments.
 func (c *Client) DoOpt(ctx context.Context, query string, vars map[string]any, out any) error {
 	for range 8 {
 		text, names := c.render(query)
 		resp, err := c.Raw(ctx, text, vars)
 		if err != nil {
+			if c.dropComplex(err, names) {
+				continue
+			}
 			return err
 		}
 		if len(resp.Errors) > 0 {
@@ -100,6 +112,20 @@ func (c *Client) dropUnknown(errs []Error, names []string) string {
 		}
 	}
 	return ""
+}
+
+// dropComplex handles a complexity rejection: when the query has segments
+// that may be dropped for it, they are marked missing for the session.
+func (c *Client) dropComplex(err error, names []string) bool {
+	var ce *ComplexityError
+	if !errors.As(err, &ce) || !slices.Contains(names, complexityName) {
+		return false
+	}
+	c.mu.Lock()
+	c.missing[complexityName] = true
+	c.mu.Unlock()
+	debuglog.L().Info("graphql: query too complex, retrying without the optional segments", "score", ce.Score, "limit", ce.Limit)
+	return true
 }
 
 func splitNames(s string) []string {

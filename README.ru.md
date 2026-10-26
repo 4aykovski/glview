@@ -152,7 +152,7 @@ links:                               # свои ссылки в заголовк
 | Workspace | `J/K` между группами, `space` и `enter` свернуть/развернуть группу, `P` выбор проектов, `f` открыть проект строки, `u` fetch всех, `U` pull ff-only всех |
 | Оверлеи `p` и `F` | `↓/↑` `ctrl+n/ctrl+p` ход, `ctrl+d/ctrl+u` и `pgdown/pgup` на полстраницы, `enter` открыть, `esc` закрыть |
 | MRs и Pipelines | `s` главный фильтр по кругу, `backspace` сбросить фильтры |
-| MR (список и детали) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout через glab, `L` ссылки MR, `c` комментарий |
+| MR (список и детали) | `a` approve/unapprove, `M` merge, `b` rebase, `C` checkout через glab, `L` ссылки MR, `A` все апруверы, `c` комментарий |
 | Таб MRs | `n` новый MR, `d` MR на вкладке Diff, `O` MR в браузере, `o` список MR проекта с фильтрами |
 | MR, вкладка Diff | `J/K` между файлами, `←/→` горизонтальный скролл, `space` свернуть файл, `z` свернуть все, `c` комментарий к строке, `enter` на треде — тред на Discussions, `o` файл в браузере |
 | MR, вкладка Discussions | `J/K` между тредами, `space` свернуть тред |

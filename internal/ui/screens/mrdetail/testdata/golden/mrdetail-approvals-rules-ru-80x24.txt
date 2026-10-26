@@ -1,0 +1,24 @@
+glview  platform/route-service › MRs › !479                        @egor · ⟳ <1м
+Fix race in courier slot allocator
+anna.k · fix/slot-race → main · открыт 1ч назад · +48 −12 3 файла
+✗ not_approved  ✓ апрувов: 2  ✗ pipeline #91840 · failed  1 тред не разрешено
+ Обзор   Diff 3   Обсуждения 2   Пайплайны 2   Коммиты
+────────────────────────────────────────────────────────────────────────────────
+Why
+
+• slot map raced
+• see slotMap
+
+ func main() {}
+
+
+АПРУВЫ
+○ Backend                      1/2
+  ✓ bob
+  ○ anna.k, oleg, dima, lena +2
+○ Docs · /docs/                0/1
+  ○ lena
+○ All Members                  0/1
+  любой с правом апрува
+────────────────────────────────────────────────────────────────────────────────
+tab след. таб  j/k вниз  enter открыть  a апрув  M merge  ? хелп   Язык: русский

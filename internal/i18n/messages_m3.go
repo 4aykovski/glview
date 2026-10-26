@@ -15,6 +15,15 @@ type LinksMessages struct {
 	LoadFailed string // toast: the MR details for the links failed
 }
 
+// ApproversMessages are the strings of the approvers overlay (A, SPEC 3.5).
+type ApproversMessages struct {
+	Key         string                  // footer label of A
+	Title       func(ref string) string // overlay title: "Approvers · !479"
+	Hints       string                  // overlay footer hints
+	NoApprovers string                  // toast: the MR has no approvers
+	More        string                  // last line of the APPROVALS column: "A — all"
+}
+
 // TagMessages are the strings of the Tags tabs, the New tag form and the
 // tag actions (SPEC §3.4, §3.10).
 type TagMessages struct {

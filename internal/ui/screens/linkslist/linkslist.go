@@ -1,6 +1,6 @@
-// Package linkslist is the L key of the MR lists (project and workspace
-// MRs tabs): it loads the details of the selected MR and opens the links
-// overlay (SPEC 3.5, "MR links").
+// Package linkslist is the L and A keys of the MR lists (project and
+// workspace MRs tabs): it loads the details of the selected MR and opens the
+// links overlay or the approvers overlay (SPEC 3.5, "MR links", "Оверлей A").
 package linkslist
 
 import (
@@ -23,16 +23,26 @@ const (
 
 // LoadedMsg is the answer to Load.
 type LoadedMsg struct {
-	Tok common.Token
-	Ref gitlab.ProjectRef
-	IID int64
-	MR  gitlab.MergeRequest
-	Err error
+	Tok       common.Token
+	Approvers bool // asked by A (the approvers overlay), not L
+	Ref       gitlab.ProjectRef
+	IID       int64
+	MR        gitlab.MergeRequest
+	Err       error
 }
 
 // Load requests the details of MR iid of project ref through the cache
 // the MR detail screen uses (key "mr:<path>:<iid>").
 func Load(env *app.Env, tok common.Token, ref gitlab.ProjectRef, iid int64) tea.Cmd {
+	return load(env, tok, ref, iid, false)
+}
+
+// LoadApprovers is Load for the approvers overlay.
+func LoadApprovers(env *app.Env, tok common.Token, ref gitlab.ProjectRef, iid int64) tea.Cmd {
+	return load(env, tok, ref, iid, true)
+}
+
+func load(env *app.Env, tok common.Token, ref gitlab.ProjectRef, iid int64, approvers bool) tea.Cmd {
 	key := fmt.Sprintf("mr:%s:%d", ref.FullPath, iid)
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -40,7 +50,7 @@ func Load(env *app.Env, tok common.Token, ref gitlab.ProjectRef, iid int64) tea.
 		mr, _, err := common.Fetch(ctx, env.Cache, key, dataTTL, false, func(ctx context.Context) (gitlab.MergeRequest, error) {
 			return env.Client.MergeRequests().Get(ctx, ref, iid)
 		})
-		return LoadedMsg{Tok: tok, Ref: ref, IID: iid, MR: mr, Err: err}
+		return LoadedMsg{Tok: tok, Approvers: approvers, Ref: ref, IID: iid, MR: mr, Err: err}
 	}
 }
 
@@ -67,9 +77,22 @@ func Key(ref gitlab.ProjectRef, iid int64) string {
 	return fmt.Sprintf("links:%s:%d", ref.FullPath, iid)
 }
 
+// ApproversKey identifies the approvers overlay of an MR (see
+// app.ApproversRefreshMsg).
+func ApproversKey(ref gitlab.ProjectRef, iid int64) string {
+	return fmt.Sprintf("approvers:%s:%d", ref.FullPath, iid)
+}
+
 // Done handles an accepted answer: the overlay of the details, or after an
-// error the error toast and the overlay of the list row, if it has links.
+// error the error toast and, for L, the overlay of the list row if it has
+// links. A failed A opens nothing.
 func Done(env *app.Env, msg LoadedMsg, row gitlab.MergeRequest) tea.Cmd {
+	if msg.Approvers {
+		if msg.Err != nil {
+			return env.Fail(msg.Err)
+		}
+		return app.OpenApprovers(env, ApproversKey(msg.Ref, msg.IID), fmt.Sprintf("!%d", msg.IID), msg.MR)
+	}
 	if msg.Err == nil {
 		return Open(env, msg.Ref, msg.MR)
 	}

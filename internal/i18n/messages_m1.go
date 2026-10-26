@@ -49,20 +49,21 @@ type MRMessages struct {
 	PrevNoDesc      string
 
 	// Detail screen
-	Crumb                                                   string // "MRs" in the breadcrumbs
-	TabOverview, TabDiscussions, TabPipelines               string
-	Opened                                                  func(age string) string
-	Merged                                                  func(by, age string) string // by may be empty
-	Closed                                                  func(age string) string
-	ChipApprovals                                           func(have, required int) string
-	ChipThreads                                             func(n int) string
-	SecApprovals, SecLabels, SecPipeline, SecLastThread     string
-	None, ThreadResolved, ThreadUnresolved                  string
-	EmptyDiscussions, EmptyPipelines, Loading               string
-	ColStatus, ColID, ColRef, ColSource, ColCommit, ColUser string
-	ColDur, ColAgo                                          string
-	TabCommits, EmptyCommits, ColSHA                        string
-	NeedApprovals                                           func(left int) string
+	Crumb                                                    string // "MRs" in the breadcrumbs
+	TabOverview, TabDiscussions, TabPipelines                string
+	Opened                                                   func(age string) string
+	Merged                                                   func(by, age string) string // by may be empty
+	Closed                                                   func(age string) string
+	ChipApprovals                                            func(have, required int) string
+	ChipThreads                                              func(n int) string
+	SecApprovals, SecLabels, SecPipeline, SecLastThread      string
+	None, ThreadResolved, ThreadUnresolved                   string
+	EmptyDiscussions, EmptyPipelines, Loading                string
+	ColStatus, ColID, ColRef, ColSource, ColCommit, ColUser  string
+	ColDur, ColAgo                                           string
+	TabCommits, EmptyCommits, ColSHA                         string
+	NeedApprovals                                            func(left int) string
+	NeedYourApproval, AnyApprover, InvalidRule, ChangesAsked string // APPROVALS column (T41)
 
 	// Actions
 	ToastApproved, ToastUnapproved, ToastMerged, ToastAutoMerge func(iid int64) string
