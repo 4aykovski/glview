@@ -69,8 +69,8 @@ type gqlMR struct {
 	Squash                  bool   `json:"squash"`
 	ForceRemoveSourceBranch bool   `json:"forceRemoveSourceBranch"`
 	Author                  *gqlUser
-	Reviewers               gqlUsers `json:"reviewers"`
-	Assignees               gqlUsers `json:"assignees"`
+	Reviewers               gqlReviewers `json:"reviewers"`
+	Assignees               gqlUsers     `json:"assignees"`
 	Labels                  struct {
 		Nodes []struct {
 			Title string `json:"title"`
@@ -97,7 +97,10 @@ type gqlMR struct {
 	CommitCount      *int     `json:"commitCount"`
 	TitleHTML        string   `json:"titleHtml"`
 	DescriptionHTML  string   `json:"descriptionHtml"`
-	DiffRefs         *struct {
+	ApprovalState    *struct {
+		Rules []gqlApprovalRule `json:"rules"`
+	} `json:"approvalState"`
+	DiffRefs *struct {
 		BaseSHA  string `json:"baseSha"`
 		HeadSHA  string `json:"headSha"`
 		StartSHA string `json:"startSha"`
@@ -114,7 +117,8 @@ func (m gqlMR) domain(project gitlab.ProjectRef, me, origin string) gitlab.Merge
 		State:                   gitlab.MRState(lower(m.State)),
 		Draft:                   m.Draft,
 		Assignees:               m.Assignees.domain(),
-		Reviewers:               m.Reviewers.domain(),
+		Reviewers:               m.Reviewers.users(),
+		ReviewStates:            m.Reviewers.states(),
 		SourceBranch:            m.SourceBranch,
 		TargetBranch:            m.TargetBranch,
 		SHA:                     m.DiffHeadSHA,
@@ -143,6 +147,11 @@ func (m gqlMR) domain(project gitlab.ProjectRef, me, origin string) gitlab.Merge
 		mr.Labels = append(mr.Labels, l.Title)
 	}
 	mr.Approvals.ApprovedBy = m.ApprovedBy.domain()
+	if m.ApprovalState != nil {
+		for _, r := range m.ApprovalState.Rules {
+			mr.Approvals.Rules = append(mr.Approvals.Rules, r.domain())
+		}
+	}
 	for _, u := range mr.Approvals.ApprovedBy {
 		if me != "" && u.Username == me {
 			mr.Approvals.ApprovedByMe = true
@@ -442,6 +451,19 @@ fragment MRDetail on MergeRequest {
   rebaseInProgress
   mergeError
   mergedAt closedAt mergeUser { username name }
+  reviewers { nodes { username mergeRequestInteraction {
+    approved
+    #@opt reviewState
+    reviewState
+    #@end
+  } } }
+  #@opt approvalState
+  approvalState { rules {
+    name type section approvalsRequired approved invalid
+    approvedBy { nodes { username name } }
+    eligibleApprovers { username name }
+  } }
+  #@end
   #@opt commitCount
   commitCount
   #@end

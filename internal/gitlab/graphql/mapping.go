@@ -143,3 +143,68 @@ func parseTime(s string) time.Time {
 	}
 	return t
 }
+
+// gqlReviewers is the reviewers selection; details add the per-user merge
+// request interaction.
+type gqlReviewers struct {
+	Nodes []struct {
+		Username                string `json:"username"`
+		Name                    string `json:"name"`
+		WebURL                  string `json:"webUrl"`
+		MergeRequestInteraction *struct {
+			Approved    bool   `json:"approved"`
+			ReviewState string `json:"reviewState"`
+		} `json:"mergeRequestInteraction"`
+	} `json:"nodes"`
+}
+
+func (r gqlReviewers) users() []gitlab.User {
+	out := make([]gitlab.User, len(r.Nodes))
+	for i, n := range r.Nodes {
+		out[i] = gitlab.User{Username: n.Username, Name: n.Name, WebURL: n.WebURL}
+	}
+	return out
+}
+
+// states maps reviewers to review states; no interaction means no entry.
+func (r gqlReviewers) states() map[string]gitlab.ReviewState {
+	var out map[string]gitlab.ReviewState
+	for _, n := range r.Nodes {
+		i := n.MergeRequestInteraction
+		if i == nil {
+			continue
+		}
+		st := gitlab.ReviewState(lower(i.ReviewState))
+		if i.Approved {
+			st = gitlab.ReviewApproved
+		}
+		if out == nil {
+			out = map[string]gitlab.ReviewState{}
+		}
+		out[n.Username] = st
+	}
+	return out
+}
+
+type gqlApprovalRule struct {
+	Name              string    `json:"name"`
+	Type              string    `json:"type"`
+	Section           string    `json:"section"`
+	ApprovalsRequired int       `json:"approvalsRequired"`
+	Approved          bool      `json:"approved"`
+	Invalid           bool      `json:"invalid"`
+	ApprovedBy        gqlUsers  `json:"approvedBy"`
+	EligibleApprovers []gqlUser `json:"eligibleApprovers"`
+}
+
+func (r gqlApprovalRule) domain() gitlab.ApprovalRule {
+	rule := gitlab.ApprovalRule{
+		Name: r.Name, Type: gitlab.ApprovalRuleType(lower(r.Type)), Section: r.Section,
+		Required: r.ApprovalsRequired, Approved: r.Approved, Invalid: r.Invalid,
+		ApprovedBy: r.ApprovedBy.domain(),
+	}
+	for _, u := range r.EligibleApprovers {
+		rule.Eligible = append(rule.Eligible, u.domain())
+	}
+	return rule
+}
