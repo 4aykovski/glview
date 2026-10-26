@@ -975,15 +975,10 @@ func (s *Screen) side() []string {
 	mr := s.mr
 	head := func(t string) string { return st.Muted.Render(t) }
 	out := []string{head(m.SecApprovals)}
-	if len(mr.Approvals.ApprovedBy) == 0 {
-		out = append(out, st.Muted.Render(m.None))
-	}
-	for _, u := range mr.Approvals.ApprovedBy {
-		out = append(out, st.Success.Render("✓ ")+u.Username)
-	}
-	if mr.Approvals.Left > 0 {
-		out = append(out, st.Muted.Render(m.NeedApprovals(mr.Approvals.Left)))
-	}
+	out = append(out, approvalLines(st, approvalText{
+		none: m.None, needYour: m.NeedYourApproval, anyApprover: m.AnyApprover,
+		invalid: m.InvalidRule, changes: m.ChangesAsked, needMore: m.NeedApprovals,
+	}, mr, s.env.User.Username, sideW)...)
 	out = append(out, "", head(m.SecLabels))
 	if len(mr.Labels) == 0 {
 		out = append(out, st.Muted.Render(m.None))

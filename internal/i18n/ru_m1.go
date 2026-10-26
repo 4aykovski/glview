@@ -225,6 +225,7 @@ func fillM1RU(m *Messages) {
 	r.ColDur, r.ColAgo = "Длит", "Назад"
 	r.TabCommits, r.EmptyCommits, r.ColSHA = "Коммиты", "Нет коммитов", "SHA"
 	r.NeedApprovals = func(left int) string { return fmt.Sprintf("нужно ещё %d", left) }
+	r.NeedYourApproval, r.AnyApprover, r.InvalidRule, r.ChangesAsked = "нужен твой апрув", "любой с правом апрува", "правило недействительно", "изменения"
 
 	r.ToastApproved = func(iid int64) string { return fmt.Sprintf("одобрено !%d", iid) }
 	r.ToastUnapproved = func(iid int64) string { return fmt.Sprintf("одобрение снято !%d", iid) }

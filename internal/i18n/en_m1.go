@@ -213,6 +213,7 @@ func fillM1EN(m *Messages) {
 	r.ColDur, r.ColAgo = "Dur", "Ago"
 	r.TabCommits, r.EmptyCommits, r.ColSHA = "Commits", "No commits", "SHA"
 	r.NeedApprovals = func(left int) string { return fmt.Sprintf("%d more needed", left) }
+	r.NeedYourApproval, r.AnyApprover, r.InvalidRule, r.ChangesAsked = "needs your approval", "any eligible approver", "invalid rule", "changes requested"
 
 	r.ToastApproved = func(iid int64) string { return fmt.Sprintf("approved !%d", iid) }
 	r.ToastUnapproved = func(iid int64) string { return fmt.Sprintf("approval removed !%d", iid) }
