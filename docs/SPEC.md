@@ -361,6 +361,22 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
   - число неразрешённых тредов.
 - **Вкладки** (`tab` переключает): Overview, Diff, Discussions, Pipelines, Commits — в этом порядке, как в макете. `d` в списке MR открывает экран сразу на Diff.
   - **Overview:** описание через glamour слева; ссылки GitLab в тексте (`#12`, `!45`, `@anna.k`, ключи трекера) и совпадения правил `links` — тоже OSC 8 (см. «Ссылки MR»). Справа колонка: APPROVALS, LABELS, PIPELINE (стейджи и джобы кратко), последний тред.
+    - **APPROVALS — от кого нужен апрув** (T41, [#67](https://github.com/4aykovski/glview/issues/67)). Два режима по данным:
+      - **Правила** (в `Approvals.Rules` есть правило с `Required > 0`; правила с `Required = 0` не показываются). По блоку на правило: невыполненные (`○`) — первыми, недействительные (`✗`, `Invalid`) — следом, выполненные (`✓`) — последними, внутри группы — порядок API. Заголовок блока: значок, имя, справа `1/2` (`min(len(ApprovedBy), Required)/Required` правила). Имя: у `code_owner` — `<секция> · <имя>`, если секция не пустая и не `codeowners` (секция по умолчанию), иначе имя как есть (у code owner имя — шаблон пути, `/docs/`); у остальных — `name` из API; длинное имя обрезается с `…`, счёт всегда виден. Под заголовком невыполненного правила — до двух строк с отступом 2: `✓ bob, dima` (кто уже апрувнул по правилу; строки нет, если никто) и `○ anna.k, egor +3` (кандидаты: `Eligible` без апрувнувших; строки нет, если кандидатов нет). Имена через `, `, сколько влезает в ширину колонки; не влезшие — ` +K` (K — их число). У `any_approver` вместо кандидатов — Muted «любой с правом апрува», у недействительного — Muted «правило недействительно». У выполненного правила — только заголовок. Строка «нужно ещё N» в этом режиме не выводится: счёт — в заголовках правил.
+      - **Без правил** (CE, Free, правила не заданы или `approvalState` не поддерживается). По строке на reviewer в порядке API: `✓ bob` — апрувнул (`mergeRequestInteraction.approved` или `reviewState = approved`), `✗ dima` и Muted «изменения» — `requested_changes`, `○ anna.k` — остальные (ждём). Затем `✓ name` апрувнувших не из reviewers. Затем, как раньше, Muted «нужно ещё N» при `Left > 0`. Ни reviewers, ни апрувов — «нет».
+      - **Нужен мой апрув:** я (`me`) — кандидат невыполненного действительного правила не `any_approver` (без правил — ждущий reviewer) и `!ApprovedByMe`. Тогда первая строка под заголовком APPROVALS — «нужен твой апрув» (роль Warning), а моё имя в списках — Bold.
+      - Значки: `✓` — Success, `✗` — Error, `○` — Muted; имена — обычный текст. Без цветов состояния различаются значками.
+      - Пример (ширина колонки 35):
+        ```
+        APPROVALS
+        needs your approval
+        ○ Backend                       1/2
+          ✓ bob
+          ○ anna.k, egor, dima +3
+        ○ Docs · /docs/                 0/1
+          ○ lena
+        ✓ Security                      1/1
+        ```
   - **Diff** (T35, [#27](https://github.com/4aykovski/glview/issues/27)): изменения MR одной прокруткой — файлы подряд, у каждого заголовок и ханки unified diff.
     - **Заголовок вкладки:** `Diff N`, N — число файлов загруженного диффа; до загрузки — `MergeRequest.Diff.Files` (`diffStatsSummary`), если известен, иначе без числа.
     - **Заголовок файла** (Bold, во всю ширину): `▾ internal/slots/alloc.go` (свёрнут — `▸`), справа `+30 −8` (числа — по строкам диффа файла). Переименование — `old/path.go → new/path.go`, новый файл — пометка `новый`, удалённый — `удалён`, сгенерированный (`generated_file`) — `сгенерирован` (Muted). Между файлами пустая строка.
@@ -662,6 +678,7 @@ type MergeRequest struct {
     Author         User
     Assignees      []User
     Reviewers      []User
+    ReviewStates   map[string]ReviewState // только в деталях: username reviewer'а → состояние (3.5 APPROVALS)
     SourceBranch   string
     TargetBranch   string
     SHA            string
@@ -716,7 +733,25 @@ type Approvals struct {
     Required   int  // 0 на CE или без правил
     Left       int
     ApprovedByMe bool
+    Rules      []ApprovalRule // только в деталях (approvalState.rules); nil — правил нет или поле не поддерживается
 }
+
+type ApprovalRuleType string // regular | code_owner | report_approver | any_approver (ApprovalRuleType в нижнем регистре)
+
+type ApprovalRule struct {
+    Name       string
+    Type       ApprovalRuleType
+    Section    string // секция CODEOWNERS; только у code_owner
+    Required   int    // approvalsRequired
+    Approved   bool
+    Invalid    bool
+    ApprovedBy []User // кто апрувнул по этому правилу
+    Eligible   []User // eligibleApprovers: все, кто может апрувнуть (явно и через группы)
+}
+
+// Состояние ревью (MergeRequestReviewState в нижнем регистре); approved и при
+// mergeRequestInteraction.approved = true без reviewState.
+type ReviewState string // unreviewed | review_started | reviewed | requested_changes | approved | unapproved; "" — неизвестно
 
 type DiscussionStats struct{ Total, Unresolved int }
 
@@ -994,7 +1029,7 @@ type LocalProject struct {
 | Project → Issues | REST `GET /projects/:id/issues?state&scope=assigned_to_me|assignee_username|assignee_id=None&labels&milestone&search&order_by=updated_at&sort=desc&per_page=20&page` (`state=all` не пишется); `GET /issues/:iid/related_merge_requests` фоном для issues с `merge_requests_count > 0` (≤ 4, кэш 5 мин); превью — `GET /issues/:iid/notes?sort=desc&per_page=50` (разворачиваются старыми первыми) |
 | Issue (экран) | REST `GET /projects/:id/issues/:iid`, `GET /issues/:iid/discussions?per_page=100` (все страницы), `related_merge_requests` всегда (кэш 5 мин) |
 | Project → Tags | REST `GET /repository/tags?order_by=version&sort=desc&search&per_page=20&page`, `GET /pipelines?scope=tags&per_page=100` (первая страница и обновление; теги старше окна — без пайплайна); превью — `GET /repository/compare?from=<tag>&to=<default>` по выбранному тегу. Кэш 30 с; создание и удаление тега сбрасывают списки тегов, пайплайны тегов, compare и последний тег обзора проекта |
-| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `commitCount` (опциональное поле, `#@opt`), `titleHtml descriptionHtml` (опциональные, `#@opt`; без них ссылки MR — только из правил `links` и голых URL) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
+| MR detail | GraphQL `project{mergeRequest(iid){…MRDetail}}`: описание, `detailedMergeStatus`, `approvedBy`, `approvalsRequired`, `approvalsLeft`, `diffStatsSummary`, `headPipeline{stages}`, labels, reviewers, `mergedAt closedAt mergeUser{username name}`, `reviewers{nodes{username mergeRequestInteraction{approved reviewState}}}` (`reviewState` — `#@opt`), `approvalState{rules{name type section approvalsRequired approved invalid approvedBy{nodes{username name}} eligibleApprovers{username name}}}` (`#@opt`; 3.5 APPROVALS, 5.5), `commitCount` (опциональное поле, `#@opt`), `titleHtml descriptionHtml` (опциональные, `#@opt`; без них ссылки MR — только из правил `links` и голых URL) (только в `MRDetail`, не в `MRRow`: списки упираются в лимит сложности 250). пайплайны MR — `mergeRequest(iid){pipelines(first: 20){nodes{…PipelineRow}}}` (REST `GET /merge_requests/:iid/pipelines` не отдаёт автора, длительность и заголовок коммита). REST `GET /merge_requests/:iid/discussions?per_page=100` (все страницы) |
 | MR detail → Commits | REST `GET /projects/:id/merge_requests/:iid/commits?per_page=100`, все страницы (`id short_id title author_name web_url created_at` → `CommitSummary`); лениво, при первом открытии вкладки (3.5). REST, а не GraphQL `mergeRequest{commits}`: так же устроены discussions, и `CommitSummary` уже собирается из REST (теги) |
 | Перепроверка статуса MR | REST `GET /merge_requests/:iid?with_merge_status_recheck=true` → `detailed_merge_status` (запускает пересчёт, обычно возвращает `checking`; роль ниже Developer GitLab игнорирует). Единственное чтение деталей MR через REST |
 | approve / unapprove | REST `POST /merge_requests/:iid/approve` (`sha`), `POST …/unapprove` |
@@ -1071,7 +1106,7 @@ fragment WsMRGroup on Project {
 
 - **Минимальная поддерживаемая версия GitLab — 16.0.** Ниже — предупреждение в тосте при старте, без блокировки.
 - **Auto-merge:** на GitLab ≥ 17.11 — `auto_merge=true`, ниже — `merge_when_pipeline_succeeds=true` (в 17.11 его объявили deprecated).
-- **Approvals:** `approvalsRequired`/`approvalsLeft` на CE обычно 0. Колонка Appr тогда показывает число апрувов без знаменателя (`2`, а не `2/2`).
+- **Approvals:** `approvalsRequired`/`approvalsLeft` на CE обычно 0. Колонка Appr тогда показывает число апрувов без знаменателя (`2`, а не `2/2`). `MergeRequest.approvalState` (правила апрува) есть только в EE-сборке: на CE запрос MR detail повторяется без него (`#@opt`), на Free правил нет — APPROVALS показывает reviewers (3.5). `UserMergeRequestInteraction.reviewState` — тоже `#@opt`: без него reviewer различается только по `approved`.
 - **Неизвестное поле GraphQL** на старом инстансе: ошибка `Field 'x' doesn't exist` логируется. Для опциональных полей (`diffStatsSummary`, `queryComplexity`) есть запасной запрос без них, решение кэшируется на сессию.
 
 ### 5.6. Лог джобы: поллинг и разбор
