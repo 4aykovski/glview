@@ -366,17 +366,17 @@ Confirm · Merge · Run pipeline · Play job · New tag · Comment
       - **Без правил** (CE, Free, правила не заданы или `approvalState` не поддерживается). По строке на reviewer в порядке API: `✓ bob` — апрувнул (`mergeRequestInteraction.approved` или `reviewState = approved`), `✗ dima` и Muted «изменения» — `requested_changes`, `○ anna.k` — остальные (ждём). Затем `✓ name` апрувнувших не из reviewers. Затем, как раньше, Muted «нужно ещё N» при `Left > 0`. Ни reviewers, ни апрувов — «нет».
       - **Нужен мой апрув:** я (`me`) — кандидат невыполненного действительного правила не `any_approver` (без правил — ждущий reviewer) и `!ApprovedByMe`. Тогда первая строка под заголовком APPROVALS — «нужен твой апрув» (роль Warning), а моё имя в списках — Bold.
       - Значки: `✓` — Success, `✗` — Error, `○` — Muted; имена — обычный текст. Без цветов состояния различаются значками.
-      - Пример (ширина колонки 35):
-        ```
-        APPROVALS
-        needs your approval
-        ○ Backend                       1/2
-          ✓ bob
-          ○ anna.k, egor, dima +3
-        ○ Docs · /docs/                 0/1
-          ○ lena
-        ✓ Security                      1/1
-        ```
+      - Пример (ширина колонки 34; без ограждения из тройных обратных кавычек — тест README считает обратные кавычки в §3 парами):
+
+            APPROVALS
+            needs your approval
+            ○ Backend                      1/2
+              ✓ bob
+              ○ anna.k, egor, dima +3
+            ○ Docs · /docs/                0/1
+              ○ lena
+            ✓ Security                     1/1
+
   - **Diff** (T35, [#27](https://github.com/4aykovski/glview/issues/27)): изменения MR одной прокруткой — файлы подряд, у каждого заголовок и ханки unified diff.
     - **Заголовок вкладки:** `Diff N`, N — число файлов загруженного диффа; до загрузки — `MergeRequest.Diff.Files` (`diffStatsSummary`), если известен, иначе без числа.
     - **Заголовок файла** (Bold, во всю ширину): `▾ internal/slots/alloc.go` (свёрнут — `▸`), справа `+30 −8` (числа — по строкам диффа файла). Переименование — `old/path.go → new/path.go`, новый файл — пометка `новый`, удалённый — `удалён`, сгенерированный (`generated_file`) — `сгенерирован` (Muted). Между файлами пустая строка.
