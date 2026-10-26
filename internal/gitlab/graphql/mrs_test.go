@@ -426,6 +426,12 @@ func TestMRDetailApprovalRules(t *testing.T) {
 	if r := rules[1]; r.Type != gitlab.ApprovalCodeOwner || r.Section != "Docs" || r.Name != "/docs/" {
 		t.Errorf("rule 1 = %+v", r)
 	}
+	if got := rules[0].ApprovedBy[0].WebURL; got != "https://gitlab.example.com/bob" {
+		t.Errorf("approver WebURL = %q", got)
+	}
+	if got := rules[1].Eligible[0].WebURL; got != "https://gitlab.example.com/lena" || !mr.Detailed {
+		t.Errorf("eligible WebURL = %q, detailed %v", got, mr.Detailed)
+	}
 	if rules[2].Type != gitlab.ApprovalAnyApprover || !rules[3].Invalid || rules[4].Required != 0 || !rules[4].Approved {
 		t.Errorf("rules = %+v", rules[2:])
 	}
@@ -467,5 +473,55 @@ func TestMRDetailWithoutReviewState(t *testing.T) {
 	}
 	if rec.count() != 3 {
 		t.Fatalf("requests = %d, want 3 (retry once, then straight)", rec.count())
+	}
+}
+
+func TestMRDetailWithoutRuleSubfields(t *testing.T) {
+	for _, f := range []string{"invalid", "section", "eligibleApprovers", "webUrl"} {
+		t.Run(f, func(t *testing.T) {
+			c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
+				if strings.Contains(q, "approvalState") {
+					return `{"errors":[{"message":"Field '` + f + `' doesn't exist on type 'ApprovalRule'"}]}`
+				}
+				return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE"}}}}`
+			})
+			for range 2 {
+				mr, err := c.MR(context.Background(), testProject, 1, "egor")
+				if err != nil || mr.Approvals.Rules != nil || !mr.Detailed {
+					t.Fatalf("%+v %v", mr, err)
+				}
+			}
+			if rec.count() != 3 {
+				t.Fatalf("requests = %d, want 3 (the whole rules segment goes at once)", rec.count())
+			}
+		})
+	}
+}
+
+func TestMRDetailComplexityDropsApprovalState(t *testing.T) {
+	c, rec := newRecorder(t, func(n int, q string, _ map[string]any) string {
+		if strings.Contains(q, "approvalState") {
+			return `{"errors":[{"message":"Query has complexity of 312, which exceeds max complexity of 250"}]}`
+		}
+		return `{"data":{"project":{"mergeRequest":{"iid":"1","title":"t","state":"opened","detailedMergeStatus":"MERGEABLE"}}}}`
+	})
+	for range 2 {
+		mr, err := c.MR(context.Background(), testProject, 1, "egor")
+		if err != nil || mr.Approvals.Rules != nil || mr.IID != 1 {
+			t.Fatalf("%+v %v", mr, err)
+		}
+	}
+	if rec.count() != 3 {
+		t.Fatalf("requests = %d, want 3 (retry once, then straight)", rec.count())
+	}
+}
+
+func TestComplexityWithoutDroppableSegmentFails(t *testing.T) {
+	c, rec := newRecorder(t, func(int, string, map[string]any) string {
+		return `{"errors":[{"message":"Query has complexity of 312, which exceeds max complexity of 250"}]}`
+	})
+	_, err := c.ProjectMRs(context.Background(), testProject, gitlab.MRFilter{}, "egor", "", 20)
+	if !errors.Is(err, gitlab.ErrComplexity) || rec.count() != 1 {
+		t.Fatalf("err = %v after %d requests", err, rec.count())
 	}
 }

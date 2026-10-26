@@ -73,6 +73,7 @@ type MergeRequest struct {
 	Assignees    []User
 	Reviewers    []User
 	ReviewStates map[string]ReviewState // details only: reviewer username -> state
+	Detailed     bool                   // the details were loaded (not a list row): Rules and ReviewStates are meaningful
 	SourceBranch string
 	TargetBranch string
 	SHA          string

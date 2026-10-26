@@ -451,17 +451,17 @@ fragment MRDetail on MergeRequest {
   rebaseInProgress
   mergeError
   mergedAt closedAt mergeUser { username name }
-  reviewers { nodes { username mergeRequestInteraction {
+  reviewers { nodes { username webUrl mergeRequestInteraction {
     approved
     #@opt reviewState
     reviewState
     #@end
   } } }
-  #@opt approvalState
+  #@opt approvalState,invalid,section,eligibleApprovers,webUrl,complexity
   approvalState { rules {
     name type section approvalsRequired approved invalid
-    approvedBy { nodes { username name } }
-    eligibleApprovers { username name }
+    approvedBy { nodes { username name webUrl } }
+    eligibleApprovers { username name webUrl }
   } }
   #@end
   #@opt commitCount
@@ -497,5 +497,7 @@ func (c *Client) MR(ctx context.Context, project gitlab.ProjectRef, iid int64, m
 	if data.Project == nil || data.Project.MergeRequest == nil {
 		return gitlab.MergeRequest{}, &gitlab.Error{Kind: gitlab.ErrNotFound, Status: 404, Message: fmt.Sprintf("merge request !%d", iid)}
 	}
-	return data.Project.MergeRequest.domain(project, me, c.origin()), nil
+	mr := data.Project.MergeRequest.domain(project, me, c.origin())
+	mr.Detailed = true
+	return mr, nil
 }
